@@ -1,0 +1,2 @@
+"""Lightweight multi-agent communication protocol benchmark package."""
+
