@@ -1,27 +1,76 @@
 {
-  "provider": "deepseek",
-  "base_url": "https://api.deepseek.com",
-  "model": "deepseek-v4-flash",
-  "temperature": 0.0,
-  "thinking": "disabled",
-  "reasoning_effort": "high",
-  "max_tokens": 900,
-  "agent_max_tokens": 700,
-  "final_max_tokens": 1200,
-  "timeout_seconds": 120,
-  "max_retries": 2,
-  "pricing_per_1m_tokens": {
-    "deepseek-v4-flash": {
-      "input": 0.14,
-      "output": 0.28
+  "defaults": {
+    "candidate": "deepseek_flash",
+    "judge": "openai_judge"
+  },
+  "client_defaults": {
+    "max_tokens": 900,
+    "agent_max_tokens": 700,
+    "final_max_tokens": 1200,
+    "timeout_seconds": 120,
+    "max_retries": 2,
+    "pricing_per_1m_tokens": {
+      "deepseek-v4-flash": {
+        "input": 0.14,
+        "output": 0.28
+      },
+      "deepseek-v4-pro": {
+        "input": 0.435,
+        "output": 0.87
+      },
+      "default": {
+        "input": 0.0,
+        "output": 0.0
+      }
+    }
+  },
+  "profiles": {
+    "deepseek_flash": {
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-flash",
+      "max_tokens_param": "max_tokens",
+      "request_options": {
+        "thinking": {
+          "type": "disabled"
+        },
+        "temperature": 0.0
+      }
     },
-    "deepseek-v4-pro": {
-      "input": 0.435,
-      "output": 0.87
+    "deepseek_pro": {
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-pro",
+      "max_tokens_param": "max_tokens",
+      "request_options": {
+        "thinking": {
+          "type": "enabled"
+        },
+        "reasoning_effort": "high"
+      }
     },
-    "default": {
-      "input": 0.0,
-      "output": 0.0
+    "openai_candidate": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-5.4-mini",
+      "max_tokens_param": "max_completion_tokens",
+      "request_options": {
+        "reasoning_effort": "none"
+      }
+    },
+    "openai_judge": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-5.5",
+      "max_tokens": 1200,
+      "max_tokens_param": "max_completion_tokens",
+      "request_options": {
+        "reasoning_effort": "high"
+      }
     }
   }
 }

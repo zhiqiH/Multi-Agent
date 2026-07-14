@@ -55,4 +55,3 @@ def slug_list(raw: str | None) -> list[str]:
     if not raw:
         return []
     return [item.strip() for item in raw.split(",") if item.strip()]
-

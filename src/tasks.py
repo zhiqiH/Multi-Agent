@@ -1,23 +1,72 @@
 from __future__ import annotations
-
+import json
+from copy import deepcopy
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Iterable
 from .io_utils import read_json
 
+DEFAULT_CANDIDATE_FIELDS: tuple[str, ...] = (
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "prompt",
+    "required_output_format",
+)
 
-REQUIRED_TASK_FIELDS = {
+DEFAULT_JUDGE_PRIVATE_FIELDS: tuple[str, ...] = (
+    "evaluation_criteria",
+    "ground_truth",
+    "expected_failure_risks",
+    "scoring_rubric",
+    "required_evidence",
+)
+
+DEFAULT_JUDGE_FIELDS: tuple[str, ...] = DEFAULT_CANDIDATE_FIELDS + DEFAULT_JUDGE_PRIVATE_FIELDS
+
+PROTECTED_FIELDS: frozenset[str] = frozenset(DEFAULT_JUDGE_PRIVATE_FIELDS)
+
+REQUIRED_TASK_FIELDS: frozenset[str] = frozenset(
+    {
+        "task_id",
+        "category",
+        "difficulty",
+        "author",
+        "tool_requirement",
+        "prompt",
+        "required_output_format",
+        "evaluation_criteria",
+        "required_evidence",
+        "scoring_rubric",
+        "expected_failure_risks",
+        "ground_truth",
+    }
+)
+
+KNOWN_TASK_FIELDS: frozenset[str] = REQUIRED_TASK_FIELDS | {"notes"}
+
+_TASK_FIELD_LABELS = {
+    "task_id": "Task ID",
+    "category": "Category",
+    "difficulty": "Difficulty",
+    "author": "Author",
+    "tool_requirement": "Tool Requirement",
+    "prompt": "Prompt",
+    "required_output_format": "Required Output Format",
+    "evaluation_criteria": "Evaluation Criteria",
+    "required_evidence": "Required Evidence",
+    "scoring_rubric": "Scoring Rubric",
+    "expected_failure_risks": "Expected Failure Risks",
+    "ground_truth": "Ground Truth",
+    "notes": "Notes",
+}
+
+_INLINE_TASK_FIELDS = {
     "task_id",
     "category",
     "difficulty",
     "author",
     "tool_requirement",
-    "prompt",
-    "required_output_format",
-    "evaluation_criteria",
-    "required_evidence",
-    "scoring_rubric",
-    "expected_failure_risks",
 }
 
 
@@ -45,6 +94,32 @@ def select_tasks(benchmark: dict[str, Any], task_ids: list[str]) -> list[dict[st
     return selected
 
 
+def project_task(task: dict[str, Any], fields: Iterable[str]) -> dict[str, Any]:
+
+    if isinstance(fields, str):
+        raise TypeError("Task fields must be an iterable of field names, not a string")
+
+    requested = tuple(fields)
+    invalid = [field for field in requested if not isinstance(field, str) or not field]
+    if invalid:
+        raise ValueError(f"Task fields must be non-empty strings: {invalid}")
+
+    duplicates = sorted({field for field in requested if requested.count(field) > 1})
+    if duplicates:
+        raise ValueError(f"Duplicate task fields requested: {duplicates}")
+
+    unknown = sorted(set(requested) - KNOWN_TASK_FIELDS)
+    if unknown:
+        raise ValueError(f"Unknown task fields requested: {unknown}")
+
+    missing = sorted(set(requested) - set(task))
+    if missing:
+        task_id = task.get("task_id", "<unknown>")
+        raise ValueError(f"Task {task_id} missing requested fields: {missing}")
+
+    return {field: deepcopy(task[field]) for field in requested}
+
+
 def criteria_text(task: dict[str, Any]) -> str:
     lines = []
     for item in task.get("evaluation_criteria", []):
@@ -53,22 +128,27 @@ def criteria_text(task: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def candidate_task_text(candidate_task: dict[str, Any]) -> str:
+
+    sections: list[str] = []
+    for field, value in candidate_task.items():
+        if field not in KNOWN_TASK_FIELDS:
+            raise ValueError(f"Unknown field in projected candidate task: {field}")
+        label = _TASK_FIELD_LABELS[field]
+        rendered = _render_task_value(value)
+        if field in _INLINE_TASK_FIELDS and "\n" not in rendered:
+            sections.append(f"{label}: {rendered}")
+        else:
+            sections.append(f"{label}:\n{rendered}")
+    return "\n\n".join(sections)
+
+
 def task_brief(task: dict[str, Any]) -> str:
-    return f"""Task ID: {task["task_id"]}
-Category: {task["category"]}
-Difficulty: {task["difficulty"]}
-Tool Requirement: {task["tool_requirement"]}
 
-Prompt:
-{task["prompt"]}
+    return candidate_task_text(project_task(task, DEFAULT_CANDIDATE_FIELDS))
 
-Required Output Format:
-{task["required_output_format"]}
 
-Evaluation Criteria:
-{criteria_text(task)}
-
-Required Evidence:
-{task["required_evidence"]}
-"""
-
+def _render_task_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, indent=2)

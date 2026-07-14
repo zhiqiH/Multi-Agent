@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 import time
 from typing import Any, Callable, Union
 
@@ -40,7 +43,7 @@ PROTOCOLS: dict[str, dict[str, Any]] = {
     "debate": {
         "name": "Debate",
         "active_agents": 4,
-        "description": "Agents independently answer, critique, then Writer/Judge synthesizes.",
+        "description": "Agents independently answer, critique, then Writer/Arbiter synthesizes.",
     },
 }
 
@@ -54,8 +57,10 @@ DEFAULT_PROTOCOLS = [
 
 
 class RunState:
-    def __init__(self, task: dict[str, Any], client: Client, model: str, config: dict[str, Any]) -> None:
-        self.task = task
+    def __init__(self, candidate_task: dict[str, Any], client: Client, model: str, config: dict[str, Any]) -> None:
+        # This object is the hard candidate/Judge boundary. It must never receive
+        # the raw benchmark task containing evaluation-only fields.
+        self.task = candidate_task
         self.client = client
         self.model = model
         self.config = config
@@ -100,17 +105,34 @@ class RunState:
 
 def run_protocol(
     protocol_id: str,
-    task: dict[str, Any],
+    candidate_task: dict[str, Any],
     client: Client,
     config: dict[str, Any],
     *,
+    task_metadata: dict[str, Any] | None = None,
+    run_id: str | None = None,
     run_number: int = 1,
+    candidate_visible_fields: list[str] | None = None,
+    validity_warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     if protocol_id not in PROTOCOLS:
         raise ValueError(f"Unknown protocol: {protocol_id}")
 
+    if candidate_visible_fields is not None and set(candidate_task) != set(candidate_visible_fields):
+        raise ValueError(
+            "Candidate task keys do not match candidate_visible_fields; refusing to run with an ambiguous data boundary."
+        )
+
     model = getattr(client, "model", config.get("model", "unknown-model"))
-    state = RunState(task, client, model, config)
+    provider = getattr(client, "provider", config.get("provider", "unknown-provider"))
+    profile = getattr(client, "profile", config.get("profile", "legacy"))
+    metadata = dict(task_metadata or candidate_task)
+    task_id = metadata.get("task_id") or candidate_task.get("task_id")
+    if not task_id:
+        raise ValueError("task_metadata.task_id is required to identify a benchmark run.")
+    effective_run_id = run_id or build_run_id(task_id, protocol_id, profile, model, run_number)
+
+    state = RunState(candidate_task, client, model, config)
     start_time = utc_now_iso()
     started = time.perf_counter()
     errors: list[str] = []
@@ -131,16 +153,20 @@ def run_protocol(
         communication_density = round(message_count / protocol["active_agents"], 4)
 
     return {
-        "run_id": f"{task['task_id']}__{protocol_id}__run{run_number:02d}",
-        "task_id": task["task_id"],
-        "category": task["category"],
-        "difficulty": task["difficulty"],
+        "run_id": effective_run_id,
+        "task_id": task_id,
+        "category": metadata.get("category"),
+        "difficulty": metadata.get("difficulty"),
         "protocol": protocol["name"],
         "protocol_id": protocol_id,
+        "protocol_version": "2.0-field-isolated",
         "protocol_definition": protocol,
+        "candidate_provider": provider,
+        "candidate_profile": profile,
+        "candidate_model": model,
         "model": model,
         "temperature": config.get("temperature", 0.0),
-        "tool_requirement": task["tool_requirement"],
+        "tool_requirement": metadata.get("tool_requirement"),
         "tool_access_used": False,
         "start_time": start_time,
         "end_time": end_time,
@@ -154,10 +180,34 @@ def run_protocol(
         "tool_call_count": 0,
         "intermediate_messages": state.intermediate_messages,
         "tool_calls": [],
+        "candidate_visible_fields": list(candidate_task),
+        "candidate_view_sha256": _stable_sha256(candidate_task),
         "prompts": state.prompts,
         "final_output": final_output,
+        "validity_warnings": list(validity_warnings or []),
         "errors": errors,
     }
+
+
+def build_run_id(
+    task_id: str,
+    protocol_id: str,
+    candidate_profile: str,
+    model: str,
+    run_number: int,
+) -> str:
+    candidate_tag = _slug_component(f"{candidate_profile}-{model}")
+    return f"{_slug_component(task_id)}__{_slug_component(protocol_id)}__{candidate_tag}__run{run_number:02d}"
+
+
+def _slug_component(value: Any) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value)).strip("-._").lower()
+    return slug or "unknown"
+
+
+def _stable_sha256(value: Any) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def resolve_protocols(raw: list[str]) -> list[str]:
@@ -219,7 +269,7 @@ def _run_sequential_handoff(state: RunState) -> str:
     )
     analysis = state.call_agent(
         "Analyst",
-        "Synthesize the plan and evidence into conclusions tied to the evaluation criteria.",
+        "Synthesize the plan and evidence into conclusions tied to the stated task requirements.",
         f"[Planner]\n{plan}\n\n[Researcher]\n{evidence}",
         max_tokens=int(state.config.get("agent_max_tokens", 700)),
     )
@@ -302,20 +352,20 @@ def _run_debate(state: RunState) -> str:
     answer_context = "\n\n".join(f"[{role} independent answer]\n{content}" for role, content in independent)
     critique = state.call_agent(
         "Critic",
-        "Critique the independent answers. Identify disagreements, missing criteria, and unsupported claims.",
+        "Critique the independent answers. Identify disagreements, missing task requirements, and unsupported claims.",
         answer_context,
         max_tokens=int(state.config.get("agent_max_tokens", 700)),
     )
-    judge = state.call_agent(
-        "Judge",
+    arbiter = state.call_agent(
+        "Arbiter",
         "Select or synthesize the strongest answer direction after considering the critique.",
         f"{answer_context}\n\n[Critique]\n{critique}",
         max_tokens=int(state.config.get("agent_max_tokens", 700)),
     )
     return state.call_agent(
         "Writer",
-        "Write the final answer using the Judge direction and critique.",
-        f"[Judge]\n{judge}\n\n[Critique]\n{critique}\n\n{answer_context}",
+        "Write the final answer using the Arbiter direction and critique.",
+        f"[Arbiter]\n{arbiter}\n\n[Critique]\n{critique}\n\n{answer_context}",
         record_intermediate=False,
         max_tokens=int(state.config.get("final_max_tokens", 1200)),
     )
