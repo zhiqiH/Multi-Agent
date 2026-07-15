@@ -25,7 +25,7 @@
 
 ## 2. 八个实验 Protocol
 
-| ID | 论文条件 | 核心消息流 | 默认终止方式 |
+| ID | 通信条件 | 核心消息流 | 默认终止方式 |
 |---|---|---|---|
 | single_agent | Single Agent baseline | 一个通用 Agent 独立作答 | 首次最终答案 |
 | unstructured_group_chat | Protocol 0 | 所有角色共享群聊，自由迭代 | 达到轮数上限后 Writer 汇总 |
