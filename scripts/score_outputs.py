@@ -1,25 +1,22 @@
-#!/usr/bin/env python3
 from __future__ import annotations
-
 import argparse
 import hashlib
 import json
 import sys
 from pathlib import Path
 from typing import Any
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
-
 from src.analysis import write_scores_csv
 from src.io_utils import read_json, read_jsonl, slug_list, write_jsonl
 from src.llm_client import build_client
 from src.scorer import build_score_id, score_run_log
 from src.tasks import DEFAULT_JUDGE_FIELDS, load_benchmark, project_task
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score benchmark run logs with an independent Judge model.")
-    parser.add_argument("--benchmark", default="benchmark/mini_benchmark.json")
+    parser.add_argument("--benchmark", default="benchmark/benchmark-D.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--experiment-config", default="configs/experiment_config.json")
     parser.add_argument("--logs-dir", default="logs/raw")

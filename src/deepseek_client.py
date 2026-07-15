@@ -18,7 +18,6 @@ from .llm_client import (
     resolve_profile,
 )
 
-
 __all__ = [
     "DEFAULT_SECRETS_PATH",
     "DeepSeekClient",

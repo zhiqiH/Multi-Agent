@@ -1,10 +1,7 @@
 from __future__ import annotations
-
 import json
 from typing import Any
-
 from .tasks import PROTECTED_FIELDS, candidate_task_text, project_task
-
 
 ROLE_SYSTEM_PROMPTS = {
     "Planner": "You are Planner. Decompose the task, identify deliverables, constraints, and a concise execution plan. Do not fabricate external evidence.",

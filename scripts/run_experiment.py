@@ -5,25 +5,17 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from src.io_utils import read_json, slug_list, write_json
+from src.llm_client import build_client
+from src.protocols import DEFAULT_PROTOCOLS, PROTOCOLS, build_run_id, resolve_protocols, run_protocol
+from src.tasks import DEFAULT_CANDIDATE_FIELDS, KNOWN_TASK_FIELDS, PROTECTED_FIELDS, load_benchmark, project_task, select_tasks
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.io_utils import read_json, slug_list, write_json
-from src.llm_client import build_client
-from src.protocols import DEFAULT_PROTOCOLS, PROTOCOLS, build_run_id, resolve_protocols, run_protocol
-from src.tasks import (
-    DEFAULT_CANDIDATE_FIELDS,
-    KNOWN_TASK_FIELDS,
-    PROTECTED_FIELDS,
-    load_benchmark,
-    project_task,
-    select_tasks,
-)
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run multi-agent communication protocol experiments.")
-    parser.add_argument("--benchmark", default="benchmark/mini_benchmark.json")
+    parser.add_argument("--benchmark", default="benchmark/benchmark-D.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--experiment-config", default="configs/experiment_config.json")
     parser.add_argument("--out-dir", default="logs/raw")

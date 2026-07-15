@@ -8,12 +8,10 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from src.llm_client import DEFAULT_SECRETS_PATH, format_profiles, load_secrets
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-
-from src.llm_client import DEFAULT_SECRETS_PATH, format_profiles, load_secrets  # noqa: E402
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Store model API keys locally using hidden prompts. Keys are never accepted as CLI arguments.")

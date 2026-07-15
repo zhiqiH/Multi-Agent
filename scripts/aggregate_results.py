@@ -1,21 +1,12 @@
-#!/usr/bin/env python3
 from __future__ import annotations
-
 import argparse
 import sys
 from pathlib import Path
+from src.analysis import GROUP_BY_CHOICES, aggregate_scores, write_aggregate_csv, write_aggregate_json, write_summary_markdown
+from src.io_utils import read_jsonl
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-
-from src.analysis import (  # noqa: E402
-    GROUP_BY_CHOICES,
-    aggregate_scores,
-    write_aggregate_csv,
-    write_aggregate_json,
-    write_summary_markdown,
-)
-from src.io_utils import read_jsonl  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

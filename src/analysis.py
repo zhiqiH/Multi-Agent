@@ -1,12 +1,10 @@
 from __future__ import annotations
-
 import csv
 import json
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean
 from typing import Any
-
 from .io_utils import ensure_dir, write_json
 
 
