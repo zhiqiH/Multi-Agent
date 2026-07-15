@@ -1,23 +1,45 @@
 from __future__ import annotations
+
 import json
 import re
 from typing import Any, Union
-from .deepseek_client import DeepSeekClient, MockLLMClient
-from .prompts import scoring_prompt
 
-Client = Union[DeepSeekClient, MockLLMClient]
+from .llm_client import MockLLMClient, OpenAICompatibleClient
+from .prompts import PROMPT_SCHEMA_VERSION, scoring_prompt
 
 
-def build_score_id(run_id: str, client: Client) -> str:
-    profile = getattr(client, "profile", "legacy")
-    model = getattr(client, "model", "unknown-evaluator")
+Client = Union[OpenAICompatibleClient, MockLLMClient]
+
+
+def build_score_id(run_id: str, client: Client, judge_condition_id: str) -> str:
+    profile = client.profile
+    model = client.model
     tag = _slug_component(f"{profile}-{model}")
-    return f"{run_id}__judge-{tag}"
+    return f"{run_id}__judge-{tag}__jc-{_slug_component(judge_condition_id)}"
 
 
-def score_run_log(run_log: dict[str, Any], task: dict[str, Any], client: Client) -> dict[str, Any]:
-    messages = scoring_prompt(task, run_log.get("final_output", ""))
-    response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=8000)
+def score_run_log(
+    run_log: dict[str, Any],
+    task: dict[str, Any],
+    client: Client,
+    *,
+    judge_condition_id: str,
+) -> dict[str, Any]:
+    messages = scoring_prompt(task, run_log["final_output"])
+    effective_config = dict(getattr(client, "effective_config", {}) or {})
+    judge_max_tokens = int(effective_config["judge_max_tokens"])
+    response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=judge_max_tokens)
+    if not response.content.strip():
+        detail = f"finish_reason={response.finish_reason or 'unknown'}, output_tokens={response.output_tokens}"
+        raise RuntimeError(
+            "Judge returned no visible JSON content "
+            f"({detail}). Increase judge_max_tokens or reduce reasoning effort."
+        )
+    if response.finish_reason == "length":
+        raise RuntimeError(
+            "Judge response reached its token limit before a complete score was guaranteed. "
+            "Increase judge_max_tokens or reduce reasoning effort."
+        )
     parsed = _parse_json_object(response.content)
 
     accuracy_raw = _clamp_int(parsed.get("accuracy_raw", 3), 1, 5)
@@ -38,26 +60,38 @@ def score_run_log(run_log: dict[str, Any], task: dict[str, Any], client: Client)
     )
     overall_score_cap = _clamp_float(parsed.get("overall_score_cap", 1.0), 0.0, 1.0)
     overall_quality_score = round(min(uncapped_quality_score, overall_score_cap), 4)
-    total_tokens = max(1, int(run_log.get("total_tokens", 0)))
-    quality_cost_ratio = round(overall_quality_score / total_tokens, 8)
+    agent_tokens = max(1, int(run_log.get("total_tokens", 0)))
+    quality_token_ratio = round(overall_quality_score / agent_tokens, 8)
 
-    judge_provider = getattr(client, "provider", "unknown-provider")
-    judge_profile = getattr(client, "profile", "legacy")
-    judge_model = getattr(client, "model", "unknown-evaluator")
+    judge_provider = client.provider
+    judge_profile = client.profile
+    judge_model = client.model
     judge_estimated_cost = _estimate_judge_cost(client, response.input_tokens, response.output_tokens)
+    agent_cost = float(run_log.get("estimated_cost", 0.0) or 0.0)
+    total_estimated_cost = round(agent_cost + judge_estimated_cost, 8)
 
     return {
-        "score_id": build_score_id(run_log["run_id"], client),
+        "record_type": "score",
+        "schema_version": "3.0",
+        "score_id": build_score_id(run_log["run_id"], client, judge_condition_id),
         "run_id": run_log["run_id"],
+        "experiment_id": run_log["experiment_id"],
+        "condition_id": run_log["condition_id"],
+        "judge_condition_id": judge_condition_id,
         "task_id": run_log["task_id"],
+        "category": run_log.get("category"),
         "protocol": run_log["protocol"],
-        "protocol_id": run_log.get("protocol_id"),
-        "candidate_provider": run_log.get("candidate_provider", "unknown-provider"),
-        "candidate_profile": run_log.get("candidate_profile", "legacy"),
-        "candidate_model": run_log.get("candidate_model") or run_log.get("model", "unknown-model"),
+        "protocol_id": run_log["protocol_id"],
+        "protocol_version": run_log["protocol_version"],
+        "role_mode": run_log["role_mode"],
+        "evaluation_mode": run_log["evaluation_mode"],
+        "agent_provider": run_log["agent_provider"],
+        "agent_profile": run_log["agent_profile"],
+        "agent_model": run_log["agent_model"],
         "judge_provider": judge_provider,
         "judge_profile": judge_profile,
-        "evaluator": judge_model,
+        "judge_model": judge_model,
+        "judge_prompt_schema_version": PROMPT_SCHEMA_VERSION,
         "accuracy_raw": accuracy_raw,
         "accuracy_norm": round(accuracy_norm, 4),
         "completeness_norm": round(completeness_norm, 4),
@@ -70,17 +104,28 @@ def score_run_log(run_log: dict[str, Any], task: dict[str, Any], client: Client)
         "cap_reasons": parsed.get("cap_reasons") or [],
         "runtime_seconds": run_log.get("runtime_seconds", 0),
         "total_tokens": run_log.get("total_tokens", 0),
-        "estimated_cost": run_log.get("estimated_cost", 0.0),
+        "estimated_cost": agent_cost,
+        "active_agent_count": run_log.get("active_agent_count", 1),
+        "interaction_count": run_log.get("interaction_count", 1),
+        "rounds_completed": run_log.get("rounds_completed", 1),
         "message_count": run_log.get("message_count", 0),
         "communication_density": run_log.get("communication_density", 0.0),
-        "quality_cost_ratio": quality_cost_ratio,
+        "agreement_rate": run_log.get("agreement_rate"),
+        "critique_acceptance_rate": run_log.get("critique_acceptance_rate"),
+        "tool_call_count": run_log.get("tool_call_count", 0),
+        "quality_token_ratio": quality_token_ratio,
+        "quality_api_cost_ratio": (
+            round(overall_quality_score / total_estimated_cost, 8) if total_estimated_cost > 0 else None
+        ),
         "failure_type": parsed.get("failure_type") or "None",
+        "detected_failure_risks": parsed.get("detected_failure_risks") or [],
         "notes": parsed.get("notes", ""),
         "scorer_input_tokens": response.input_tokens,
         "scorer_output_tokens": response.output_tokens,
         "scorer_total_tokens": response.total_tokens,
+        "judge_finish_reason": response.finish_reason,
         "judge_estimated_cost": judge_estimated_cost,
-        "total_estimated_cost": round(float(run_log.get("estimated_cost", 0.0) or 0.0) + judge_estimated_cost, 8),
+        "total_estimated_cost": total_estimated_cost,
         "raw_evaluation": parsed,
     }
 
@@ -88,7 +133,6 @@ def score_run_log(run_log: dict[str, Any], task: dict[str, Any], client: Client)
 def _criterion_completeness(criteria: Any, raw_scores: Any, *, fallback: Any) -> float:
     if not isinstance(criteria, list) or not criteria or not raw_scores:
         return _clamp_float(fallback, 0.0, 1.0)
-
     score_by_id: dict[str, float] = {}
     if isinstance(raw_scores, dict):
         for criterion_id, score in raw_scores.items():
@@ -98,7 +142,6 @@ def _criterion_completeness(criteria: Any, raw_scores: Any, *, fallback: Any) ->
             if not isinstance(item, dict) or item.get("id") is None:
                 continue
             score_by_id[str(item["id"])] = _clamp_float(item.get("score", 0.0), 0.0, 1.0)
-
     if not score_by_id:
         return _clamp_float(fallback, 0.0, 1.0)
 
@@ -118,8 +161,7 @@ def _criterion_completeness(criteria: Any, raw_scores: Any, *, fallback: Any) ->
 def _estimate_judge_cost(client: Client, input_tokens: int, output_tokens: int) -> float:
     config = getattr(client, "effective_config", {}) or {}
     pricing = config.get("pricing_per_1m_tokens", {}) if isinstance(config, dict) else {}
-    model = getattr(client, "model", "")
-    rates = pricing.get(model) or pricing.get("default") or {"input": 0.0, "output": 0.0}
+    rates = pricing if isinstance(pricing, dict) else {}
     try:
         return round(
             (input_tokens / 1_000_000) * float(rates.get("input", 0.0))
@@ -130,20 +172,23 @@ def _estimate_judge_cost(client: Client, input_tokens: int, output_tokens: int) 
         return 0.0
 
 
-def _slug_component(value: Any) -> str:
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value)).strip("-._").lower()
-    return slug or "unknown"
-
-
 def _parse_json_object(text: str) -> dict[str, Any]:
     try:
-        return json.loads(text)
+        parsed = json.loads(text)
     except json.JSONDecodeError:
         start = text.find("{")
         end = text.rfind("}")
-        if start >= 0 and end > start:
-            return json.loads(text[start : end + 1])
-        raise
+        if start < 0 or end <= start:
+            raise
+        parsed = json.loads(text[start : end + 1])
+    if not isinstance(parsed, dict):
+        raise ValueError("Judge output must be a JSON object")
+    return parsed
+
+
+def _slug_component(value: Any) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value)).strip("-._").lower()
+    return slug or "unknown"
 
 
 def _clamp_float(value: Any, low: float, high: float) -> float:

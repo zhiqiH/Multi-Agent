@@ -1,0 +1,165 @@
+{
+  "record_type": "agent_run",
+  "schema_version": "3.0",
+  "run_id": "main__ta-04__single_agent__deepseek_v4_flash-deepseek-v4-flash__c-4b675d85ff29__run01",
+  "task_id": "TA-04",
+  "category": "Technical Analysis",
+  "difficulty": "Medium",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_version": "3.1-pdf-eight-protocols",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 50000
+  },
+  "prompt_schema_version": "3.1-agent-judge-boundary",
+  "role_mode": "specialized",
+  "agent_provider": "deepseek",
+  "agent_profile": "deepseek_v4_flash",
+  "agent_model": "deepseek-v4-flash",
+  "model": "deepseek-v4-flash",
+  "temperature": 0.0,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "start_time": "2026-07-15T18:16:04+00:00",
+  "end_time": "2026-07-15T18:16:15+00:00",
+  "runtime_seconds": 10.544,
+  "input_tokens": 379,
+  "output_tokens": 850,
+  "total_tokens": 1229,
+  "estimated_cost": 0.00029106,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "prompt",
+    "required_output_format"
+  ],
+  "agent_view_sha256": "5eb6affc8699114de0e99faffaa294811cf0616cad306e8a279f7d5f98598e48",
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly using the required format and visible task information."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: TA-04\n\nCategory: Technical Analysis\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nPrompt:\nA system must answer questions based on a collection of long technical documents. The documents may exceed the language model's context-window limit.\n\nAnalyze and compare the following three technical approaches:\n\n1. Full-context prompting: place as much document content as possible directly into the model prompt.\n2. Retrieval-augmented generation: divide documents into chunks, retrieve relevant chunks for each question, and provide them to the model.\n3. Hierarchical summarization: summarize document sections first, combine the section summaries into higher-level summaries, and use the summaries to answer questions.\n\nCompare the three approaches in terms of:\n\n- Information coverage\n- Answer accuracy and grounding\n- Context-window usage\n- Computational cost\n- Implementation complexity\n- Main failure risks\n\nThen recommend the most suitable approach for a system that must answer detailed questions about a large collection of technical manuals. Justify the recommendation and identify one situation in which the recommended approach may perform poorly.\nUse qualitative technical reasoning. Do not invent numerical performance results.\n\nRequired Output Format:\nUse the following structure:\n\n1. Brief explanation of full-context prompting\n2. Brief explanation of retrieval-augmented generation\n3. Brief explanation of hierarchical summarization\n4. Comparison table\n5. Final recommendation\n6. Limitation of the recommended approach\n\nThe comparison table must use the following columns:\n\n| Approach | Information Coverage | Grounding | Context Usage | Cost | Implementation Complexity | Main Failure Risk |\n\nThe response should be approximately 500–700 words.\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1. **Brief explanation of full-context prompting**  \n   Full-context prompting involves placing as much of the document content as possible directly into the model’s prompt, relying on the model’s ability to process and reason over the entire input at once. This approach assumes the document fits within the model’s context window, either by truncation or by using a model with a very large context limit.\n\n2. **Brief explanation of retrieval-augmented generation**  \n   Retrieval-augmented generation (RAG) divides documents into smaller chunks (e.g., paragraphs or pages), indexes them, and for each question retrieves the most relevant chunks using a similarity search (e.g., embeddings). The retrieved chunks are then provided to the model along with the question to generate an answer.\n\n3. **Brief explanation of hierarchical summarization**  \n   Hierarchical summarization first summarizes individual document sections, then combines those section summaries into higher-level summaries (e.g., chapter or document summaries), and finally uses the top-level summaries to answer questions. This creates a compressed representation of the document content.\n\n4. **Comparison table**\n\n| Approach | Information Coverage | Grounding | Context Usage | Cost | Implementation Complexity | Main Failure Risk |\n|----------|----------------------|------------|---------------|------|---------------------------|-------------------|\n| Full-context prompting | Covers only content that fits in the context window; may lose details if documents exceed the limit. | Directly grounded in the original text, but prone to hallucination if context is truncated or overloaded. | Uses the entire context window; may exceed limits for large collections. | Low for small documents; high for large ones due to need for large-context models or multiple calls. | Very low; simply place text in prompt. | Context window overflow; loss of critical details; model confusion from excessive input. |\n| Retrieval-augmented generation | Covers the entire document collection via chunking and indexing; can retrieve specific details. | Grounded in retrieved chunks; accuracy depends on retrieval quality and chunk relevance. | Uses only a small context window for retrieved chunks; efficient for large collections. | Moderate; requires indexing, embedding, and retrieval infrastructure; per-query cost is low. | Moderate; requires building a retrieval pipeline and chunking strategy. | Retrieval failure (missing relevant chunks); poor chunk boundaries; answer may miss cross-chunk context. |\n| Hierarchical summarization | Covers the entire document collection through summaries, but loses fine-grained details. | Grounded in summaries, which may omit or distort original information; risk of cascading errors. | Uses a small context window for summaries; efficient for large collections. | High; requires multiple summarization passes (section, chapter, document). | High; requires designing summarization hierarchy and managing intermediate outputs. | Information loss from summarization; errors propagate upward; cannot answer detailed questions. |\n\n5. **Final recommendation**  \n   The most suitable approach for a system that must answer detailed questions about a large collection of technical manuals is **retrieval-augmented generation (RAG)**.  \n   - **Justification:** Technical manuals often contain precise specifications, procedures, and cross-references. RAG preserves the original text in chunks, allowing the model to retrieve and ground answers in exact passages. It scales to large collections without context-window limits, and its per-query cost is low. While full-context prompting fails for large manuals and hierarchical summarization loses detail, RAG balances coverage, accuracy, and efficiency. The main implementation challenge (building a retrieval pipeline) is manageable with modern tools, and the risk of retrieval failure can be mitigated by careful chunking and indexing.\n\n6. **Limitation of the recommended approach**  \n   RAG may perform poorly when a question requires synthesizing information from multiple, widely separated chunks that are not individually retrieved. For example, a question about a complex procedure that spans several chapters and involves interdependent steps may miss critical cross-chunk relationships, leading to an incomplete or inaccurate answer. In such cases, hierarchical summarization or a hybrid approach (e.g., combining RAG with a summary of the overall document structure) might be needed.",
+  "validity_warnings": [],
+  "errors": [],
+  "experiment_id": "main",
+  "condition_id": "4b675d85ff29",
+  "condition": {
+    "schema_version": "3.0",
+    "benchmark_sha256": "b3d64df3e105fb9beb0c40600ad256a0e993bb9df95824d4a0b7fc063f9d56e0",
+    "protocol_id": "single_agent",
+    "protocol_version": "3.1-pdf-eight-protocols",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 50000
+    },
+    "agent_provider": "deepseek",
+    "agent_profile": "deepseek_v4_flash",
+    "agent_model": "deepseek-v4-flash",
+    "agent_effective_config": {
+      "max_tokens": 1800,
+      "agent_max_tokens": 900,
+      "final_max_tokens": 1800,
+      "judge_max_tokens": 3000,
+      "timeout_seconds": 180,
+      "max_retries": 2,
+      "display_name": "DeepSeek V4 Flash",
+      "description": "Low-latency agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-flash",
+      "max_tokens_param": "max_tokens",
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": false
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.14,
+        "output": 0.28
+      },
+      "profile": "deepseek_v4_flash",
+      "request_options": {
+        "thinking": {
+          "type": "disabled"
+        },
+        "reasoning_effort": "medium",
+        "temperature": 0.0
+      },
+      "temperature": 0.0,
+      "thinking": "disabled",
+      "reasoning_effort": "medium"
+    },
+    "evaluation_mode": "blind",
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "prompt",
+      "required_output_format"
+    ],
+    "role_mode": "specialized",
+    "tool_policy": {
+      "execution_layer": "not_implemented",
+      "available_tools": [],
+      "warn_when_required_tools_are_unavailable": true,
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    }
+  },
+  "evaluation_mode": "blind",
+  "protected_agent_fields": [],
+  "benchmark_id": "benchmark-D",
+  "benchmark_version": "unspecified",
+  "benchmark_file": "benchmark/benchmark-D.json",
+  "benchmark_sha256": "b3d64df3e105fb9beb0c40600ad256a0e993bb9df95824d4a0b7fc063f9d56e0",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}

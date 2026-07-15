@@ -15,7 +15,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.configure_models import configure_keys  # noqa: E402
-from src.deepseek_client import DeepSeekClient  # noqa: E402
 from src.llm_client import (  # noqa: E402
     MockLLMClient,
     OpenAICompatibleClient,
@@ -41,38 +40,48 @@ class _FakeResponse:
 
 def _config() -> dict[str, object]:
     return {
-        "defaults": {"candidate": "deepseek", "judge": "openai-judge"},
-        "client_defaults": {"timeout_seconds": 7, "max_retries": 0, "max_tokens": 99},
+        "defaults": {"agent": "deepseek", "judge": "openai-judge"},
+        "client_defaults": {
+            "timeout_seconds": 7,
+            "max_retries": 0,
+            "max_tokens": 99,
+            "agent_max_tokens": 50,
+            "final_max_tokens": 80,
+            "pricing_per_1m_tokens": {"input": 0, "output": 0},
+        },
         "profiles": {
             "deepseek": {
                 "provider": "deepseek",
+                "base_url": "https://api.deepseek.com",
                 "model": "deepseek-v4-flash",
                 "api_key_env": "DEEPSEEK_API_KEY",
-                "request_options": {"thinking": {"type": "disabled"}, "temperature": 0.0},
+                "max_tokens_param": "max_tokens",
+                "request_options": {
+                    "temperature": 0.0,
+                    "extra_body": {"thinking": {"type": "disabled"}},
+                },
             },
             "openai-judge": {
                 "provider": "openai",
+                "base_url": "https://api.openai.com/v1",
                 "model": "gpt-test-judge",
                 "api_key_env": "OPENAI_API_KEY",
                 "max_tokens_param": "max_completion_tokens",
                 "request_options": {"reasoning_effort": "high"},
             },
         },
-        "agent_max_tokens": 50,
-        "final_max_tokens": 80,
-        "pricing_per_1m_tokens": {"default": {"input": 0, "output": 0}},
     }
 
 
 class ProfileTests(unittest.TestCase):
-    def test_candidate_judge_defaults_and_model_override(self) -> None:
+    def test_agent_judge_defaults_and_model_override(self) -> None:
         config = _config()
-        candidate = resolve_profile(config)
+        agent = resolve_profile(config)
         judge = resolve_profile(config, role="judge", model="gpt-overridden")
 
-        self.assertEqual(candidate["profile"], "deepseek")
-        self.assertEqual(candidate["provider"], "deepseek")
-        self.assertEqual(candidate["max_tokens_param"], "max_tokens")
+        self.assertEqual(agent["profile"], "deepseek")
+        self.assertEqual(agent["provider"], "deepseek")
+        self.assertEqual(agent["max_tokens_param"], "max_tokens")
         self.assertEqual(judge["profile"], "openai-judge")
         self.assertEqual(judge["provider"], "openai")
         self.assertEqual(judge["model"], "gpt-overridden")
@@ -172,16 +181,28 @@ class ClientTests(unittest.TestCase):
         self.assertNotIn(api_key, str(raised.exception))
         self.assertIn("[REDACTED]", str(raised.exception))
 
-    def test_legacy_deepseek_import_still_works(self) -> None:
-        client = DeepSeekClient(
-            api_key="test-key",
-            base_url="https://api.deepseek.com",
-            model="deepseek-v4-flash",
-            max_retries=0,
+    def test_deepseek_profile_uses_unified_client_and_flattens_extra_body(self) -> None:
+        client = build_client(
+            _config(),
+            role="agent",
+            environ={"DEEPSEEK_API_KEY": "test-key"},
         )
+        fake = _FakeResponse(
+            {
+                "model": "deepseek-v4-flash",
+                "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        )
+        with mock.patch("src.llm_client.urllib.request.urlopen", return_value=fake) as urlopen:
+            client.chat([{"role": "user", "content": "hello"}])
+
+        body = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))
+        self.assertIsInstance(client, OpenAICompatibleClient)
         self.assertEqual(client.provider, "deepseek")
-        self.assertEqual(client.request_options["thinking"], {"type": "disabled"})
-        self.assertEqual(client.request_options["temperature"], 0.0)
+        self.assertEqual(body["thinking"], {"type": "disabled"})
+        self.assertEqual(body["temperature"], 0.0)
+        self.assertNotIn("extra_body", body)
 
 
 class ConfigureScriptTests(unittest.TestCase):

@@ -13,19 +13,6 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SECRETS_PATH = PROJECT_ROOT / ".secrets" / "model_keys.json"
 
-_PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
-    "deepseek": {
-        "base_url": "https://api.deepseek.com",
-        "api_key_env": "DEEPSEEK_API_KEY",
-        "max_tokens_param": "max_tokens",
-    },
-    "openai": {
-        "base_url": "https://api.openai.com/v1",
-        "api_key_env": "OPENAI_API_KEY",
-        "max_tokens_param": "max_completion_tokens",
-    },
-}
-
 _SENSITIVE_CONFIG_KEYS = {
     "api_key",
     "apikey",
@@ -35,6 +22,10 @@ _SENSITIVE_CONFIG_KEYS = {
 }
 
 _EFFECTIVE_CONFIG_KEYS = {
+    "display_name",
+    "description",
+    "supported_roles",
+    "capabilities",
     "provider",
     "profile",
     "base_url",
@@ -47,9 +38,7 @@ _EFFECTIVE_CONFIG_KEYS = {
     "request_options",
     "agent_max_tokens",
     "final_max_tokens",
-    "temperature",
-    "thinking",
-    "reasoning_effort",
+    "judge_max_tokens",
     "pricing_per_1m_tokens",
 }
 
@@ -62,6 +51,7 @@ class LLMResponse:
     total_tokens: int
     raw: dict[str, Any]
     response_model: str | None = None
+    finish_reason: str | None = None
 
 
 def load_secrets(path: Path | str | None = None) -> dict[str, str]:
@@ -78,92 +68,60 @@ def load_secrets(path: Path | str | None = None) -> dict[str, str]:
     if not isinstance(payload, dict):
         raise ValueError(f"Model secrets file must contain a JSON object: {secrets_path}")
 
-    keys = payload.get("keys", payload)
-    if not isinstance(keys, dict):
-        raise ValueError(f"Model secrets 'keys' value must be a JSON object: {secrets_path}")
-    return {str(name): value for name, value in keys.items() if isinstance(value, str) and value.strip()}
+    return {
+        str(name): value
+        for name, value in payload.items()
+        if isinstance(value, str) and value.strip()
+    }
 
 
 def resolve_profile(
     config: Mapping[str, Any],
     *,
-    role: str = "candidate",
+    role: str = "agent",
     profile: str | None = None,
     model: str | None = None,
 ) -> dict[str, Any]:
-    """Resolve a named model profile and optional model override.
+    """Resolve a named model profile and optional model override."""
 
-    New configurations use ``defaults`` and ``profiles``. A legacy flat model
-    configuration is still accepted so old scripts keep working during the
-    migration.
-    """
-
-    if role not in {"candidate", "judge"}:
-        raise ValueError("role must be either 'candidate' or 'judge'")
+    if role not in {"agent", "judge"}:
+        raise ValueError("role must be either 'agent' or 'judge'")
 
     raw_profiles = config.get("profiles")
-    has_named_profiles = isinstance(raw_profiles, Mapping) and bool(raw_profiles)
-    request_options: dict[str, Any]
+    if not isinstance(raw_profiles, Mapping) or not raw_profiles:
+        raise ValueError("model config must define a non-empty 'profiles' object")
+    defaults = config.get("defaults") or {}
+    if not isinstance(defaults, Mapping):
+        raise ValueError("model config 'defaults' must be a JSON object")
+    selected_name = profile or str(defaults.get(role) or "")
+    if not selected_name:
+        raise ValueError(f"No default {role} profile is configured")
+    if selected_name not in raw_profiles:
+        available = ", ".join(sorted(str(name) for name in raw_profiles))
+        raise ValueError(f"Unknown model profile '{selected_name}'. Available: {available}")
 
-    if has_named_profiles:
-        defaults = config.get("defaults") or {}
-        if not isinstance(defaults, Mapping):
-            raise ValueError("model config 'defaults' must be a JSON object")
-        selected_name = profile or str(defaults.get(role) or "")
-        if not selected_name:
-            raise ValueError(f"No default {role} profile is configured")
-        if selected_name not in raw_profiles:
-            available = ", ".join(sorted(str(name) for name in raw_profiles))
-            raise ValueError(f"Unknown model profile '{selected_name}'. Available: {available}")
-
-        common = config.get("client_defaults") or {}
-        selected = raw_profiles[selected_name]
-        if not isinstance(common, Mapping) or not isinstance(selected, Mapping):
-            raise ValueError("client_defaults and each model profile must be JSON objects")
-        merged = copy.deepcopy(dict(common))
-        common_options = merged.pop("request_options", {}) or {}
-        selected_copy = copy.deepcopy(dict(selected))
-        selected_options = selected_copy.pop("request_options", {}) or {}
-        if not isinstance(common_options, Mapping) or not isinstance(selected_options, Mapping):
-            raise ValueError("request_options must be a JSON object")
-        merged.update(selected_copy)
-        request_options = copy.deepcopy(dict(common_options))
-        request_options.update(copy.deepcopy(dict(selected_options)))
-
-        # These legacy-style keys are accepted inside a profile, while the
-        # preferred representation remains request_options.
-        for option_name in ("temperature", "reasoning_effort"):
-            if option_name in merged and option_name not in request_options:
-                request_options[option_name] = copy.deepcopy(merged[option_name])
-        if "thinking" in merged and "thinking" not in request_options:
-            thinking = merged["thinking"]
-            request_options["thinking"] = (
-                copy.deepcopy(thinking) if isinstance(thinking, Mapping) else {"type": str(thinking)}
-            )
-    else:
-        selected_name = profile or "legacy"
-        merged = copy.deepcopy(dict(config))
-        request_options = {}
-        for option_name in ("temperature", "reasoning_effort"):
-            if option_name in merged:
-                request_options[option_name] = copy.deepcopy(merged[option_name])
-        if "thinking" in merged:
-            thinking = merged["thinking"]
-            request_options["thinking"] = (
-                copy.deepcopy(thinking) if isinstance(thinking, Mapping) else {"type": str(thinking)}
-            )
+    common = config.get("client_defaults") or {}
+    selected = raw_profiles[selected_name]
+    if not isinstance(common, Mapping) or not isinstance(selected, Mapping):
+        raise ValueError("client_defaults and each model profile must be JSON objects")
+    merged = copy.deepcopy(dict(common))
+    common_options = merged.pop("request_options", {}) or {}
+    selected_copy = copy.deepcopy(dict(selected))
+    selected_options = selected_copy.pop("request_options", {}) or {}
+    if not isinstance(common_options, Mapping) or not isinstance(selected_options, Mapping):
+        raise ValueError("request_options must be a JSON object")
+    merged.update(selected_copy)
+    request_options = copy.deepcopy(dict(common_options))
+    request_options.update(copy.deepcopy(dict(selected_options)))
 
     _reject_embedded_secrets(merged)
     _reject_embedded_secrets(request_options)
 
-    provider = str(merged.get("provider") or "deepseek").strip().lower()
-    provider_defaults = _PROVIDER_DEFAULTS.get(provider, {})
-    base_url = str(merged.get("base_url") or provider_defaults.get("base_url") or "").strip()
+    provider = str(merged.get("provider") or "").strip().lower()
+    base_url = str(merged.get("base_url") or "").strip()
     resolved_model = str(model or merged.get("model") or "").strip()
-    api_key_env = str(merged.get("api_key_env") or provider_defaults.get("api_key_env") or "").strip()
-    max_tokens_param = str(
-        merged.get("max_tokens_param") or provider_defaults.get("max_tokens_param") or "max_tokens"
-    ).strip()
+    api_key_env = str(merged.get("api_key_env") or "").strip()
+    max_tokens_param = str(merged.get("max_tokens_param") or "").strip()
 
     if not provider:
         raise ValueError(f"Profile '{selected_name}' has no provider")
@@ -175,6 +133,9 @@ def resolve_profile(
         raise ValueError(f"Profile '{selected_name}' has no api_key_env")
     if not max_tokens_param or any(character.isspace() for character in max_tokens_param):
         raise ValueError(f"Profile '{selected_name}' has an invalid max_tokens_param")
+    supported_roles = merged.get("supported_roles") or []
+    if supported_roles and role not in supported_roles:
+        raise ValueError(f"Profile '{selected_name}' does not support the {role} role")
 
     resolved: dict[str, Any] = copy.deepcopy(merged)
     resolved.update(
@@ -189,28 +150,6 @@ def resolve_profile(
         }
     )
 
-    # Runtime budgets and pricing remain top-level for compatibility with the
-    # existing protocol implementation, but become available on the client as
-    # a redacted effective configuration too.
-    for key in (
-        "max_tokens",
-        "timeout_seconds",
-        "max_retries",
-        "agent_max_tokens",
-        "final_max_tokens",
-        "pricing_per_1m_tokens",
-    ):
-        if key not in resolved and key in config:
-            resolved[key] = copy.deepcopy(config[key])
-    if "temperature" not in resolved:
-        resolved["temperature"] = request_options.get("temperature")
-        if not has_named_profiles and resolved["temperature"] is None:
-            resolved["temperature"] = config.get("temperature")
-    if "thinking" not in resolved and "thinking" in request_options:
-        thinking = request_options["thinking"]
-        resolved["thinking"] = thinking.get("type") if isinstance(thinking, Mapping) else thinking
-    if "reasoning_effort" not in resolved and "reasoning_effort" in request_options:
-        resolved["reasoning_effort"] = request_options["reasoning_effort"]
     return resolved
 
 
@@ -246,15 +185,21 @@ def list_profiles(config: Mapping[str, Any]) -> list[dict[str, Any]]:
 
     raw_profiles = config.get("profiles")
     if not isinstance(raw_profiles, Mapping) or not raw_profiles:
-        return [_effective_config(resolve_profile(config), config)]
-    return [_effective_config(resolve_profile(config, profile=str(name)), config) for name in sorted(raw_profiles)]
+        raise ValueError("model config must define a non-empty 'profiles' object")
+    summaries: list[dict[str, Any]] = []
+    for name in sorted(raw_profiles):
+        profile = raw_profiles[name]
+        roles = profile.get("supported_roles") if isinstance(profile, Mapping) else None
+        role = "agent" if not roles or "agent" in roles else "judge"
+        summaries.append(_effective_config(resolve_profile(config, role=role, profile=str(name))))
+    return summaries
 
 
 def format_profiles(config: Mapping[str, Any]) -> str:
     lines = []
     defaults = config.get("defaults") if isinstance(config.get("defaults"), Mapping) else {}
     for item in list_profiles(config):
-        roles = [role for role in ("candidate", "judge") if defaults.get(role) == item["profile"]]
+        roles = [role for role in ("agent", "judge") if defaults.get(role) == item["profile"]]
         suffix = f" [default: {', '.join(roles)}]" if roles else ""
         lines.append(f"{item['profile']}: {item['provider']} / {item['model']}{suffix}")
     return "\n".join(lines)
@@ -289,7 +234,10 @@ class OpenAICompatibleClient:
 
         options = copy.deepcopy(dict(request_options or {}))
         _reject_embedded_secrets(options)
-        reserved = {"model", "messages", "stream"} & set(options)
+        extra_body = options.get("extra_body") or {}
+        if not isinstance(extra_body, Mapping):
+            raise ValueError("request_options.extra_body must be a JSON object")
+        reserved = {"model", "messages", "stream"} & (set(options) | set(extra_body))
         if reserved:
             raise ValueError(f"request_options cannot override reserved fields: {sorted(reserved)}")
 
@@ -317,18 +265,8 @@ class OpenAICompatibleClient:
         self._effective_config = _sanitize_effective_config(initial_effective)
 
     @property
-    def request_options(self) -> dict[str, Any]:
-        return copy.deepcopy(self._request_options)
-
-    @property
     def effective_config(self) -> dict[str, Any]:
         return copy.deepcopy(self._effective_config)
-
-    @property
-    def config(self) -> dict[str, Any]:
-        """Compatibility alias for the redacted effective configuration."""
-
-        return self.effective_config
 
     def __repr__(self) -> str:
         return (
@@ -377,6 +315,7 @@ class OpenAICompatibleClient:
                     total_tokens=total_tokens,
                     raw=payload,
                     response_model=str(payload.get("model") or self.model),
+                    finish_reason=str(payload["choices"][0].get("finish_reason") or "") or None,
                 )
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", errors="replace")
@@ -403,6 +342,8 @@ class OpenAICompatibleClient:
         if token_limit <= 0:
             raise ValueError("max_tokens must be positive")
         body = copy.deepcopy(self._request_options)
+        extra_body = body.pop("extra_body", {}) or {}
+        body.update(copy.deepcopy(dict(extra_body)))
         body.update(
             {
                 "model": self.model,
@@ -433,52 +374,6 @@ class OpenAICompatibleClient:
         return value
 
 
-class DeepSeekClient(OpenAICompatibleClient):
-    """Backward-compatible constructor for existing DeepSeek imports."""
-
-    def __init__(
-        self,
-        api_key: str,
-        base_url: str,
-        model: str,
-        temperature: float | None = 0.0,
-        max_tokens: int = 900,
-        thinking: str | Mapping[str, Any] | None = "disabled",
-        reasoning_effort: str | None = "high",
-        timeout_seconds: int = 120,
-        max_retries: int = 2,
-        *,
-        profile: str = "legacy-deepseek",
-        request_options: Mapping[str, Any] | None = None,
-        max_tokens_param: str = "max_tokens",
-        effective_config: Mapping[str, Any] | None = None,
-    ) -> None:
-        options = copy.deepcopy(dict(request_options or {}))
-        if thinking is not None and "thinking" not in options:
-            options["thinking"] = (
-                copy.deepcopy(dict(thinking)) if isinstance(thinking, Mapping) else {"type": str(thinking)}
-            )
-        thinking_type = options.get("thinking")
-        enabled = isinstance(thinking_type, Mapping) and thinking_type.get("type") == "enabled"
-        if enabled and reasoning_effort is not None:
-            options.setdefault("reasoning_effort", reasoning_effort)
-        elif not enabled and temperature is not None:
-            options.setdefault("temperature", temperature)
-        super().__init__(
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-            provider="deepseek",
-            profile=profile,
-            request_options=options,
-            max_tokens=max_tokens,
-            max_tokens_param=max_tokens_param,
-            timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
-            effective_config=effective_config,
-        )
-
-
 class MockLLMClient:
     """Deterministic local client for smoke tests without API calls."""
 
@@ -488,14 +383,11 @@ class MockLLMClient:
         *,
         provider: str = "mock",
         profile: str = "mock",
-        requested_model: str | None = None,
         effective_config: Mapping[str, Any] | None = None,
-        **_: Any,
     ) -> None:
         self.model = model
         self.provider = provider
         self.profile = profile
-        self.requested_model = requested_model or model.removeprefix("mock-")
         self._effective_config = _sanitize_effective_config(
             effective_config
             or {
@@ -509,10 +401,6 @@ class MockLLMClient:
     @property
     def effective_config(self) -> dict[str, Any]:
         return copy.deepcopy(self._effective_config)
-
-    @property
-    def config(self) -> dict[str, Any]:
-        return self.effective_config
 
     def __repr__(self) -> str:
         return f"MockLLMClient(provider={self.provider!r}, profile={self.profile!r}, model={self.model!r})"
@@ -554,6 +442,7 @@ class MockLLMClient:
             total_tokens=input_tokens + output_tokens,
             raw={"mock": True, "max_tokens": max_tokens},
             response_model=self.model,
+            finish_reason="stop",
         )
 
 
@@ -561,54 +450,42 @@ def build_client(
     config: Mapping[str, Any],
     *,
     dry_run: bool = False,
-    role: str = "candidate",
+    role: str = "agent",
     profile: str | None = None,
-    profile_name: str | None = None,
     model: str | None = None,
     secrets_path: Path | str | None = None,
     environ: Mapping[str, str] | None = None,
-) -> OpenAICompatibleClient | DeepSeekClient | MockLLMClient:
-    """Build a candidate or judge client from a named, non-secret profile."""
+) -> OpenAICompatibleClient | MockLLMClient:
+    """Build an agent or judge client from a named, non-secret profile."""
 
-    if profile and profile_name and profile != profile_name:
-        raise ValueError("profile and profile_name overrides disagree")
-    selected_profile = profile or profile_name
-    resolved = resolve_profile(config, role=role, profile=selected_profile, model=model)
-    effective = _effective_config(resolved, config)
+    resolved = resolve_profile(config, role=role, profile=profile, model=model)
+    effective = _effective_config(resolved)
     if dry_run:
         return MockLLMClient(
             model=f"mock-{resolved['model']}",
-            requested_model=resolved["model"],
             provider=resolved["provider"],
             profile=resolved["profile"],
             effective_config=effective,
         )
 
     api_key = resolve_api_key(resolved, secrets_path=secrets_path, environ=environ)
-    client_class = DeepSeekClient if resolved["provider"] == "deepseek" else OpenAICompatibleClient
-    common_kwargs = {
-        "api_key": api_key,
-        "base_url": resolved["base_url"],
-        "model": resolved["model"],
-        "profile": resolved["profile"],
-        "request_options": resolved.get("request_options") or {},
-        "max_tokens": int(resolved.get("max_tokens", 900)),
-        "max_tokens_param": resolved["max_tokens_param"],
-        "timeout_seconds": int(resolved.get("timeout_seconds", 120)),
-        "max_retries": int(resolved.get("max_retries", 2)),
-        "effective_config": effective,
-    }
-    if client_class is DeepSeekClient:
-        return DeepSeekClient(temperature=None, thinking=None, reasoning_effort=None, **common_kwargs)
-    return OpenAICompatibleClient(provider=resolved["provider"], **common_kwargs)
+    return OpenAICompatibleClient(
+        api_key=api_key,
+        base_url=resolved["base_url"],
+        model=resolved["model"],
+        provider=resolved["provider"],
+        profile=resolved["profile"],
+        request_options=resolved.get("request_options") or {},
+        max_tokens=int(resolved["max_tokens"]),
+        max_tokens_param=resolved["max_tokens_param"],
+        timeout_seconds=int(resolved["timeout_seconds"]),
+        max_retries=int(resolved["max_retries"]),
+        effective_config=effective,
+    )
 
 
-def _effective_config(resolved: Mapping[str, Any], config: Mapping[str, Any]) -> dict[str, Any]:
-    combined = copy.deepcopy(dict(resolved))
-    for key in ("agent_max_tokens", "final_max_tokens", "pricing_per_1m_tokens", "temperature"):
-        if key not in combined and key in config:
-            combined[key] = copy.deepcopy(config[key])
-    return _sanitize_effective_config(combined)
+def _effective_config(resolved: Mapping[str, Any]) -> dict[str, Any]:
+    return _sanitize_effective_config(resolved)
 
 
 def _sanitize_effective_config(config: Mapping[str, Any]) -> dict[str, Any]:
@@ -648,7 +525,7 @@ def _infer_role(text: str) -> str:
             return line.split(marker, 1)[1].strip().strip(".")
     if "single-agent baseline" in text or "single-agent" in text.lower():
         return "Single Agent"
-    for role in ("Planner", "Researcher", "Analyst", "Critic", "Writer", "Manager", "Judge"):
+    for role in ("Planner", "Researcher", "Analyst", "Critic", "Writer", "Manager"):
         if role in text:
             return role
     return "Agent"
@@ -656,7 +533,6 @@ def _infer_role(text: str) -> str:
 
 __all__ = [
     "DEFAULT_SECRETS_PATH",
-    "DeepSeekClient",
     "LLMResponse",
     "MockLLMClient",
     "OpenAICompatibleClient",

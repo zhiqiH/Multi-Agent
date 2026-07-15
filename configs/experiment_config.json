@@ -1,10 +1,15 @@
 {
-  "benchmark_version": "benchmark-2026-07-13",
+  "schema_version": "3.0",
+  "benchmark_version": "communication-protocols-24-v1",
   "default_protocols": [
     "single_agent",
+    "unstructured_group_chat",
     "sequential_handoff",
     "shared_blackboard",
-    "manager_worker"
+    "manager_worker",
+    "debate",
+    "voting",
+    "dynamic_task_allocation"
   ],
   "available_protocols": [
     "single_agent",
@@ -12,10 +17,54 @@
     "sequential_handoff",
     "shared_blackboard",
     "manager_worker",
-    "debate"
+    "debate",
+    "voting",
+    "dynamic_task_allocation"
   ],
+  "protocols": {
+    "single_agent": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 50000
+    },
+    "unstructured_group_chat": {
+      "max_rounds": 3,
+      "max_interactions": 13,
+      "max_total_tokens": 50000
+    },
+    "sequential_handoff": {
+      "max_rounds": 1,
+      "max_interactions": 4,
+      "max_total_tokens": 50000
+    },
+    "shared_blackboard": {
+      "max_rounds": 2,
+      "max_interactions": 9,
+      "max_total_tokens": 50000
+    },
+    "manager_worker": {
+      "max_rounds": 3,
+      "max_interactions": 8,
+      "max_total_tokens": 50000
+    },
+    "debate": {
+      "max_rounds": 2,
+      "max_interactions": 7,
+      "max_total_tokens": 50000
+    },
+    "voting": {
+      "max_rounds": 2,
+      "max_interactions": 8,
+      "max_total_tokens": 50000
+    },
+    "dynamic_task_allocation": {
+      "max_rounds": 3,
+      "max_interactions": 15,
+      "max_total_tokens": 50000
+    }
+  },
   "task_visibility": {
-    "candidate_fields": [
+    "agent_fields": [
       "task_id",
       "category",
       "difficulty",
@@ -43,16 +92,35 @@
       "scoring_rubric",
       "required_evidence"
     ],
-    "allow_protected_fields_for_candidates": false,
-    "store_candidate_prompts": true
+    "allow_protected_fields_for_agents": false,
+    "store_agent_prompts": true
   },
   "tool_policy": {
-    "implemented_tools": [],
-    "warn_when_required_tools_are_unavailable": true
+    "execution_layer": "not_implemented",
+    "available_tools": [],
+    "warn_when_required_tools_are_unavailable": true,
+    "record_tool_inputs": true,
+    "record_tool_outputs": true
   },
   "run_policy": {
-    "runs_per_task_protocol": 1,
-    "rerun_failed_conditions": false,
-    "notes": "Budget-light version requested by user: 3 benchmark tasks instead of the full 30-task standard."
+    "experiment_id": "main",
+    "runs_per_condition": 1,
+    "role_mode": "specialized",
+    "rerun_failed_conditions": false
+  },
+  "failure_taxonomy": [
+    "Coordination Failure",
+    "Communication Failure",
+    "Role Confusion",
+    "Hallucination Propagation",
+    "Premature Consensus",
+    "Over-Collaboration",
+    "Manager Bottleneck",
+    "Noise Accumulation",
+    "None"
+  ],
+  "failure_analysis": {
+    "minimum_cases": 5,
+    "minimum_task_fraction": 0.2
   }
 }

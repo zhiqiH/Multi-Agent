@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import getpass
 import json
@@ -8,10 +10,11 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
-from src.llm_client import DEFAULT_SECRETS_PATH, format_profiles, load_secrets
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.llm_client import DEFAULT_SECRETS_PATH, format_profiles, load_secrets  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Store model API keys locally using hidden prompts. Keys are never accepted as CLI arguments.")
@@ -58,30 +61,20 @@ def configure_keys(
 
 def _key_targets(config: Mapping[str, Any]) -> list[tuple[str, str]]:
     profiles = config.get("profiles")
+    if not isinstance(profiles, Mapping) or not profiles:
+        raise ValueError("Model configuration must define a non-empty profiles object")
     targets: set[tuple[str, str]] = set()
-    if isinstance(profiles, Mapping) and profiles:
-        for profile in profiles.values():
-            if not isinstance(profile, Mapping):
-                raise ValueError("Each model profile must be a JSON object")
-            provider = str(profile.get("provider") or "").strip().lower()
-            env_name = str(profile.get("api_key_env") or _default_key_env(provider)).strip()
-            if provider and env_name:
-                targets.add((provider, env_name))
-    else:
-        provider = str(config.get("provider") or "deepseek").strip().lower()
-        env_name = str(config.get("api_key_env") or _default_key_env(provider)).strip()
-        if provider and env_name:
-            targets.add((provider, env_name))
+    for profile in profiles.values():
+        if not isinstance(profile, Mapping):
+            raise ValueError("Each model profile must be a JSON object")
+        provider = str(profile.get("provider") or "").strip().lower()
+        env_name = str(profile.get("api_key_env") or "").strip()
+        if not provider or not env_name:
+            raise ValueError("Every model profile must define provider and api_key_env")
+        targets.add((provider, env_name))
     if not targets:
         raise ValueError("No provider/api_key_env pairs were found in the model configuration")
     return sorted(targets)
-
-
-def _default_key_env(provider: str) -> str:
-    return {
-        "deepseek": "DEEPSEEK_API_KEY",
-        "openai": "OPENAI_API_KEY",
-    }.get(provider, "")
 
 
 def _write_secrets(path: Path, values: Mapping[str, str]) -> None:

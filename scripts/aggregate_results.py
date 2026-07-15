@@ -1,16 +1,25 @@
+#!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
-from src.analysis import GROUP_BY_CHOICES, aggregate_scores, write_aggregate_csv, write_aggregate_json, write_summary_markdown
-from src.io_utils import read_jsonl
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.analysis import (  # noqa: E402
+    GROUP_BY_CHOICES,
+    aggregate_scores,
+    write_aggregate_csv,
+    write_aggregate_json,
+    write_summary_markdown,
+)
+from src.io_utils import read_jsonl  # noqa: E402
+
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Aggregate scored benchmark results by model/judge condition or protocol.")
+    parser = argparse.ArgumentParser(description="Aggregate scored agent-system results by experiment condition or protocol.")
     parser.add_argument("--scores-jsonl", default="results/scores.jsonl")
     parser.add_argument("--aggregate-csv", default="results/aggregate_results.csv")
     parser.add_argument("--aggregate-json", default="results/aggregate_results.json")
@@ -19,7 +28,7 @@ def parse_args() -> argparse.Namespace:
         "--group-by",
         choices=GROUP_BY_CHOICES,
         default="condition",
-        help="Aggregate by full candidate/judge/protocol condition (default) or protocol only (legacy).",
+        help="Aggregate by full agent/Judge/protocol condition, experiment, or protocol-only view.",
     )
     return parser.parse_args()
 

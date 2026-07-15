@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable, TextIO
 
 
 def utc_now_iso() -> str:
@@ -18,11 +21,33 @@ def read_json(path: Path) -> Any:
         return json.load(f)
 
 
-def write_json(path: Path, data: Any) -> None:
+def _atomic_write(path: Path, writer: Callable[[TextIO], None]) -> None:
+    """Write a complete replacement in the destination directory, then rename it."""
     ensure_dir(path.parent)
-    with path.open("w", encoding="utf-8") as f:
+    fd, temp_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            writer(f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, path)
+    except BaseException:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+
+def write_json(path: Path, data: Any) -> None:
+    def write(f: TextIO) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
         f.write("\n")
+
+    _atomic_write(path, write)
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -38,16 +63,11 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
-    ensure_dir(path.parent)
-    with path.open("w", encoding="utf-8") as f:
+    def write(f: TextIO) -> None:
         for record in records:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-
-def append_jsonl(path: Path, record: dict[str, Any]) -> None:
-    ensure_dir(path.parent)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    _atomic_write(path, write)
 
 
 def slug_list(raw: str | None) -> list[str]:
