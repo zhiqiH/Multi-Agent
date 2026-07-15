@@ -20,7 +20,7 @@ def build_score_id(run_id: str, client: Client) -> str:
 
 def score_run_log(run_log: dict[str, Any], task: dict[str, Any], client: Client) -> dict[str, Any]:
     messages = scoring_prompt(task, run_log.get("final_output", ""))
-    response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=700)
+    response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=8000)
     parsed = _parse_json_object(response.content)
 
     accuracy_raw = _clamp_int(parsed.get("accuracy_raw", 3), 1, 5)
