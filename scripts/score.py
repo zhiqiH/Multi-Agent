@@ -9,7 +9,14 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.analysis import write_scores_csv  # noqa: E402
+from src.analysis import (  # noqa: E402
+    GROUP_BY_CHOICES,
+    aggregate_scores,
+    write_aggregate_csv,
+    write_aggregate_json,
+    write_scores_csv,
+    write_summary_markdown,
+)
 from src.io_utils import read_json, read_jsonl, slug_list, write_jsonl  # noqa: E402
 from src.llm_client import build_client  # noqa: E402
 from src.scorer import build_result_run_id, build_score_id, score_run_log  # noqa: E402
@@ -17,13 +24,24 @@ from src.tasks import load_benchmark, project_task  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Score agent-system run logs with an independent Judge model.")
-    parser.add_argument("--benchmark", default="benchmark/benchmark-full.json")
+    parser = argparse.ArgumentParser(
+        description="Score agent-system logs and immediately aggregate all score results."
+    )
+    parser.add_argument("--benchmark", default="benchmark/benchmark-D.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--logs-dir", default="logs/raw/current")
     parser.add_argument("--scores-jsonl", default="results/scores.jsonl")
     parser.add_argument("--scores-csv", default="results/scores.csv")
     parser.add_argument("--errors-jsonl", default="results/scoring_errors.jsonl")
+    parser.add_argument("--aggregate-csv", default="results/aggregate_results.csv")
+    parser.add_argument("--aggregate-json", default="results/aggregate_results.json")
+    parser.add_argument("--summary-md", default="results/summary.md")
+    parser.add_argument(
+        "--group-by",
+        choices=GROUP_BY_CHOICES,
+        default="condition",
+        help="Aggregate by Agent/Judge/protocol condition or by protocol only.",
+    )
     parser.add_argument(
         "--judge-profiles",
         "--judge-profile",
@@ -56,12 +74,9 @@ def main() -> int:
     benchmark_path = _project_path(args.benchmark)
     benchmark = load_benchmark(benchmark_path)
     task_by_id = {task["task_id"]: task for task in benchmark["tasks"]}
-
     judge_fields = tuple(dict.fromkeys(field for task in task_by_id.values() for field in task))
-    judge_tasks = {
-        task_id: project_task(task, tuple(task))
-        for task_id, task in task_by_id.items()
-    }
+    judge_tasks = {task_id: project_task(task, tuple(task)) for task_id, task in task_by_id.items()}
+
     profile_names = _selected_profiles(model_config, args.judge_profiles, role="judge")
     if args.model and len(profile_names) > 1:
         raise SystemExit("--model can only be used with one Judge profile.")
@@ -144,9 +159,10 @@ def main() -> int:
                     )
                     skipped += 1
                     continue
+
             try:
                 score = score_run_log(run_log, judge_tasks[task_id], client)
-            except Exception as exc:  # noqa: BLE001 - retain other completed scores.
+            except Exception as exc:  # noqa: BLE001 - keep other completed scores.
                 error = {
                     "record_type": "scoring_error",
                     "run_id": build_result_run_id(run_log),
@@ -184,14 +200,28 @@ def main() -> int:
             scored += 1
 
     write_jsonl(scores_path, scores)
-    write_scores_csv(_project_path(args.scores_csv), scores)
-    write_jsonl(_project_path(args.errors_jsonl), scoring_errors)
+    scores_csv_path = _project_path(args.scores_csv)
+    errors_path = _project_path(args.errors_jsonl)
+    write_scores_csv(scores_csv_path, scores)
+    write_jsonl(errors_path, scoring_errors)
+
+    aggregate_csv_path = _project_path(args.aggregate_csv)
+    aggregate_json_path = _project_path(args.aggregate_json)
+    summary_path = _project_path(args.summary_md)
+    aggregate_rows = aggregate_scores(scores, group_by=args.group_by)
+    write_aggregate_csv(aggregate_csv_path, aggregate_rows)
+    write_aggregate_json(aggregate_json_path, aggregate_rows)
+    write_summary_markdown(summary_path, aggregate_rows, scores, group_by=args.group_by)
+
     print(
         "Done. "
         f"scored={scored}, skipped={skipped}, "
         f"unknown_task_skipped={skipped_unknown_task}, "
-        f"malformed={malformed}, errors={len(scoring_errors)}, scores={_project_path(args.scores_csv)}"
+        f"malformed={malformed}, errors={len(scoring_errors)}"
     )
+    print(f"Scores: {scores_csv_path}")
+    print(f"Aggregate: {aggregate_csv_path}")
+    print(f"Summary: {summary_path}")
     return 0 if not scoring_errors else 2
 
 
