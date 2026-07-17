@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Union
+from typing import Any
 
-from .llm_client import MockLLMClient, OpenAICompatibleClient
+from .evidence import build_evidence_audit, compact_evidence_audit
+from .llm_client import LLMClient
 from .prompts import scoring_prompt
-
-
-Client = Union[OpenAICompatibleClient, MockLLMClient]
 
 
 def build_result_run_id(run_log: dict[str, Any]) -> str:
@@ -21,16 +19,17 @@ def build_result_run_id(run_log: dict[str, Any]) -> str:
     return "__".join(components)
 
 
-def build_score_id(run_log: dict[str, Any], client: Client) -> str:
+def build_score_id(run_log: dict[str, Any], client: LLMClient) -> str:
     return f"{build_result_run_id(run_log)}__judge-{_slug_component(client.model)}"
 
 
 def score_run_log(
     run_log: dict[str, Any],
     task: dict[str, Any],
-    client: Client,
+    client: LLMClient,
 ) -> dict[str, Any]:
-    messages = scoring_prompt(task, run_log["final_output"])
+    evidence_audit = build_evidence_audit(run_log, task, run_log["final_output"])
+    messages = scoring_prompt(task, run_log["final_output"], evidence_audit)
     effective_config = dict(getattr(client, "effective_config", {}) or {})
     judge_max_tokens = int(effective_config["judge_max_tokens"])
     response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=judge_max_tokens)
@@ -46,6 +45,7 @@ def score_run_log(
             "Increase judge_max_tokens or reduce reasoning effort."
         )
     parsed = _parse_json_object(response.content)
+    evidence_assessment = _validated_evidence_assessment(parsed.get("evidence_assessment"))
 
     accuracy_raw = _clamp_int(parsed.get("accuracy_raw", 3), 1, 5)
     helpfulness_raw = _clamp_int(parsed.get("helpfulness_raw", 3), 1, 5)
@@ -63,8 +63,22 @@ def score_run_log(
         + 0.20 * helpfulness_norm
         + 0.15 * (1 - hallucination_rate)
     )
-    overall_score_cap = _clamp_float(parsed.get("overall_score_cap", 1.0), 0.0, 1.0)
+    judge_reported_score_cap = _clamp_float(parsed.get("overall_score_cap", 1.0), 0.0, 1.0)
+    judge_evidence_score_cap = evidence_assessment["evidence_score_cap"]
+    judge_score_cap = min(judge_reported_score_cap, judge_evidence_score_cap)
+    evidence_score_cap = _clamp_float(
+        evidence_audit.get("deterministic_score_cap", 1.0), 0.0, 1.0
+    )
+    overall_score_cap = min(judge_score_cap, evidence_score_cap)
+    judge_capped_quality_score = round(min(uncapped_quality_score, judge_score_cap), 4)
     overall_quality_score = round(min(uncapped_quality_score, overall_score_cap), 4)
+    cap_reasons = _deduplicate_strings(
+        [
+            *(parsed.get("cap_reasons") or []),
+            *(evidence_assessment.get("evidence_cap_reasons") or []),
+            *(evidence_audit.get("deterministic_cap_reasons") or []),
+        ]
+    )
     agent_tokens = max(1, int(run_log.get("total_tokens", 0)))
     quality_token_ratio = round(overall_quality_score / agent_tokens, 8)
 
@@ -90,25 +104,67 @@ def score_run_log(
         "hallucination_rate": round(hallucination_rate, 4),
         "overall_quality_score": overall_quality_score,
         "uncapped_quality_score": round(uncapped_quality_score, 4),
+        "judge_capped_quality_score": judge_capped_quality_score,
+        "judge_reported_score_cap": judge_reported_score_cap,
+        "judge_evidence_score_cap": judge_evidence_score_cap,
+        "judge_score_cap": judge_score_cap,
+        "evidence_score_cap": evidence_score_cap,
         "overall_score_cap": overall_score_cap,
-        "cap_reasons": parsed.get("cap_reasons") or [],
+        "cap_reasons": cap_reasons,
         "runtime_seconds": run_log.get("runtime_seconds", 0),
+        "input_tokens": run_log.get("input_tokens", 0),
+        "output_tokens": run_log.get("output_tokens", 0),
         "total_tokens": run_log.get("total_tokens", 0),
+        "max_total_tokens": run_log.get("max_total_tokens"),
+        "final_writer_reserve_tokens": run_log.get("final_writer_reserve_tokens"),
+        "budget_remaining_tokens": run_log.get("budget_remaining_tokens"),
+        "budget_overrun_tokens": run_log.get("budget_overrun_tokens"),
+        "budget_utilization": run_log.get("budget_utilization"),
+        "budget_limited_call_count": run_log.get("budget_limited_call_count"),
+        "budget_skipped_call_count": run_log.get("budget_skipped_call_count"),
+        "role_max_output_tokens": run_log.get("role_max_output_tokens", {}),
+        "role_usage": run_log.get("role_usage", {}),
         "estimated_cost": agent_cost,
         "active_agent_count": run_log.get("active_agent_count", 1),
         "interaction_count": run_log.get("interaction_count", 1),
+        "model_call_count": run_log.get("model_call_count", run_log.get("interaction_count", 1)),
         "rounds_completed": run_log.get("rounds_completed", 1),
         "message_count": run_log.get("message_count", 0),
         "communication_density": run_log.get("communication_density", 0.0),
         "agreement_rate": run_log.get("agreement_rate"),
         "critique_acceptance_rate": run_log.get("critique_acceptance_rate"),
-        "tool_call_count": run_log.get("tool_call_count", 0),
+        "tool_requirement": evidence_audit["tool_requirement"],
+        "tool_access_used": bool(run_log.get("tool_access_used")),
+        "tool_requirement_satisfied": bool(evidence_audit["execution_requirement_satisfied"]),
+        "score_eligible": bool(evidence_audit["score_eligible"]),
+        "evidence_execution_status": evidence_audit["execution_status"],
+        "citation_alignment_status": evidence_audit["citation_alignment_status"],
+        "evidence_policy_satisfied": evidence_audit["evidence_policy_satisfied"],
+        "evidence_policy_violations": evidence_audit["evidence_policy_violations"],
+        "tool_call_count": evidence_audit["tool_call_count"],
+        "successful_tool_call_count": evidence_audit["successful_tool_call_count"],
+        "successful_substantive_tool_call_count": evidence_audit[
+            "successful_substantive_tool_call_count"
+        ],
+        "successful_discovery_tool_call_count": evidence_audit[
+            "successful_discovery_tool_call_count"
+        ],
+        "substantive_source_count": evidence_audit["substantive_source_count"],
+        "discovery_source_count": evidence_audit["discovery_source_count"],
+        "academic_record_count": evidence_audit["academic_record_count"],
+        "identifier_record_count": evidence_audit["identifier_record_count"],
+        "local_document_count": evidence_audit["local_document_count"],
+        "citation_traceability_rate": evidence_audit["citation_audit"]["traceability_rate"],
+        "unaccessed_citation_count": len(evidence_audit["citation_audit"]["unaccessed_urls"])
+        + len(evidence_audit["citation_audit"]["unaccessed_identifiers"]),
         "quality_token_ratio": quality_token_ratio,
         "quality_api_cost_ratio": (
             round(overall_quality_score / total_estimated_cost, 8) if total_estimated_cost > 0 else None
         ),
         "failure_type": parsed.get("failure_type") or "None",
         "detected_failure_risks": parsed.get("detected_failure_risks") or [],
+        "judge_evidence_assessment": evidence_assessment,
+        "evidence_audit": compact_evidence_audit(evidence_audit),
         "notes": parsed.get("notes", ""),
         "scorer_input_tokens": response.input_tokens,
         "scorer_output_tokens": response.output_tokens,
@@ -117,6 +173,56 @@ def score_run_log(
         "judge_estimated_cost": judge_estimated_cost,
         "total_estimated_cost": total_estimated_cost,
         "raw_evaluation": parsed,
+    }
+
+
+def _deduplicate_strings(values: list[Any]) -> list[str]:
+    unique: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if text and text not in unique:
+            unique.append(text)
+    return unique
+
+
+def _validated_evidence_assessment(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("Judge output must include an evidence_assessment object")
+    required = {
+        "used_retrieved_sources",
+        "required_evidence_satisfied",
+        "citation_traceability",
+        "evidence_score_cap",
+        "evidence_cap_reasons",
+        "unsupported_or_unverified_citations",
+        "source_requirement_findings",
+    }
+    missing = sorted(required - set(value))
+    if missing:
+        raise ValueError(f"Judge evidence_assessment is missing keys: {missing}")
+    if not isinstance(value["used_retrieved_sources"], bool):
+        raise ValueError("Judge evidence_assessment.used_retrieved_sources must be boolean")
+    if not isinstance(value["required_evidence_satisfied"], bool):
+        raise ValueError("Judge evidence_assessment.required_evidence_satisfied must be boolean")
+    citation_traceability = _clamp_float(value["citation_traceability"], 0.0, 1.0)
+    evidence_score_cap = _clamp_float(value["evidence_score_cap"], 0.0, 1.0)
+    evidence_cap_reasons = value["evidence_cap_reasons"]
+    unsupported = value["unsupported_or_unverified_citations"]
+    findings = value["source_requirement_findings"]
+    if (
+        not isinstance(evidence_cap_reasons, list)
+        or not isinstance(unsupported, list)
+        or not isinstance(findings, list)
+    ):
+        raise ValueError("Judge evidence assessment citation and finding fields must be lists")
+    return {
+        "used_retrieved_sources": value["used_retrieved_sources"],
+        "required_evidence_satisfied": value["required_evidence_satisfied"],
+        "citation_traceability": citation_traceability,
+        "evidence_score_cap": evidence_score_cap,
+        "evidence_cap_reasons": evidence_cap_reasons,
+        "unsupported_or_unverified_citations": unsupported,
+        "source_requirement_findings": findings,
     }
 
 
@@ -148,7 +254,11 @@ def _criterion_completeness(criteria: Any, raw_scores: Any, *, fallback: Any) ->
     return round(earned / possible, 4)
 
 
-def _estimate_judge_cost(client: Client, input_tokens: int, output_tokens: int) -> float:
+def _estimate_judge_cost(
+    client: LLMClient,
+    input_tokens: int,
+    output_tokens: int,
+) -> float:
     config = getattr(client, "effective_config", {}) or {}
     pricing = config.get("pricing_per_1m_tokens", {}) if isinstance(config, dict) else {}
     rates = pricing if isinstance(pricing, dict) else {}

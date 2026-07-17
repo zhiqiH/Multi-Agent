@@ -24,6 +24,7 @@ GRADING_FIELDS: tuple[str, ...] = (
     "expected_failure_risks",
     "scoring_rubric",
     "required_evidence",
+    "evidence_policy",
 )
 
 PROTECTED_FIELDS: frozenset[str] = frozenset(GRADING_FIELDS)
@@ -45,7 +46,7 @@ REQUIRED_TASK_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-KNOWN_TASK_FIELDS: frozenset[str] = REQUIRED_TASK_FIELDS | {"notes"}
+KNOWN_TASK_FIELDS: frozenset[str] = REQUIRED_TASK_FIELDS | {"evidence_policy", "notes"}
 BENCHMARK_CATEGORIES: tuple[str, ...] = (
     "Literature Review",
     "Technical Analysis",
@@ -68,6 +69,7 @@ _TASK_FIELD_LABELS = {
     "required_output_format": "Required Output Format",
     "evaluation_criteria": "Evaluation Criteria",
     "required_evidence": "Required Evidence",
+    "evidence_policy": "Evidence Policy",
     "scoring_rubric": "Scoring Rubric",
     "expected_failure_risks": "Expected Failure Risks",
     "ground_truth": "Ground Truth",
@@ -135,6 +137,8 @@ def _validate_task(task: Any, *, source: Path) -> None:
         raise ValueError(f"Task {task_id} has invalid difficulty: {task['difficulty']!r}")
     if task["tool_requirement"] not in VALID_TOOL_REQUIREMENTS:
         raise ValueError(f"Task {task_id} has invalid tool_requirement: {task['tool_requirement']!r}")
+    if task["tool_requirement"] == "Required":
+        _validate_evidence_policy(task_id, task.get("evidence_policy"))
 
     for field in ("category", "author", "prompt", "required_output_format"):
         if not isinstance(task[field], str) or not task[field].strip():
@@ -164,6 +168,42 @@ def _validate_task(task: Any, *, source: Path) -> None:
     for field in ("required_evidence", "scoring_rubric", "expected_failure_risks", "ground_truth"):
         if task[field] in (None, "", [], {}):
             raise ValueError(f"Task {task_id} field {field!r} must not be empty")
+
+
+def _validate_evidence_policy(task_id: str, policy: Any) -> None:
+    if not isinstance(policy, dict) or not policy:
+        raise ValueError(f"Task {task_id} requires a non-empty evidence_policy")
+    integer_fields = (
+        "minimum_substantive_sources",
+        "minimum_academic_records",
+        "minimum_recent_academic_records",
+        "minimum_publication_year",
+        "minimum_identifier_records",
+        "minimum_local_documents",
+    )
+    for field in integer_fields:
+        value = policy.get(field, 0)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError(f"Task {task_id} evidence_policy.{field} must be a non-negative integer")
+    domain_groups = policy.get("required_domain_groups") or []
+    if not isinstance(domain_groups, list) or not all(
+        isinstance(group, list)
+        and group
+        and all(isinstance(domain, str) and domain.strip() for domain in group)
+        for group in domain_groups
+    ):
+        raise ValueError(f"Task {task_id} evidence_policy.required_domain_groups is invalid")
+    for field in ("academic_provider_consistency", "common_retrieval_date"):
+        if not isinstance(policy.get(field, False), bool):
+            raise ValueError(f"Task {task_id} evidence_policy.{field} must be boolean")
+    traceability = policy.get("minimum_traceability_rate", 0.0)
+    if not isinstance(traceability, (int, float)) or isinstance(traceability, bool):
+        raise ValueError(f"Task {task_id} evidence_policy.minimum_traceability_rate must be numeric")
+    if not 0 <= float(traceability) <= 1:
+        raise ValueError(f"Task {task_id} evidence_policy.minimum_traceability_rate must be from 0 to 1")
+    cap = policy.get("violation_score_cap", 0.5)
+    if not isinstance(cap, (int, float)) or isinstance(cap, bool) or not 0 <= float(cap) <= 1:
+        raise ValueError(f"Task {task_id} evidence_policy.violation_score_cap must be from 0 to 1")
 
 
 def select_tasks(benchmark: dict[str, Any], task_ids: list[str]) -> list[dict[str, Any]]:

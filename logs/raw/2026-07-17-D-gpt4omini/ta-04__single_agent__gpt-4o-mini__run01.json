@@ -20,22 +20,54 @@
   "protocol_config": {
     "max_rounds": 1,
     "max_interactions": 1,
-    "max_total_tokens": 80000
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
   },
   "agent_provider": "openai",
   "agent_model": "gpt-4o-mini",
   "temperature": 0.0,
   "tool_requirement": "Prohibited",
   "tool_access_used": false,
-  "start_time": "2026-07-17T15:17:13+00:00",
-  "end_time": "2026-07-17T15:17:21+00:00",
-  "runtime_seconds": 8.697,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-17T20:08:08+00:00",
+  "end_time": "2026-07-17T20:08:18+00:00",
+  "runtime_seconds": 10.034,
   "input_tokens": 379,
-  "output_tokens": 690,
-  "total_tokens": 1069,
-  "estimated_cost": 0.00047085,
+  "output_tokens": 707,
+  "total_tokens": 1086,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 98914,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.0109,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 6400,
+    "Single Agent": 6400,
+    "default": 1300
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 379,
+      "output_tokens": 707,
+      "total_tokens": 1086,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.00048105,
   "active_agent_count": 1,
   "interaction_count": 1,
+  "model_call_count": 1,
   "rounds_completed": 1,
   "termination_reason": "completed",
   "message_count": 0,
@@ -45,6 +77,10 @@
   "accepted_critique_count": null,
   "critique_acceptance_rate": null,
   "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
   "intermediate_messages": [],
   "tool_calls": [],
   "agent_visible_fields": [
@@ -72,7 +108,7 @@
       ]
     }
   ],
-  "final_output": "1. **Brief explanation of full-context prompting**  \nFull-context prompting involves inputting as much relevant content from the technical documents directly into the model's prompt. This method aims to provide the model with a comprehensive view of the material, allowing it to generate answers based on the entire context provided. However, this approach is limited by the model's context window, which may restrict the amount of information that can be included, potentially leading to incomplete or biased responses if critical information is omitted.\n\n2. **Brief explanation of retrieval-augmented generation**  \nRetrieval-augmented generation (RAG) is a hybrid approach that combines information retrieval with generative capabilities. In this method, documents are divided into manageable chunks, and relevant chunks are retrieved based on the specific question posed. These chunks are then fed into the model to generate an answer. This approach allows for more targeted responses, as it can pull in only the most pertinent information, thus enhancing the relevance of the answers while staying within the context window limits.\n\n3. **Brief explanation of hierarchical summarization**  \nHierarchical summarization involves a multi-tiered approach to condensing information. Initially, individual sections of the documents are summarized, and these section summaries are then synthesized into higher-level summaries. The final summaries are used to answer questions. This method allows for a comprehensive overview of the material while reducing the volume of text that needs to be processed at once, making it easier for the model to generate accurate responses based on the summarized content.\n\n4. **Comparison table**\n\n| Approach                     | Information Coverage | Grounding         | Context Usage      | Cost               | Implementation Complexity | Main Failure Risk                     |\n|------------------------------|---------------------|-------------------|--------------------|--------------------|---------------------------|---------------------------------------|\n| Full-context prompting        | Limited to context window; may miss key details | High if all relevant info is included | Inefficient; may exceed limits | Low; straightforward | Low; simple to implement | Incomplete context leading to inaccurate answers |\n| Retrieval-augmented generation| High; retrieves relevant chunks | Moderate; depends on retrieval accuracy | Efficient; only relevant chunks used | Moderate; requires retrieval system | Moderate; needs integration of retrieval and generation | Retrieval failure leading to missing information |\n| Hierarchical summarization    | High; captures key points across documents | Moderate; relies on summary accuracy | Efficient; reduces text volume | Moderate; requires summarization process | High; complex summarization needed | Loss of detail in summarization leading to vague answers |\n\n5. **Final recommendation**  \nThe most suitable approach for a system that must answer detailed questions about a large collection of technical manuals is retrieval-augmented generation. This method strikes a balance between information coverage and context usage, allowing for targeted retrieval of relevant information while maintaining a manageable context for the model. It enhances answer accuracy by focusing on the most pertinent chunks of information, thus improving grounding. Additionally, the computational cost is reasonable compared to hierarchical summarization, which can be more complex and resource-intensive.\n\n6. **Limitation of the recommended approach**  \nOne situation in which retrieval-augmented generation may perform poorly is when the retrieval system fails to accurately identify relevant chunks due to ambiguous or poorly phrased questions. If the retrieval process does not capture the necessary context or nuances of the question, the model may generate responses that are incomplete or misaligned with the user's intent, leading to potential inaccuracies in the answers provided.",
+  "final_output": "1. **Brief explanation of full-context prompting**  \nFull-context prompting involves inputting as much relevant content from the technical documents directly into the model's prompt. This method aims to provide the model with a comprehensive view of the material, allowing it to generate responses based on the full context available. However, this approach is limited by the model's context window, which may restrict the amount of information that can be included, potentially leading to incomplete answers if critical information is omitted.\n\n2. **Brief explanation of retrieval-augmented generation**  \nRetrieval-augmented generation (RAG) is a hybrid approach that combines information retrieval with generative capabilities. In this method, documents are divided into manageable chunks, and relevant chunks are retrieved based on the specific question posed. These chunks are then provided to the model to generate an answer. This approach allows for more targeted responses, as it can pull in only the most pertinent information, thus enhancing the relevance of the answers generated.\n\n3. **Brief explanation of hierarchical summarization**  \nHierarchical summarization involves a multi-tiered approach to condensing information. Initially, sections of the documents are summarized individually, capturing the key points. These section summaries are then synthesized into higher-level summaries that encapsulate the overall content of the documents. When a question is posed, the model can refer to these concise summaries, which can facilitate quicker understanding and response generation while maintaining a broader context.\n\n4. **Comparison table**\n\n| Approach                     | Information Coverage | Grounding         | Context Usage      | Cost               | Implementation Complexity | Main Failure Risk               |\n|------------------------------|----------------------|-------------------|---------------------|--------------------|---------------------------|----------------------------------|\n| Full-context prompting        | Limited by context window; may miss critical details | High if all relevant content is included | Inefficient; may exceed limits | Low; straightforward | Low; easy to implement | Incomplete context leading to inaccurate answers |\n| Retrieval-augmented generation| High; retrieves relevant chunks | Moderate; depends on retrieval accuracy | Efficient; uses only necessary chunks | Moderate; requires retrieval system | Moderate; needs integration of retrieval and generation | Retrieval failure leading to missing information |\n| Hierarchical summarization    | High; captures key points across documents | High; based on summarized content | Efficient; uses concise summaries | Moderate; requires summarization process | High; complex summarization and synthesis | Loss of detail in summarization may lead to vague answers |\n\n5. **Final recommendation**  \nThe most suitable approach for a system that must answer detailed questions about a large collection of technical manuals is retrieval-augmented generation. This method strikes a balance between information coverage and answer accuracy by allowing the model to focus on relevant chunks of information tailored to each specific question. It effectively manages context-window limitations by only utilizing necessary content, thus optimizing computational resources. Additionally, RAG can be implemented with existing retrieval systems, making it a practical choice for organizations with large document repositories.\n\n6. **Limitation of the recommended approach**  \nOne situation in which the retrieval-augmented generation approach may perform poorly is when the relevant chunks of information are not well-defined or when the retrieval system fails to accurately identify the most pertinent content. For instance, if a question requires a nuanced understanding that spans multiple sections of the documents, the retrieval process may overlook critical interconnections, leading to incomplete or misleading answers. This limitation highlights the importance of a robust retrieval mechanism and the need for careful design in the retrieval process to ensure comprehensive coverage of the necessary information.",
   "validity_warnings": [],
   "errors": [],
   "condition": {
@@ -82,15 +118,27 @@
     "protocol_config": {
       "max_rounds": 1,
       "max_interactions": 1,
-      "max_total_tokens": 80000
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
     },
     "agent_provider": "openai",
     "agent_model": "gpt-4o-mini",
     "agent_effective_config": {
-      "max_tokens": 4000,
-      "agent_max_tokens": 2000,
-      "final_max_tokens": 4000,
-      "judge_max_tokens": 6000,
+      "max_tokens": 6400,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 6400,
+        "Single Agent": 6400,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
       "max_retries": 2,
       "display_name": "GPT-4o Mini",
       "description": "Low-cost, low-latency OpenAI agent and optional Judge profile.",
@@ -128,9 +176,25 @@
       "required_output_format"
     ],
     "tool_policy": {
-      "execution_layer": "not_implemented",
-      "available_tools": [],
-      "warn_when_required_tools_are_unavailable": true,
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
       "record_tool_inputs": true,
       "record_tool_outputs": true
     }

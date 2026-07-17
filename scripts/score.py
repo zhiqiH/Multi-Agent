@@ -30,12 +30,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmark", default="benchmark/benchmark-D.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--logs-dir", default="logs/raw/current")
-    parser.add_argument("--scores-jsonl", default="results/scores.jsonl")
-    parser.add_argument("--scores-csv", default="results/scores.csv")
-    parser.add_argument("--errors-jsonl", default="results/scoring_errors.jsonl")
-    parser.add_argument("--aggregate-csv", default="results/aggregate_results.csv")
-    parser.add_argument("--aggregate-json", default="results/aggregate_results.json")
-    parser.add_argument("--summary-md", default="results/summary.md")
+    parser.add_argument(
+        "--results-dir",
+        default="results/current",
+        help="Directory for scores, errors, aggregates, and summary outputs.",
+    )
+
+    parser.add_argument("--tasks", default="", help="Only score these task IDs.")
+    parser.add_argument("--overwrite", action="store_true", help="Rescore exact Judge/run conditions.")
+    parser.add_argument("--fail-fast", action="store_true")
+    parser.add_argument("--list-models", action="store_true")
+    parser.add_argument("--model", default="", help="Temporarily override one Judge profile's model ID.")
+
     parser.add_argument(
         "--group-by",
         choices=GROUP_BY_CHOICES,
@@ -49,18 +55,13 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Comma-separated Judge profiles. Empty uses defaults.judge; 'all' uses every profile.",
     )
-    parser.add_argument("--model", default="", help="Temporarily override one Judge profile's model ID.")
     parser.add_argument(
         "--agent-models",
         dest="agent_models",
         default="",
         help="Only score logs produced by these Agent model IDs.",
     )
-    parser.add_argument("--tasks", default="", help="Only score these task IDs.")
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--overwrite", action="store_true", help="Rescore exact Judge/run conditions.")
-    parser.add_argument("--fail-fast", action="store_true")
-    parser.add_argument("--list-models", action="store_true")
+
     return parser.parse_args()
 
 
@@ -88,7 +89,8 @@ def main() -> int:
 
     wanted_agents = set(slug_list(args.agent_models))
     wanted_tasks = set(slug_list(args.tasks))
-    scores_path = _project_path(args.scores_jsonl)
+    results_dir = _project_path(args.results_dir)
+    scores_path = results_dir / "scores.jsonl"
     scores = read_jsonl(scores_path)
     scores_by_id = {score["score_id"]: score for score in scores if score.get("score_id")}
     scoring_errors: list[dict[str, Any]] = []
@@ -104,7 +106,6 @@ def main() -> int:
     for requested_profile in profile_names:
         client = build_client(
             model_config,
-            dry_run=args.dry_run,
             role="judge",
             profile=requested_profile,
             model=args.model or None,
@@ -117,8 +118,9 @@ def main() -> int:
             "judge_model": client.model,
             "judge_effective_config": effective_config,
             "judge_visible_fields": list(judge_fields),
+            "uses_run_evidence_audit": True,
         }
-        print(f"Judge model: {client.model} dry_run={args.dry_run}")
+        print(f"Judge model: {client.model}")
 
         for path in log_paths:
             run_log = read_json(path)
@@ -195,19 +197,22 @@ def main() -> int:
             scores_by_id[score_id] = score
             print(
                 f"SCORED task={task_id} protocol={run_log['protocol_id']} "
-                f"agent={agent_model} judge={client.model} quality={score['overall_quality_score']}"
+                f"agent={agent_model} judge={client.model} quality={score['overall_quality_score']} "
+                f"evidence={score['evidence_execution_status']} "
+                f"policy={'pass' if score['evidence_policy_satisfied'] else 'fail'} "
+                f"citations={score['citation_alignment_status']}"
             )
             scored += 1
 
     write_jsonl(scores_path, scores)
-    scores_csv_path = _project_path(args.scores_csv)
-    errors_path = _project_path(args.errors_jsonl)
+    scores_csv_path = results_dir / "scores.csv"
+    errors_path = results_dir / "scoring_errors.jsonl"
     write_scores_csv(scores_csv_path, scores)
     write_jsonl(errors_path, scoring_errors)
 
-    aggregate_csv_path = _project_path(args.aggregate_csv)
-    aggregate_json_path = _project_path(args.aggregate_json)
-    summary_path = _project_path(args.summary_md)
+    aggregate_csv_path = results_dir / "aggregate_results.csv"
+    aggregate_json_path = results_dir / "aggregate_results.json"
+    summary_path = results_dir / "summary.md"
     aggregate_rows = aggregate_scores(scores, group_by=args.group_by)
     write_aggregate_csv(aggregate_csv_path, aggregate_rows)
     write_aggregate_json(aggregate_json_path, aggregate_rows)
@@ -219,9 +224,7 @@ def main() -> int:
         f"unknown_task_skipped={skipped_unknown_task}, "
         f"malformed={malformed}, errors={len(scoring_errors)}"
     )
-    print(f"Scores: {scores_csv_path}")
-    print(f"Aggregate: {aggregate_csv_path}")
-    print(f"Summary: {summary_path}")
+    print(f"Results: {results_dir}")
     return 0 if not scoring_errors else 2
 
 

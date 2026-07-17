@@ -12,24 +12,53 @@ from .io_utils import ensure_dir, write_json
 
 NUMERIC_FIELDS = [
     "overall_quality_score",
+    "judge_capped_quality_score",
     "accuracy_norm",
     "completeness_norm",
     "helpfulness_norm",
     "hallucination_rate",
     "runtime_seconds",
+    "input_tokens",
+    "output_tokens",
     "total_tokens",
+    "max_total_tokens",
+    "final_writer_reserve_tokens",
+    "budget_remaining_tokens",
+    "budget_overrun_tokens",
+    "budget_utilization",
+    "budget_limited_call_count",
+    "budget_skipped_call_count",
     "estimated_cost",
     "active_agent_count",
     "interaction_count",
+    "model_call_count",
     "rounds_completed",
     "message_count",
     "communication_density",
     "agreement_rate",
     "critique_acceptance_rate",
+    "tool_access_used",
+    "tool_requirement_satisfied",
+    "score_eligible",
+    "evidence_policy_satisfied",
     "tool_call_count",
+    "successful_tool_call_count",
+    "successful_substantive_tool_call_count",
+    "successful_discovery_tool_call_count",
+    "substantive_source_count",
+    "discovery_source_count",
+    "academic_record_count",
+    "identifier_record_count",
+    "local_document_count",
+    "citation_traceability_rate",
+    "unaccessed_citation_count",
     "quality_token_ratio",
     "quality_api_cost_ratio",
     "uncapped_quality_score",
+    "judge_reported_score_cap",
+    "judge_evidence_score_cap",
+    "judge_score_cap",
+    "evidence_score_cap",
     "overall_score_cap",
     "scorer_input_tokens",
     "scorer_output_tokens",
@@ -57,23 +86,60 @@ SCORE_CSV_FIELDS = SCORE_IDENTITY_FIELDS + [
     "hallucination_rate",
     "overall_quality_score",
     "uncapped_quality_score",
+    "judge_capped_quality_score",
+    "judge_reported_score_cap",
+    "judge_evidence_score_cap",
+    "judge_score_cap",
+    "evidence_score_cap",
     "overall_score_cap",
     "cap_reasons",
     "runtime_seconds",
+    "input_tokens",
+    "output_tokens",
     "total_tokens",
+    "max_total_tokens",
+    "final_writer_reserve_tokens",
+    "budget_remaining_tokens",
+    "budget_overrun_tokens",
+    "budget_utilization",
+    "budget_limited_call_count",
+    "budget_skipped_call_count",
+    "role_max_output_tokens",
+    "role_usage",
     "estimated_cost",
     "active_agent_count",
     "interaction_count",
+    "model_call_count",
     "rounds_completed",
     "message_count",
     "communication_density",
     "agreement_rate",
     "critique_acceptance_rate",
+    "tool_requirement",
+    "tool_access_used",
+    "tool_requirement_satisfied",
+    "score_eligible",
+    "evidence_execution_status",
+    "citation_alignment_status",
+    "evidence_policy_satisfied",
+    "evidence_policy_violations",
     "tool_call_count",
+    "successful_tool_call_count",
+    "successful_substantive_tool_call_count",
+    "successful_discovery_tool_call_count",
+    "substantive_source_count",
+    "discovery_source_count",
+    "academic_record_count",
+    "identifier_record_count",
+    "local_document_count",
+    "citation_traceability_rate",
+    "unaccessed_citation_count",
     "quality_token_ratio",
     "quality_api_cost_ratio",
     "failure_type",
     "detected_failure_risks",
+    "judge_evidence_assessment",
+    "evidence_audit",
     "notes",
     "scorer_input_tokens",
     "scorer_output_tokens",
@@ -168,17 +234,20 @@ def write_summary_markdown(
     lines.extend(["", "## Group Averages", ""])
     if group_by == "protocol":
         lines.append(
-            "| Protocol | Runs | Avg Quality | Avg Tokens | Avg Messages | Avg Runtime | Avg Cost |"
+            "| Protocol | Runs | Avg Quality | Evidence Constraint Pass | Avg Evidence Calls | Avg Tokens | Budget Used | Avg Messages | Avg Runtime | Avg Cost |"
         )
-        lines.append("|---|---:|---:|---:|---:|---:|---:|")
+        lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
         for row in rows:
             lines.append(
-                "| {protocol} | {runs} | {quality:.4f} | {tokens:.1f} | "
-                "{messages:.2f} | {runtime:.2f} | {cost:.6f} |".format(
+                "| {protocol} | {runs} | {quality:.4f} | {tool_pass:.1%} | {tools:.2f} | {tokens:.1f} | "
+                "{budget:.1%} | {messages:.2f} | {runtime:.2f} | {cost:.6f} |".format(
                     protocol=_markdown_cell(_protocol_label(row)),
                     runs=row["runs"],
                     quality=_as_float(row.get("avg_overall_quality_score")),
+                    tool_pass=_as_float(row.get("avg_evidence_policy_satisfied")),
+                    tools=_as_float(row.get("avg_successful_substantive_tool_call_count")),
                     tokens=_as_float(row.get("avg_total_tokens")),
+                    budget=_as_float(row.get("avg_budget_utilization")),
                     messages=_as_float(row.get("avg_message_count")),
                     runtime=_as_float(row.get("avg_runtime_seconds")),
                     cost=_as_float(row.get("avg_estimated_cost")),
@@ -186,19 +255,23 @@ def write_summary_markdown(
             )
     else:
         lines.append(
-            "| Agent Model | Judge Model | Protocol | Runs | Avg Quality | Avg Tokens | Avg Messages | Avg Runtime | Avg Cost |"
+            "| Agent Model | Judge Model | Protocol | Runs | Avg Quality | Evidence Constraint Pass | Avg Evidence Calls | Avg Tokens | Budget Used | Avg Messages | Avg Runtime | Avg Cost |"
         )
-        lines.append("|---|---|---|---:|---:|---:|---:|---:|---:|")
+        lines.append("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
         for row in rows:
             lines.append(
                 "| {agent} | {judge} | {protocol} | {runs} | {quality:.4f} | "
-                "{tokens:.1f} | {messages:.2f} | {runtime:.2f} | {cost:.6f} |".format(
+                "{tool_pass:.1%} | {tools:.2f} | {tokens:.1f} | {budget:.1%} | {messages:.2f} | "
+                "{runtime:.2f} | {cost:.6f} |".format(
                     agent=_markdown_cell(_agent_label(row)),
                     judge=_markdown_cell(_judge_label(row)),
                     protocol=_markdown_cell(_protocol_label(row)),
                     runs=row["runs"],
                     quality=_as_float(row.get("avg_overall_quality_score")),
+                    tool_pass=_as_float(row.get("avg_evidence_policy_satisfied")),
+                    tools=_as_float(row.get("avg_successful_substantive_tool_call_count")),
                     tokens=_as_float(row.get("avg_total_tokens")),
+                    budget=_as_float(row.get("avg_budget_utilization")),
                     messages=_as_float(row.get("avg_message_count")),
                     runtime=_as_float(row.get("avg_runtime_seconds")),
                     cost=_as_float(row.get("avg_estimated_cost")),

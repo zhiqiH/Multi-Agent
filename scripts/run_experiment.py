@@ -27,8 +27,7 @@ from src.tasks import (  # noqa: E402
     project_task,
     select_tasks,
 )
-
-TOOL_EXECUTION_LAYER_AVAILABLE = False
+from src.tools import EVIDENCE_TOOL_NAMES, ToolRegistry  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,8 +36,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--experiment-config", default="configs/experiment_config.json")
     parser.add_argument("--out-dir", default="logs/raw/current")
+
     parser.add_argument("--protocols", default=",".join(DEFAULT_PROTOCOLS))
     parser.add_argument("--tasks", default="", help="Comma-separated task IDs. Empty means all tasks.")
+    parser.add_argument("--model", default="", help="Temporarily override one selected agent profile's model ID.")
+    parser.add_argument("--overwrite", action="store_true", help="Replace exact matching run IDs only.")
+    parser.add_argument("--strict-tool-requirements", action="store_true")
+    parser.add_argument("--print-agent-view", action="store_true", help="Print exactly what agents see, then exit.")
+    parser.add_argument("--list-protocols", action="store_true")
+    parser.add_argument("--list-models", action="store_true")
+    parser.add_argument("--list-task-fields", action="store_true")
     parser.add_argument(
         "--agent-profiles",
         "--agent-profile",
@@ -46,7 +53,6 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Comma-separated agent model profiles. Empty uses defaults.agent; 'all' uses every profile.",
     )
-    parser.add_argument("--model", default="", help="Temporarily override one selected agent profile's model ID.")
     parser.add_argument(
         "--agent-visible-fields",
         dest="agent_visible_fields",
@@ -64,13 +70,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-interactions", type=int, default=0, help="Override max model interactions for all selected protocols."
     )
-    parser.add_argument("--dry-run", action="store_true", help="Use deterministic local model output.")
-    parser.add_argument("--overwrite", action="store_true", help="Replace exact matching run IDs only.")
-    parser.add_argument("--strict-tool-requirements", action="store_true")
-    parser.add_argument("--print-agent-view", action="store_true", help="Print exactly what agents see, then exit.")
-    parser.add_argument("--list-protocols", action="store_true")
-    parser.add_argument("--list-models", action="store_true")
-    parser.add_argument("--list-task-fields", action="store_true")
+    parser.add_argument(
+        "--max-total-tokens",
+        type=int,
+        default=0,
+        help="Override the total input-plus-output token budget per run; 0 uses the experiment config.",
+    )
     return parser.parse_args()
 
 
@@ -92,6 +97,7 @@ def main() -> int:
 
     experiment_config_path = _project_path(args.experiment_config)
     experiment_config = read_json(experiment_config_path)
+    tool_registry = ToolRegistry(experiment_config.get("tool_policy", {}), project_root=PROJECT_ROOT)
     benchmark_path = _project_path(args.benchmark)
     benchmark = load_benchmark(benchmark_path)
 
@@ -150,6 +156,8 @@ def main() -> int:
     runs = args.runs or int(run_policy.get("runs_per_condition") or 1)
     if args.run_number <= 0 or runs <= 0:
         raise SystemExit("--run-number and --runs must be positive")
+    if args.max_total_tokens < 0:
+        raise SystemExit("--max-total-tokens cannot be negative")
     out_dir = _project_path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     store_prompts = bool(visibility.get("store_agent_prompts", True))
@@ -168,21 +176,27 @@ def main() -> int:
     for requested_profile in profile_names:
         client = build_client(
             model_config,
-            dry_run=args.dry_run,
             role="agent",
             profile=requested_profile,
             model=args.model or None,
             secrets_path=PROJECT_ROOT / ".secrets" / "model_keys.json",
         )
         effective_config = dict(getattr(client, "effective_config", {}) or {})
-        print(f"Agent model: {client.model} dry_run={args.dry_run}")
+        print(f"Agent model: {client.model}")
+        capabilities = effective_config.get("capabilities") or {}
+        if tool_registry.names and not capabilities.get("tool_calling", False):
+            raise SystemExit(
+                f"Agent model {client.model} is not configured with tool_calling capability."
+            )
 
         for protocol_id in protocols:
             protocol_config = _protocol_config(
                 protocol_id,
                 protocol_overrides,
+                run_policy=run_policy,
                 max_rounds=args.max_rounds,
                 max_interactions=args.max_interactions,
+                max_total_tokens=args.max_total_tokens,
             )
             condition = {
                 "benchmark_id": benchmark.get("benchmark_id", benchmark_path.stem),
@@ -198,7 +212,7 @@ def main() -> int:
             manifest_conditions.append(condition)
 
             for raw_task, agent_task in agent_tasks:
-                task_warnings = _task_validity_warnings(raw_task, experiment_config)
+                task_warnings = _task_validity_warnings(raw_task, tool_registry)
                 if task_warnings and args.strict_tool_requirements:
                     raise SystemExit(f"{raw_task['task_id']}: {task_warnings[0]}")
                 for warning in task_warnings:
@@ -239,7 +253,15 @@ def main() -> int:
                         agent_visible_fields=list(agent_fields),
                         validity_warnings=task_warnings,
                         protocol_config=protocol_config,
+                        tool_registry=tool_registry,
                     )
+                    post_tool_warnings = _post_tool_validity_warnings(raw_task, log)
+                    for warning in post_tool_warnings:
+                        print(f"WARNING {raw_task['task_id']}: {warning}", file=sys.stderr)
+                        warnings_seen += 1
+                    log["validity_warnings"].extend(post_tool_warnings)
+                    if args.strict_tool_requirements and post_tool_warnings:
+                        log["errors"].extend(post_tool_warnings)
                     log.update(
                         {
                             "condition": condition,
@@ -254,8 +276,11 @@ def main() -> int:
                     write_json(out_path, log)
                     status = "ERROR" if log["errors"] else "OK"
                     print(
-                        f"{status} {run_id}: tokens={log['total_tokens']} messages={log['message_count']} "
-                        f"rounds={log['rounds_completed']} runtime={log['runtime_seconds']}s"
+                        f"{status} {run_id}: tokens={log['total_tokens']}/{log['max_total_tokens']} "
+                        f"budget={log['budget_utilization']:.1%} messages={log['message_count']} "
+                        f"rounds={log['rounds_completed']} tools={log['tool_call_count']} "
+                        f"source_access={'pass' if log['tool_requirement_satisfied'] else 'fail'} "
+                        f"runtime={log['runtime_seconds']}s"
                     )
                     completed += 1
 
@@ -326,33 +351,67 @@ def _protocol_config(
     protocol_id: str,
     configured: Any,
     *,
+    run_policy: Any,
     max_rounds: int,
     max_interactions: int,
+    max_total_tokens: int,
 ) -> dict[str, Any]:
     definition = PROTOCOLS[protocol_id]
+    policy = run_policy if isinstance(run_policy, dict) else {}
     result = {
         "max_rounds": definition["default_max_rounds"],
         "max_interactions": definition["default_max_interactions"],
-        "max_total_tokens": 0,
+        "max_total_tokens": int(policy.get("max_total_tokens", 100000)),
+        "final_writer_reserve_tokens": int(policy.get("final_writer_reserve_tokens", 0)),
+        "minimum_call_output_tokens": int(policy.get("minimum_call_output_tokens", 128)),
+        "token_estimation_bytes_per_token": float(
+            policy.get("token_estimation_bytes_per_token", 3.0)
+        ),
+        "token_safety_margin": int(policy.get("token_safety_margin", 1000)),
     }
+    if protocol_id in {"single_agent", "voting"}:
+        result["final_writer_reserve_tokens"] = 0
     if isinstance(configured, dict) and isinstance(configured.get(protocol_id), dict):
-        result.update(configured[protocol_id])
+        protocol_values = configured[protocol_id]
+        for field in ("max_rounds", "max_interactions"):
+            if field in protocol_values:
+                result[field] = protocol_values[field]
     if max_rounds:
         result["max_rounds"] = max_rounds
     if max_interactions:
         result["max_interactions"] = max_interactions
+    if max_total_tokens:
+        result["max_total_tokens"] = max_total_tokens
     return result
 
 
-def _task_validity_warnings(task: dict[str, Any], experiment_config: dict[str, Any]) -> list[str]:
+def _task_validity_warnings(task: dict[str, Any], tool_registry: ToolRegistry) -> list[str]:
     requirement = str(task.get("tool_requirement", "")).strip().lower()
-    tool_policy = experiment_config.get("tool_policy", {})
-    should_warn = tool_policy.get("warn_when_required_tools_are_unavailable", True)
-    if requirement == "required" and not TOOL_EXECUTION_LAYER_AVAILABLE and should_warn:
+    if requirement != "required":
+        return []
+    warnings: list[str] = []
+    if not set(tool_registry.names).intersection(EVIDENCE_TOOL_NAMES):
+        warnings.append(
+            "This task requires external evidence, but no evidence tools are enabled in "
+            "tool_policy.available_tools."
+        )
+    prompt = str(task.get("prompt") or "").lower()
+    if "local pdf" in prompt and not tool_registry.has_local_documents:
+        warnings.append(
+            "This task requires provided local PDFs, but no files were found under tool_policy.local_document_roots."
+        )
+    return warnings
+
+
+def _post_tool_validity_warnings(task: dict[str, Any], log: dict[str, Any]) -> list[str]:
+    requirement = str(task.get("tool_requirement", "")).strip().lower()
+    if requirement == "required" and not log.get("tool_requirement_satisfied"):
         return [
-            "This task requires external tools, but this runner has no tool execution layer. "
-            "The run is retained for transparency and is not a controlled tool-satisfied result."
+            "The task requires external evidence, but the model completed the run without a successful "
+            "URL fetch, academic query, or local-document read. Search-result listings alone are not evidence."
         ]
+    if requirement == "prohibited" and log.get("tool_call_count"):
+        return ["The task prohibits tools, but a tool call was recorded."]
     return []
 
 

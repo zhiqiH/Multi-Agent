@@ -8,7 +8,7 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SECRETS_PATH = PROJECT_ROOT / ".secrets" / "model_keys.json"
@@ -36,8 +36,7 @@ _EFFECTIVE_CONFIG_KEYS = {
     "timeout_seconds",
     "max_retries",
     "request_options",
-    "agent_max_tokens",
-    "final_max_tokens",
+    "role_max_output_tokens",
     "judge_max_tokens",
     "pricing_per_1m_tokens",
 }
@@ -52,6 +51,28 @@ class LLMResponse:
     raw: dict[str, Any]
     response_model: str | None = None
     finish_reason: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+
+
+class LLMClient(Protocol):
+    """Provider-neutral interface used by experiment and scoring logic."""
+
+    model: str
+    provider: str
+    profile: str
+
+    @property
+    def effective_config(self) -> dict[str, Any]: ...
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        response_format: dict[str, Any] | None = None,
+        max_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+    ) -> LLMResponse: ...
 
 
 def load_secrets(path: Path | str | None = None) -> dict[str, str]:
@@ -133,6 +154,45 @@ def resolve_profile(
         raise ValueError(f"Profile '{selected_name}' has no api_key_env")
     if not max_tokens_param or any(character.isspace() for character in max_tokens_param):
         raise ValueError(f"Profile '{selected_name}' has an invalid max_tokens_param")
+    for token_field in ("max_tokens", "judge_max_tokens"):
+        try:
+            token_value = int(resolved.get(token_field, 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Profile '{selected_name}' has an invalid {token_field}") from exc
+        if token_value <= 0:
+            raise ValueError(f"Profile '{selected_name}' has a non-positive {token_field}")
+
+    raw_role_limits = resolved.get("role_max_output_tokens")
+    if not isinstance(raw_role_limits, Mapping):
+        raise ValueError(f"Profile '{selected_name}' must define role_max_output_tokens")
+    role_limits: dict[str, int] = {}
+    for role_name, raw_limit in raw_role_limits.items():
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Profile '{selected_name}' has an invalid output limit for role {role_name!r}"
+            ) from exc
+        if limit <= 0:
+            raise ValueError(
+                f"Profile '{selected_name}' has a non-positive output limit for role {role_name!r}"
+            )
+        role_limits[str(role_name)] = limit
+    required_role_limits = {
+        "Planner",
+        "Researcher",
+        "Analyst",
+        "Critic",
+        "Manager",
+        "Writer",
+        "Single Agent",
+        "default",
+    }
+    missing_role_limits = sorted(required_role_limits - set(role_limits))
+    if missing_role_limits:
+        raise ValueError(
+            f"Profile '{selected_name}' role_max_output_tokens is missing: {missing_role_limits}"
+        )
     supported_roles = resolved.get("supported_roles") or []
     if supported_roles and role not in supported_roles:
         raise ValueError(f"Profile '{selected_name}' does not support the {role} role")
@@ -145,6 +205,7 @@ def resolve_profile(
             "model": resolved_model,
             "api_key_env": api_key_env,
             "max_tokens_param": max_tokens_param,
+            "role_max_output_tokens": role_limits,
             "request_options": request_options,
         }
     )
@@ -204,8 +265,8 @@ def format_profiles(config: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-class OpenAICompatibleClient:
-    """Small stdlib-only client for OpenAI-compatible Chat Completions APIs."""
+class ChatCompletionsClient:
+    """HTTP client for providers exposing a Chat Completions request shape."""
 
     def __init__(
         self,
@@ -213,7 +274,7 @@ class OpenAICompatibleClient:
         base_url: str,
         model: str,
         *,
-        provider: str = "openai-compatible",
+        provider: str = "llm",
         profile: str = "adhoc",
         request_options: Mapping[str, Any] | None = None,
         max_tokens: int = 900,
@@ -236,7 +297,14 @@ class OpenAICompatibleClient:
         extra_body = options.get("extra_body") or {}
         if not isinstance(extra_body, Mapping):
             raise ValueError("request_options.extra_body must be a JSON object")
-        reserved = {"model", "messages", "stream"} & (set(options) | set(extra_body))
+        reserved = {
+            "model",
+            "messages",
+            "stream",
+            "tools",
+            "tool_choice",
+            "parallel_tool_calls",
+        } & (set(options) | set(extra_body))
         if reserved:
             raise ValueError(f"request_options cannot override reserved fields: {sorted(reserved)}")
 
@@ -275,12 +343,20 @@ class OpenAICompatibleClient:
 
     def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         response_format: dict[str, Any] | None = None,
         max_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
     ) -> LLMResponse:
-        body = self._build_request_body(messages, response_format=response_format, max_tokens=max_tokens)
+        body = self._build_request_body(
+            messages,
+            response_format=response_format,
+            max_tokens=max_tokens,
+            tools=tools,
+            tool_choice=tool_choice,
+        )
         data = json.dumps(body, ensure_ascii=False).encode("utf-8")
         endpoint = self._chat_completions_url()
 
@@ -302,7 +378,11 @@ class OpenAICompatibleClient:
                     raise ValueError("API response must be a JSON object")
                 payload = self._redact_value(payload)
                 message = payload["choices"][0]["message"]
-                content = message.get("content") or ""
+                raw_content = message.get("content")
+                content = raw_content if isinstance(raw_content, str) else ""
+                tool_calls = message.get("tool_calls") or []
+                if not isinstance(tool_calls, list):
+                    raise ValueError("API message.tool_calls must be a list")
                 usage = payload.get("usage") or {}
                 input_tokens = int(usage.get("prompt_tokens") or 0)
                 output_tokens = int(usage.get("completion_tokens") or 0)
@@ -315,6 +395,7 @@ class OpenAICompatibleClient:
                     raw=payload,
                     response_model=str(payload.get("model") or self.model),
                     finish_reason=str(payload["choices"][0].get("finish_reason") or "") or None,
+                    tool_calls=copy.deepcopy(tool_calls),
                 )
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", errors="replace")
@@ -332,10 +413,12 @@ class OpenAICompatibleClient:
 
     def _build_request_body(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         response_format: dict[str, Any] | None,
         max_tokens: int | None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         token_limit = self.max_tokens if max_tokens is None else int(max_tokens)
         if token_limit <= 0:
@@ -353,6 +436,10 @@ class OpenAICompatibleClient:
         )
         if response_format is not None:
             body["response_format"] = copy.deepcopy(response_format)
+        if tools:
+            body["tools"] = copy.deepcopy(tools)
+            body["tool_choice"] = copy.deepcopy(tool_choice or "auto")
+            body["parallel_tool_calls"] = False
         return body
 
     def _chat_completions_url(self) -> str:
@@ -373,102 +460,21 @@ class OpenAICompatibleClient:
         return value
 
 
-class MockLLMClient:
-    """Deterministic local client for checks without API calls."""
-
-    def __init__(
-        self,
-        model: str = "mock-model",
-        *,
-        provider: str = "mock",
-        profile: str = "mock",
-        effective_config: Mapping[str, Any] | None = None,
-    ) -> None:
-        self.model = model
-        self.provider = provider
-        self.profile = profile
-        self._effective_config = _sanitize_effective_config(
-            effective_config
-            or {
-                "provider": provider,
-                "profile": profile,
-                "model": model,
-                "request_options": {},
-            }
-        )
-
-    @property
-    def effective_config(self) -> dict[str, Any]:
-        return copy.deepcopy(self._effective_config)
-
-    def __repr__(self) -> str:
-        return f"MockLLMClient(provider={self.provider!r}, profile={self.profile!r}, model={self.model!r})"
-
-    def chat(
-        self,
-        messages: list[dict[str, str]],
-        *,
-        response_format: dict[str, Any] | None = None,
-        max_tokens: int | None = None,
-    ) -> LLMResponse:
-        joined = "\n".join(message.get("content", "") for message in messages)
-        if response_format and response_format.get("type") == "json_object":
-            score = {
-                "accuracy_raw": 4,
-                "completeness_norm": 0.75,
-                "helpfulness_raw": 4,
-                "hallucination_rate": 0.05,
-                "notes": "Dry-run mock score. Replace with live model scoring for real experiments.",
-                "failure_type": "None",
-            }
-            content = json.dumps(score, ensure_ascii=False)
-        else:
-            role = _infer_role(joined)
-            task_id = _infer_marker(joined, "Task ID") or "TASK"
-            content = (
-                f"[DRY-RUN {role} output for {task_id}]\n"
-                "1. 识别任务目标并拆分为关键维度。\n"
-                "2. 覆盖题面中可见的主要要求。\n"
-                "3. 给出结构化结论、风险提示和可执行建议。\n"
-                "4. 这是本地模拟输出，不代表真实模型质量。"
-            )
-        input_tokens = _estimate_tokens(joined)
-        output_tokens = _estimate_tokens(content)
-        return LLMResponse(
-            content=content,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens,
-            raw={"mock": True, "max_tokens": max_tokens},
-            response_model=self.model,
-            finish_reason="stop",
-        )
-
-
 def build_client(
     config: Mapping[str, Any],
     *,
-    dry_run: bool = False,
     role: str = "agent",
     profile: str | None = None,
     model: str | None = None,
     secrets_path: Path | str | None = None,
     environ: Mapping[str, str] | None = None,
-) -> OpenAICompatibleClient | MockLLMClient:
+) -> LLMClient:
     """Build an agent or judge client from a named, non-secret profile."""
 
     resolved = resolve_profile(config, role=role, profile=profile, model=model)
     effective = _effective_config(resolved)
-    if dry_run:
-        return MockLLMClient(
-            model=f"mock-{resolved['model']}",
-            provider=resolved["provider"],
-            profile=resolved["profile"],
-            effective_config=effective,
-        )
-
     api_key = resolve_api_key(resolved, secrets_path=secrets_path, environ=environ)
-    return OpenAICompatibleClient(
+    return ChatCompletionsClient(
         api_key=api_key,
         base_url=resolved["base_url"],
         model=resolved["model"],
@@ -505,36 +511,11 @@ def _reject_embedded_secrets(value: Any) -> None:
             _reject_embedded_secrets(nested)
 
 
-def _estimate_tokens(text: str) -> int:
-    return max(1, len(text) // 4)
-
-
-def _infer_marker(text: str, marker: str) -> str | None:
-    prefix = f"{marker}:"
-    for line in text.splitlines():
-        if line.strip().startswith(prefix):
-            return line.split(":", 1)[1].strip()
-    return None
-
-
-def _infer_role(text: str) -> str:
-    for line in text.splitlines():
-        marker = "You are acting as role:"
-        if marker in line:
-            return line.split(marker, 1)[1].strip().strip(".")
-    if "single-agent baseline" in text or "single-agent" in text.lower():
-        return "Single Agent"
-    for role in ("Planner", "Researcher", "Analyst", "Critic", "Writer", "Manager"):
-        if role in text:
-            return role
-    return "Agent"
-
-
 __all__ = [
     "DEFAULT_SECRETS_PATH",
+    "ChatCompletionsClient",
+    "LLMClient",
     "LLMResponse",
-    "MockLLMClient",
-    "OpenAICompatibleClient",
     "build_client",
     "format_profiles",
     "list_profiles",
