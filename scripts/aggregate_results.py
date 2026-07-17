@@ -19,16 +19,16 @@ from src.io_utils import read_jsonl  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Aggregate scored agent-system results by experiment condition or protocol.")
+    parser = argparse.ArgumentParser(description="Aggregate scored agent-system results by condition or protocol.")
     parser.add_argument("--scores-jsonl", default="results/scores.jsonl")
     parser.add_argument("--aggregate-csv", default="results/aggregate_results.csv")
     parser.add_argument("--aggregate-json", default="results/aggregate_results.json")
-    parser.add_argument("--summary-md", default="results/experiment_summary.md")
+    parser.add_argument("--summary-md", default="results/summary.md")
     parser.add_argument(
         "--group-by",
         choices=GROUP_BY_CHOICES,
         default="condition",
-        help="Aggregate by full agent/Judge/protocol condition, experiment, or protocol-only view.",
+        help="Aggregate by full Agent/Judge/protocol condition or protocol-only view.",
     )
     return parser.parse_args()
 

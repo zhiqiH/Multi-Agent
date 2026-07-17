@@ -5,25 +5,30 @@ import re
 from typing import Any, Union
 
 from .llm_client import MockLLMClient, OpenAICompatibleClient
-from .prompts import PROMPT_SCHEMA_VERSION, scoring_prompt
+from .prompts import scoring_prompt
 
 
 Client = Union[OpenAICompatibleClient, MockLLMClient]
 
 
-def build_score_id(run_id: str, client: Client, judge_condition_id: str) -> str:
-    profile = client.profile
-    model = client.model
-    tag = _slug_component(f"{profile}-{model}")
-    return f"{run_id}__judge-{tag}__jc-{_slug_component(judge_condition_id)}"
+def build_result_run_id(run_log: dict[str, Any]) -> str:
+    components = [
+        _slug_component(run_log["task_id"]),
+        _slug_component(run_log.get("protocol_id") or run_log["protocol"]),
+        _slug_component(run_log["agent_model"]),
+        _run_label(run_log),
+    ]
+    return "__".join(components)
+
+
+def build_score_id(run_log: dict[str, Any], client: Client) -> str:
+    return f"{build_result_run_id(run_log)}__judge-{_slug_component(client.model)}"
 
 
 def score_run_log(
     run_log: dict[str, Any],
     task: dict[str, Any],
     client: Client,
-    *,
-    judge_condition_id: str,
 ) -> dict[str, Any]:
     messages = scoring_prompt(task, run_log["final_output"])
     effective_config = dict(getattr(client, "effective_config", {}) or {})
@@ -63,8 +68,6 @@ def score_run_log(
     agent_tokens = max(1, int(run_log.get("total_tokens", 0)))
     quality_token_ratio = round(overall_quality_score / agent_tokens, 8)
 
-    judge_provider = client.provider
-    judge_profile = client.profile
     judge_model = client.model
     judge_estimated_cost = _estimate_judge_cost(client, response.input_tokens, response.output_tokens)
     agent_cost = float(run_log.get("estimated_cost", 0.0) or 0.0)
@@ -72,26 +75,13 @@ def score_run_log(
 
     return {
         "record_type": "score",
-        "schema_version": "3.0",
-        "score_id": build_score_id(run_log["run_id"], client, judge_condition_id),
-        "run_id": run_log["run_id"],
-        "experiment_id": run_log["experiment_id"],
-        "condition_id": run_log["condition_id"],
-        "judge_condition_id": judge_condition_id,
+        "score_id": build_score_id(run_log, client),
+        "run_id": build_result_run_id(run_log),
         "task_id": run_log["task_id"],
         "category": run_log.get("category"),
         "protocol": run_log["protocol"],
-        "protocol_id": run_log["protocol_id"],
-        "protocol_version": run_log["protocol_version"],
-        "role_mode": run_log["role_mode"],
-        "evaluation_mode": run_log["evaluation_mode"],
-        "agent_provider": run_log["agent_provider"],
-        "agent_profile": run_log["agent_profile"],
         "agent_model": run_log["agent_model"],
-        "judge_provider": judge_provider,
-        "judge_profile": judge_profile,
         "judge_model": judge_model,
-        "judge_prompt_schema_version": PROMPT_SCHEMA_VERSION,
         "accuracy_raw": accuracy_raw,
         "accuracy_norm": round(accuracy_norm, 4),
         "completeness_norm": round(completeness_norm, 4),
@@ -184,6 +174,16 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError("Judge output must be a JSON object")
     return parsed
+
+
+def _run_label(run_log: dict[str, Any]) -> str:
+    run_number = run_log.get("run_number")
+    if isinstance(run_number, int) and run_number > 0:
+        return f"run{run_number:02d}"
+    match = re.search(r"(?:^|__)run(\d+)$", str(run_log.get("run_id") or ""))
+    if match:
+        return f"run{int(match.group(1)):02d}"
+    return "run-unknown"
 
 
 def _slug_component(value: Any) -> str:

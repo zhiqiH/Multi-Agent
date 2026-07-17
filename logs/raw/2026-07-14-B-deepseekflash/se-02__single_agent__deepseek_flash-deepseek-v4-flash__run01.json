@@ -1,0 +1,62 @@
+{
+  "run_id": "se-02__single_agent__deepseek_flash-deepseek-v4-flash__run01",
+  "task_id": "SE-02",
+  "category": "Software Engineering",
+  "difficulty": "Hard",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "name": "Single Agent",
+    "active_agents": 1,
+    "description": "A single LLM completes the task without inter-agent communication."
+  },
+  "candidate_provider": "deepseek",
+  "candidate_profile": "deepseek_flash",
+  "candidate_model": "deepseek-v4-flash",
+  "model": "deepseek-v4-flash",
+  "temperature": 0.0,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "start_time": "2026-07-13T18:42:41+00:00",
+  "end_time": "2026-07-13T18:42:58+00:00",
+  "runtime_seconds": 17.716,
+  "input_tokens": 341,
+  "output_tokens": 1200,
+  "total_tokens": 1541,
+  "estimated_cost": 0.00038374,
+  "message_count": 0,
+  "communication_density": 0.0,
+  "tool_call_count": 0,
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "candidate_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "prompt",
+    "required_output_format"
+  ],
+  "candidate_view_sha256": "1ab481b66166283da698bba3038bfa6f76e0c53dead43bf2057404db0d39e5b2",
+  "prompts": [
+    {
+      "role": "Single Agent",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly using the required format and visible task information."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: SE-02\n\nCategory: Software Engineering\n\nDifficulty: Hard\n\nTool Requirement: Prohibited\n\nPrompt:\nDesign a high-level architecture for a multi-tenant AI support-ticket triage system.\n\nScenario: A SaaS company receives about 10,000 support tickets per day across 20 enterprise tenants. The system must classify each ticket by issue type and urgency, redact personal data before any third-party model call, route high-risk tickets to human review, preserve audit logs for compliance review, and allow each tenant to customize routing rules. The target p95 classification latency is 2 seconds per ticket during normal load. If the AI component is unavailable or uncertain, the system must fail safely rather than dropping tickets.\n\nProduce an architecture proposal that balances scalability, privacy, reliability, observability, implementation complexity, and cost. You do not need to write production code.\n\nDo not cite vendors, laws, exact costs, or model-performance numbers not provided in the scenario. Clearly label any assumption.\n\nRequired Output Format:\nUse the following format:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Privacy and compliance safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Testing and rollout plan\n9. Major risks and mitigations\n10. Final recommendation\n\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1. **Assumptions and non-goals**\n   - **Assumptions:**\n     - Each tenant has up to 500 tickets/day (10,000 total / 20 tenants).\n     - \"Normal load\" means steady-state 10,000 tickets/day; peak may be 2x (20,000/day).\n     - AI component is a third-party model (e.g., LLM) called via API; redaction must happen before that call.\n     - \"High-risk\" tickets are defined by tenant rules (e.g., keywords, urgency, issue type).\n     - Audit logs must be immutable and retained for at least 1 year.\n     - Custom routing rules are per-tenant, stored in a database, and evaluated after classification.\n     - p95 latency of 2 seconds includes all processing (ingestion, redaction, classification, routing, logging).\n   - **Non-goals:**\n     - No vendor-specific implementation details.\n     - No exact cost figures.\n     - No production code.\n     - No model performance numbers beyond scenario.\n\n2. **Component diagram described in text**\n   - **Ingestion Gateway:** HTTP endpoint (load-balanced) that receives tickets from tenants. Validates format, assigns unique ID, and publishes to a tenant-partitioned message queue.\n   - **Message Queue (e.g., Kafka):** Topic per tenant or partitioned by tenant ID. Provides buffering and decoupling.\n   - **Redaction Service:** Consumes from queue. Uses regex and NLP-based patterns to redact PII (names, emails, phone numbers, credit card numbers, etc.). Outputs redacted ticket to next queue.\n   - **Classification Service:** Consumes redacted tickets. Calls AI model (third-party) to classify issue type and urgency. Also computes confidence score. If confidence < threshold, marks as \"uncertain\".\n   - **Routing Engine:** Consumes classified tickets. Evaluates tenant-specific routing rules (from Rules DB). Determines destination: human review queue, auto-response, or escalation.\n   - **Human Review Queue:** Separate queue for tickets flagged as high-risk or uncertain. Human agents review and manually route.\n   - **Audit Logger:** Writes immutable logs (ticket ID, timestamps, actions, tenant ID, redacted content, classification result, routing decision) to an append-only store (e.g., object storage or database with write-once).\n   - **Rules Database:** Stores per-tenant routing rules (e.g., \"if urgency=high and issue=security, route to human review\").\n   - **Monitoring & Alerting:** Collects metrics (latency, throughput, error rates, queue depths) and triggers alerts on anomalies.\n   - **Fallback Handler:** If AI call fails or times out, the classification service returns a default \"uncertain\" classification and routes to human review.\n\n3. **End-to-end data flow**\n   1. Tenant sends ticket via API to Ingestion Gateway.\n   2. Gateway validates, assigns ticket ID, enriches with tenant ID, and publishes to tenant-specific queue partition.\n   3. Redaction Service picks up ticket, applies PII redaction, writes redacted version to next queue.\n   4. Classification Service reads redacted ticket, calls AI model. On success, attaches classification (type, urgency, confidence). On failure/timeout, attaches \"uncertain\" flag.\n   5. Routing Engine reads classified ticket, queries Rules DB for tenant's rules, evaluates, and pushes to appropriate output queue (human review, auto-response, or normal processing).\n   6. Audit Logger records all steps (ingestion, redaction, classification, routing) asynchronously.\n   7. Human agents process tickets from human review queue.\n   8. Monitoring system tracks latency at each step; if p95 exceeds 2s, alerts trigger.\n\n4. **Key services and responsibilities table**\n\n   | Service | Responsibility |\n   |---------|----------------|\n   | Ingestion Gateway | Accept tickets, validate, assign ID, publish to queue |\n   | Message Queue | Buffer and decouple services; tenant-partitioned |\n   | Redaction Service | Remove PII before external API call |\n   | Classification Service | Call AI model, produce type/urgency/confidence |\n   | Routing Engine | Apply tenant rules, route to correct destination |\n   | Human Review Queue | Hold tickets needing manual review |\n   | Audit Logger | Immutable logging of all actions |\n   | Rules Database | Store per-tenant routing rules |\n   | Monitoring & Alerting | Track latency, throughput, errors |\n\n5. **Privacy and compliance safeguards**\n   - **Redaction before AI call:** All PII removed before any third-party API call. Redaction uses pattern matching (regex for emails, phones, SSNs) and NLP for context (names, addresses).\n   - **Data minimization:** Only redacted content sent to AI model. Original ticket stored only in audit logs (with access control).\n   - **Tenant isolation:** Queue partitions and database schemas separate by tenant ID. No cross-tenant data leakage.\n   - **Audit logs:** Immutable, append-only storage with write-once-read-many (WORM) policy. Logs include tenant ID, timestamps, and actions.\n   - **Access control:** All services authenticate via internal tokens; human agents have role-based access to only their tenant's data.\n\n6. **Reliability and failure-handling plan**\n   - **AI failure:** If classification service cannot reach AI model or gets timeout, it marks ticket as \"uncertain\" and routes to human review. No ticket dropped.\n   - **Queue failure:** Message queue is clustered (e.g., Kafka with replication). If a broker fails, other brokers take over.\n   - **Service crash:** Each service is stateless and horizontally scalable. If a pod crashes, load bal",
+  "validity_warnings": [],
+  "errors": [],
+  "benchmark_file": "benchmark/mini_benchmark.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "protected_fields_exposed": []
+}

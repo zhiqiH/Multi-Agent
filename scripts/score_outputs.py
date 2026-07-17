@@ -12,18 +12,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.analysis import write_scores_csv  # noqa: E402
 from src.io_utils import read_json, read_jsonl, slug_list, write_jsonl  # noqa: E402
 from src.llm_client import build_client  # noqa: E402
-from src.prompts import PROMPT_SCHEMA_VERSION  # noqa: E402
-from src.protocols import build_condition_id  # noqa: E402
-from src.scorer import build_score_id, score_run_log  # noqa: E402
-from src.tasks import DEFAULT_JUDGE_FIELDS, benchmark_sha256, load_benchmark, project_task  # noqa: E402
+from src.scorer import build_result_run_id, build_score_id, score_run_log  # noqa: E402
+from src.tasks import load_benchmark, project_task  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score agent-system run logs with an independent Judge model.")
     parser.add_argument("--benchmark", default="benchmark/benchmark-full.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
-    parser.add_argument("--experiment-config", default="configs/experiment_config.json")
-    parser.add_argument("--logs-dir", default="logs/raw")
+    parser.add_argument("--logs-dir", default="logs/raw/current")
     parser.add_argument("--scores-jsonl", default="results/scores.jsonl")
     parser.add_argument("--scores-csv", default="results/scores.csv")
     parser.add_argument("--errors-jsonl", default="results/scoring_errors.jsonl")
@@ -35,22 +32,15 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated Judge profiles. Empty uses defaults.judge; 'all' uses every profile.",
     )
     parser.add_argument("--model", default="", help="Temporarily override one Judge profile's model ID.")
-    parser.add_argument("--judge-visible-fields", default="")
     parser.add_argument(
-        "--agent-profiles",
-        dest="agent_profiles",
+        "--agent-models",
+        dest="agent_models",
         default="",
-        help="Only score these agent profiles.",
+        help="Only score logs produced by these Agent model IDs.",
     )
     parser.add_argument("--tasks", default="", help="Only score these task IDs.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--overwrite", action="store_true", help="Rescore exact Judge/run conditions.")
-    parser.add_argument("--allow-benchmark-mismatch", action="store_true")
-    parser.add_argument(
-        "--include-open-book",
-        action="store_true",
-        help="Score intentional open-book ablation logs.",
-    )
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--list-models", action="store_true")
     return parser.parse_args()
@@ -63,41 +53,38 @@ def main() -> int:
         _print_model_profiles(model_config)
         return 0
 
-    experiment_config = read_json(_project_path(args.experiment_config))
     benchmark_path = _project_path(args.benchmark)
     benchmark = load_benchmark(benchmark_path)
-    benchmark_hash = benchmark_sha256(benchmark_path)
     task_by_id = {task["task_id"]: task for task in benchmark["tasks"]}
 
-    visibility = experiment_config.get("task_visibility", {})
-    judge_fields = tuple(
-        slug_list(args.judge_visible_fields)
-        or visibility.get("judge_fields")
-        or DEFAULT_JUDGE_FIELDS
-    )
-    judge_tasks = {task_id: project_task(task, judge_fields) for task_id, task in task_by_id.items()}
+    judge_fields = tuple(dict.fromkeys(field for task in task_by_id.values() for field in task))
+    judge_tasks = {
+        task_id: project_task(task, tuple(task))
+        for task_id, task in task_by_id.items()
+    }
     profile_names = _selected_profiles(model_config, args.judge_profiles, role="judge")
     if args.model and len(profile_names) > 1:
         raise SystemExit("--model can only be used with one Judge profile.")
 
-    log_paths = sorted(_project_path(args.logs_dir).rglob("*.json"))
+    logs_dir = _project_path(args.logs_dir)
+    log_paths = sorted(logs_dir.glob("*.json"))
     if not log_paths:
-        raise SystemExit(f"No run logs found: {_project_path(args.logs_dir)}")
+        raise SystemExit(f"No run logs found directly in: {logs_dir}")
 
-    wanted_agents = set(slug_list(args.agent_profiles))
+    wanted_agents = set(slug_list(args.agent_models))
     wanted_tasks = set(slug_list(args.tasks))
     scores_path = _project_path(args.scores_jsonl)
     scores = read_jsonl(scores_path)
-    score_ids = {score.get("score_id") for score in scores if score.get("score_id")}
+    scores_by_id = {score["score_id"]: score for score in scores if score.get("score_id")}
     scoring_errors: list[dict[str, Any]] = []
 
     print(f"Benchmark: {benchmark_path}")
+    print(f"Logs: {logs_dir} (current directory only)")
     print(f"Judge-visible fields: {', '.join(judge_fields)}")
 
     scored = 0
     skipped = 0
-    skipped_open_book = 0
-    skipped_mismatch = 0
+    skipped_unknown_task = 0
     malformed = 0
     for requested_profile in profile_names:
         client = build_client(
@@ -110,21 +97,13 @@ def main() -> int:
         )
         effective_config = dict(getattr(client, "effective_config", {}) or {})
         judge_condition = {
-            "schema_version": "3.0",
-            "benchmark_sha256": benchmark_hash,
             "judge_provider": client.provider,
             "judge_profile": client.profile,
             "judge_model": client.model,
             "judge_effective_config": effective_config,
             "judge_visible_fields": list(judge_fields),
-            "prompt_schema_version": PROMPT_SCHEMA_VERSION,
-            "scoring_formula_version": "quality-0.35-0.30-0.20-0.15-v1",
         }
-        judge_condition_id = build_condition_id(judge_condition)
-        print(
-            f"Judge model: provider={client.provider} profile={client.profile} model={client.model} "
-            f"judge_condition={judge_condition_id} dry_run={args.dry_run}"
-        )
+        print(f"Judge model: {client.model} dry_run={args.dry_run}")
 
         for path in log_paths:
             run_log = read_json(path)
@@ -136,76 +115,72 @@ def main() -> int:
                 print(f"SKIP malformed log {path}", file=sys.stderr)
                 malformed += 1
                 continue
-            agent_profile = run_log.get("agent_profile")
-            if not agent_profile:
-                print(f"SKIP malformed log {path}: missing agent_profile", file=sys.stderr)
+            agent_model = run_log.get("agent_model")
+            if not agent_model:
+                print(f"SKIP malformed log {path}: missing agent_model", file=sys.stderr)
                 malformed += 1
                 continue
-            if wanted_agents and agent_profile not in wanted_agents:
+            if wanted_agents and agent_model not in wanted_agents:
                 continue
             if wanted_tasks and task_id not in wanted_tasks:
                 continue
             if task_id not in judge_tasks:
                 print(f"SKIP {run_id}: task is not in {benchmark_path.name}", file=sys.stderr)
-                skipped_mismatch += 1
+                skipped_unknown_task += 1
                 continue
 
-            logged_hash = run_log.get("benchmark_sha256")
-            if logged_hash != benchmark_hash and not args.allow_benchmark_mismatch:
-                print(f"SKIP {run_id}: benchmark hash mismatch", file=sys.stderr)
-                skipped_mismatch += 1
-                continue
-
-            evaluation_mode = run_log.get("evaluation_mode")
-            if evaluation_mode not in {"blind", "open_book"}:
-                print(f"SKIP malformed log {path}: invalid evaluation_mode", file=sys.stderr)
-                malformed += 1
-                continue
-            if evaluation_mode == "open_book" and not args.include_open_book:
-                print(f"SKIP {run_id}: open_book (add --include-open-book)", file=sys.stderr)
-                skipped_open_book += 1
-                continue
-
-            score_id = build_score_id(run_id, client, judge_condition_id)
-            if score_id in score_ids and not args.overwrite:
-                print(f"SKIP existing exact score {score_id}")
-                skipped += 1
-                continue
+            score_id = build_score_id(run_log, client)
+            existing_score = scores_by_id.get(score_id)
+            if existing_score is not None:
+                if existing_score.get("judge_condition") != judge_condition and not args.overwrite:
+                    raise SystemExit(
+                        f"Existing score {score_id} used a different Judge field/configuration set. "
+                        "Run again with --overwrite to replace it using all current benchmark fields."
+                    )
+                if not args.overwrite:
+                    print(
+                        f"SKIP existing task={task_id} protocol={run_log['protocol_id']} "
+                        f"agent={agent_model} judge={client.model}"
+                    )
+                    skipped += 1
+                    continue
             try:
-                score = score_run_log(
-                    run_log,
-                    judge_tasks[task_id],
-                    client,
-                    judge_condition_id=judge_condition_id,
-                )
+                score = score_run_log(run_log, judge_tasks[task_id], client)
             except Exception as exc:  # noqa: BLE001 - retain other completed scores.
                 error = {
                     "record_type": "scoring_error",
-                    "run_id": run_id,
-                    "judge_condition_id": judge_condition_id,
+                    "run_id": build_result_run_id(run_log),
+                    "judge_model": client.model,
+                    "judge_condition": judge_condition,
                     "error_type": type(exc).__name__,
                     "error": str(exc),
                 }
                 scoring_errors.append(error)
-                print(f"ERROR scoring {score_id}: {exc}", file=sys.stderr)
+                print(
+                    f"ERROR task={task_id} protocol={run_log['protocol_id']} "
+                    f"agent={agent_model} judge={client.model}: {exc}",
+                    file=sys.stderr,
+                )
                 if args.fail_fast:
                     raise
                 continue
 
-            if score_id in score_ids:
+            if existing_score is not None:
                 scores = [existing for existing in scores if existing.get("score_id") != score_id]
-                score_ids.discard(score_id)
             score.update(
                 {
-                    "evaluation_mode": evaluation_mode,
-                    "benchmark_sha256": benchmark_hash,
+                    "benchmark_id": benchmark.get("benchmark_id", benchmark_path.stem),
+                    "benchmark_file": _display_path(benchmark_path),
                     "judge_condition": judge_condition,
                     "run_validity_warnings": run_log.get("validity_warnings") or [],
                 }
             )
             scores.append(score)
-            score_ids.add(score_id)
-            print(f"SCORED {score_id}: quality={score['overall_quality_score']}")
+            scores_by_id[score_id] = score
+            print(
+                f"SCORED task={task_id} protocol={run_log['protocol_id']} "
+                f"agent={agent_model} judge={client.model} quality={score['overall_quality_score']}"
+            )
             scored += 1
 
     write_jsonl(scores_path, scores)
@@ -213,8 +188,8 @@ def main() -> int:
     write_jsonl(_project_path(args.errors_jsonl), scoring_errors)
     print(
         "Done. "
-        f"scored={scored}, skipped={skipped}, open_book_skipped={skipped_open_book}, "
-        f"benchmark_mismatch_skipped={skipped_mismatch}, "
+        f"scored={scored}, skipped={skipped}, "
+        f"unknown_task_skipped={skipped_unknown_task}, "
         f"malformed={malformed}, errors={len(scoring_errors)}, scores={_project_path(args.scores_csv)}"
     )
     return 0 if not scoring_errors else 2
@@ -241,15 +216,19 @@ def _print_model_profiles(config: dict[str, Any]) -> None:
     for name, profile in config.get("profiles", {}).items():
         roles = [role for role in ("agent", "judge") if defaults.get(role) == name]
         label = f" defaults={','.join(roles)}" if roles else ""
-        print(
-            f"{name}: provider={profile.get('provider', 'unknown')} model={profile.get('model', 'unknown')} "
-            f"roles={','.join(profile.get('supported_roles') or []) or 'unspecified'}{label}"
-        )
+        print(f"{name}: model={profile.get('model', 'unknown')}{label}")
 
 
 def _project_path(raw: str | Path) -> Path:
     path = Path(raw)
     return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path)
 
 
 if __name__ == "__main__":

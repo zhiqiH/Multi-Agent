@@ -3,9 +3,6 @@ import json
 from typing import Any
 from .tasks import PROTECTED_FIELDS, agent_task_text, project_task
 
-
-PROMPT_SCHEMA_VERSION = "3.1-agent-judge-boundary"
-
 ROLE_SYSTEM_PROMPTS = {
     "Planner": "You are Planner. Decompose the task, identify deliverables, constraints, and a concise execution plan. Do not fabricate external evidence.",
     "Researcher": "You are Researcher. Gather and organize evidence available in the prompt and common conceptual knowledge. Respect the task tool requirement.",
@@ -15,12 +12,6 @@ ROLE_SYSTEM_PROMPTS = {
     "Manager": "You are Manager. Assign work, synthesize worker outputs, resolve conflicts, and approve a final direction.",
     "Single Agent": "You are a careful single-agent baseline. Complete the task directly using the required format and visible task information.",
 }
-
-GENERALIST_AGENT_SYSTEM_PROMPT = (
-    "You are a general-purpose collaborating agent. Contribute useful, non-duplicative work, "
-    "respect the communication protocol, and do not fabricate external evidence."
-)
-
 
 def agent_prompt(role: str, task: dict[str, Any], instruction: str, visible_context: str = "") -> str:
     """Build an agent prompt from an already-projected task view."""

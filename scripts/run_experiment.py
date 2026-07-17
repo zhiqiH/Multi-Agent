@@ -15,8 +15,6 @@ from src.llm_client import build_client  # noqa: E402
 from src.protocols import (  # noqa: E402
     DEFAULT_PROTOCOLS,
     PROTOCOLS,
-    PROTOCOL_SCHEMA_VERSION,
-    build_condition_id,
     build_run_id,
     resolve_protocols,
     run_protocol,
@@ -25,7 +23,6 @@ from src.tasks import (  # noqa: E402
     DEFAULT_AGENT_FIELDS,
     KNOWN_TASK_FIELDS,
     PROTECTED_FIELDS,
-    benchmark_sha256,
     load_benchmark,
     project_task,
     select_tasks,
@@ -36,11 +33,10 @@ TOOL_EXECUTION_LAYER_AVAILABLE = False
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run controlled single-agent and multi-agent protocol experiments.")
-    parser.add_argument("--benchmark", default="benchmark/benchmark-full.json")
+    parser.add_argument("--benchmark", default="benchmark/benchmark-D.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--experiment-config", default="configs/experiment_config.json")
-    parser.add_argument("--out-dir", default="logs/raw")
-    parser.add_argument("--experiment-id", default="", help="Human-readable experiment label included in run IDs.")
+    parser.add_argument("--out-dir", default="logs/raw/current")
     parser.add_argument("--protocols", default=",".join(DEFAULT_PROTOCOLS))
     parser.add_argument("--tasks", default="", help="Comma-separated task IDs. Empty means all tasks.")
     parser.add_argument(
@@ -60,9 +56,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--allow-protected-agent-fields",
         action="store_true",
-        help="Allow private grading fields in an intentional open-book ablation.",
+        help="Allow grading fields to be included in the Agent input.",
     )
-    parser.add_argument("--role-mode", choices=("specialized", "generalist"), default="")
     parser.add_argument("--run-number", type=int, default=1, help="First replicate number.")
     parser.add_argument("--runs", type=int, default=0, help="Number of replicates; 0 uses experiment config.")
     parser.add_argument("--max-rounds", type=int, default=0, help="Override max rounds for all selected protocols.")
@@ -99,7 +94,6 @@ def main() -> int:
     experiment_config = read_json(experiment_config_path)
     benchmark_path = _project_path(args.benchmark)
     benchmark = load_benchmark(benchmark_path)
-    benchmark_hash = benchmark_sha256(benchmark_path)
 
     if args.list_task_fields:
         present = set().union(*(set(task) for task in benchmark["tasks"]))
@@ -126,10 +120,9 @@ def main() -> int:
             "Refusing to expose protected grading fields to agents: "
             f"{', '.join(protected_requested)}. Remove them or add --allow-protected-agent-fields."
         )
-    evaluation_mode = "open_book" if protected_requested else "blind"
     if protected_requested:
         print(
-            "NOTICE: intentional open-book ablation; agents can see protected fields: "
+            "NOTICE: Agents receive grading fields: "
             + ", ".join(protected_requested),
             file=sys.stderr,
         )
@@ -139,7 +132,6 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "evaluation_mode": evaluation_mode,
                     "agent_visible_fields": list(agent_fields),
                     "tasks": [agent_task for _, agent_task in agent_tasks],
                 },
@@ -155,12 +147,9 @@ def main() -> int:
         raise SystemExit("--model can only be used with one agent profile.")
 
     run_policy = experiment_config.get("run_policy", {})
-    role_mode = args.role_mode or str(run_policy.get("role_mode") or "specialized")
     runs = args.runs or int(run_policy.get("runs_per_condition") or 1)
     if args.run_number <= 0 or runs <= 0:
         raise SystemExit("--run-number and --runs must be positive")
-    experiment_id = args.experiment_id or str(run_policy.get("experiment_id") or "main")
-
     out_dir = _project_path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     store_prompts = bool(visibility.get("store_agent_prompts", True))
@@ -170,7 +159,6 @@ def main() -> int:
     print(f"Benchmark ID: {benchmark.get('benchmark_id', benchmark_path.stem)}")
     print(f"Tasks: {', '.join(task['task_id'] for task in raw_tasks)}")
     print(f"Protocols: {', '.join(protocols)}")
-    print(f"Evaluation mode: {evaluation_mode}")
     print(f"Agent-visible fields: {', '.join(agent_fields)}")
 
     completed = 0
@@ -187,10 +175,7 @@ def main() -> int:
             secrets_path=PROJECT_ROOT / ".secrets" / "model_keys.json",
         )
         effective_config = dict(getattr(client, "effective_config", {}) or {})
-        print(
-            f"Agent model: provider={client.provider} profile={client.profile} "
-            f"model={client.model} dry_run={args.dry_run}"
-        )
+        print(f"Agent model: {client.model} dry_run={args.dry_run}")
 
         for protocol_id in protocols:
             protocol_config = _protocol_config(
@@ -200,22 +185,17 @@ def main() -> int:
                 max_interactions=args.max_interactions,
             )
             condition = {
-                "schema_version": "3.0",
-                "benchmark_sha256": benchmark_hash,
+                "benchmark_id": benchmark.get("benchmark_id", benchmark_path.stem),
+                "benchmark_file": _display_path(benchmark_path),
                 "protocol_id": protocol_id,
-                "protocol_version": PROTOCOL_SCHEMA_VERSION,
                 "protocol_config": protocol_config,
                 "agent_provider": client.provider,
-                "agent_profile": client.profile,
                 "agent_model": client.model,
                 "agent_effective_config": effective_config,
-                "evaluation_mode": evaluation_mode,
                 "agent_visible_fields": list(agent_fields),
-                "role_mode": role_mode,
                 "tool_policy": experiment_config.get("tool_policy", {}),
             }
-            condition_id = build_condition_id(condition)
-            manifest_conditions.append({"condition_id": condition_id, **condition})
+            manifest_conditions.append(condition)
 
             for raw_task, agent_task in agent_tasks:
                 task_warnings = _task_validity_warnings(raw_task, experiment_config)
@@ -232,17 +212,21 @@ def main() -> int:
                     run_id = build_run_id(
                         raw_task["task_id"],
                         protocol_id,
-                        client.profile,
                         client.model,
                         run_number,
-                        condition_id=condition_id,
-                        experiment_id=experiment_id,
                     )
                     out_path = out_dir / f"{run_id}.json"
-                    if out_path.exists() and not args.overwrite:
-                        print(f"SKIP existing exact condition {run_id}")
-                        skipped += 1
-                        continue
+                    if out_path.exists():
+                        if not args.overwrite:
+                            print(f"SKIP existing run {run_id}")
+                            skipped += 1
+                            continue
+                        existing_log = read_json(out_path)
+                        if not _same_recorded_condition(existing_log, condition):
+                            raise SystemExit(
+                                f"Refusing to overwrite {out_path.name}: its recorded configuration differs. "
+                                "Use a different --out-dir or --run-number for the new condition."
+                            )
 
                     log = run_protocol(
                         protocol_id,
@@ -255,19 +239,12 @@ def main() -> int:
                         agent_visible_fields=list(agent_fields),
                         validity_warnings=task_warnings,
                         protocol_config=protocol_config,
-                        role_mode=role_mode,
                     )
                     log.update(
                         {
-                            "experiment_id": experiment_id,
-                            "condition_id": condition_id,
                             "condition": condition,
-                            "evaluation_mode": evaluation_mode,
-                            "protected_agent_fields": protected_requested,
                             "benchmark_id": benchmark.get("benchmark_id", benchmark_path.stem),
-                            "benchmark_version": benchmark.get("benchmark_version", "unspecified"),
                             "benchmark_file": _display_path(benchmark_path),
-                            "benchmark_sha256": benchmark_hash,
                             "experiment_config_file": _display_path(experiment_config_path),
                             "model_config_file": _display_path(model_config_path),
                         }
@@ -283,33 +260,36 @@ def main() -> int:
                     completed += 1
 
     manifest_conditions = _deduplicate_conditions(manifest_conditions)
-    manifest_basis = {
-        "experiment_id": experiment_id,
-        "benchmark_sha256": benchmark_hash,
-        "task_ids": [task["task_id"] for task in raw_tasks],
-        "condition_ids": [condition["condition_id"] for condition in manifest_conditions],
-        "first_run_number": args.run_number,
-        "runs": runs,
-    }
-    manifest_id = build_condition_id(manifest_basis)
+    manifest_model_labels = sorted({str(condition["agent_model"]) for condition in manifest_conditions})
+    manifest_id = _safe_name("__".join(
+        [
+            benchmark_path.stem,
+            "-".join(protocols),
+            "-".join(manifest_model_labels),
+            f"run{args.run_number:02d}",
+        ]
+    ))
     manifest = {
         "record_type": "experiment_manifest",
-        "schema_version": "3.0",
         "manifest_id": manifest_id,
-        "experiment_id": experiment_id,
+        "benchmark_id": benchmark.get("benchmark_id", benchmark_path.stem),
         "benchmark_file": _display_path(benchmark_path),
-        "benchmark_sha256": benchmark_hash,
-        "task_ids": manifest_basis["task_ids"],
+        "task_ids": [task["task_id"] for task in raw_tasks],
         "first_run_number": args.run_number,
         "runs": runs,
-        "evaluation_mode": evaluation_mode,
-        "role_mode": role_mode,
         "conditions": manifest_conditions,
         "completed_runs": completed,
         "skipped_runs": skipped,
         "validity_warning_count": warnings_seen,
     }
-    manifest_path = out_dir / f"{_safe_name(experiment_id)}__manifest__{manifest_id}.json"
+    manifest_path = out_dir / f"manifest__{manifest_id}.json"
+    if manifest_path.exists():
+        existing_manifest = read_json(manifest_path)
+        if not _same_manifest_scope(existing_manifest, manifest):
+            raise SystemExit(
+                f"Refusing to overwrite {manifest_path.name}: its recorded experiment scope differs. "
+                "Use a different --out-dir or --run-number."
+            )
     write_json(manifest_path, manifest)
     print(
         f"Done. completed={completed}, skipped={skipped}, validity_warnings={warnings_seen}, "
@@ -339,11 +319,7 @@ def _print_model_profiles(config: dict[str, Any]) -> None:
     for name, profile in config.get("profiles", {}).items():
         roles = [role for role in ("agent", "judge") if defaults.get(role) == name]
         default_label = f" defaults={','.join(roles)}" if roles else ""
-        print(
-            f"{name}: provider={profile.get('provider', 'unknown')} model={profile.get('model', 'unknown')} "
-            f"roles={','.join(profile.get('supported_roles') or []) or 'unspecified'} "
-            f"key_env={profile.get('api_key_env', '-')}{default_label}"
-        )
+        print(f"{name}: model={profile.get('model', 'unknown')} key_env={profile.get('api_key_env', '-')}{default_label}")
 
 
 def _protocol_config(
@@ -381,10 +357,31 @@ def _task_validity_warnings(task: dict[str, Any], experiment_config: dict[str, A
 
 
 def _deduplicate_conditions(conditions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    unique: dict[str, dict[str, Any]] = {}
+    unique: list[dict[str, Any]] = []
     for condition in conditions:
-        unique[str(condition["condition_id"])] = condition
-    return [unique[key] for key in sorted(unique)]
+        if condition not in unique:
+            unique.append(condition)
+    return unique
+
+
+def _same_recorded_condition(existing_log: dict[str, Any], expected: dict[str, Any]) -> bool:
+    recorded = dict(existing_log.get("condition") or {})
+    for field in ("benchmark_id", "benchmark_file"):
+        if field not in recorded and field in existing_log:
+            recorded[field] = existing_log[field]
+    return all(recorded.get(field) == value for field, value in expected.items())
+
+
+def _same_manifest_scope(existing: dict[str, Any], expected: dict[str, Any]) -> bool:
+    scope_fields = (
+        "benchmark_id",
+        "benchmark_file",
+        "task_ids",
+        "first_run_number",
+        "runs",
+        "conditions",
+    )
+    return all(existing.get(field) == expected.get(field) for field in scope_fields)
 
 
 def _safe_name(value: str) -> str:

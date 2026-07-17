@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from copy import deepcopy
@@ -19,7 +18,7 @@ DEFAULT_AGENT_FIELDS: tuple[str, ...] = (
     "required_output_format",
 )
 
-DEFAULT_JUDGE_PRIVATE_FIELDS: tuple[str, ...] = (
+GRADING_FIELDS: tuple[str, ...] = (
     "evaluation_criteria",
     "ground_truth",
     "expected_failure_risks",
@@ -27,8 +26,7 @@ DEFAULT_JUDGE_PRIVATE_FIELDS: tuple[str, ...] = (
     "required_evidence",
 )
 
-DEFAULT_JUDGE_FIELDS: tuple[str, ...] = DEFAULT_AGENT_FIELDS + DEFAULT_JUDGE_PRIVATE_FIELDS
-PROTECTED_FIELDS: frozenset[str] = frozenset(DEFAULT_JUDGE_PRIVATE_FIELDS)
+PROTECTED_FIELDS: frozenset[str] = frozenset(GRADING_FIELDS)
 
 REQUIRED_TASK_FIELDS: frozenset[str] = frozenset(
     {
@@ -166,14 +164,6 @@ def _validate_task(task: Any, *, source: Path) -> None:
     for field in ("required_evidence", "scoring_rubric", "expected_failure_risks", "ground_truth"):
         if task[field] in (None, "", [], {}):
             raise ValueError(f"Task {task_id} field {field!r} must not be empty")
-
-
-def benchmark_sha256(path: Path) -> str:
-    """Hash the fully resolved benchmark, including every referenced shard."""
-
-    benchmark = load_benchmark(path)
-    payload = json.dumps(benchmark, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def select_tasks(benchmark: dict[str, Any], task_ids: list[str]) -> list[dict[str, Any]]:

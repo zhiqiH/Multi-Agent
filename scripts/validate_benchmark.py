@@ -9,7 +9,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.tasks import BENCHMARK_CATEGORIES, benchmark_sha256, load_benchmark  # noqa: E402
+from src.tasks import BENCHMARK_CATEGORIES, load_benchmark  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -69,7 +69,6 @@ def main() -> int:
         )
 
     print(f"VALID benchmark={path}")
-    print(f"benchmark_sha256={benchmark_sha256(path)}")
     print(f"tasks={len(tasks)}")
     print("categories=" + ", ".join(f"{key}:{categories[key]}" for key in sorted(categories)))
     print("difficulties=" + ", ".join(f"{key}:{difficulties[key]}" for key in sorted(difficulties)))

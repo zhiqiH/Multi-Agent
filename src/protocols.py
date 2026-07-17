@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 import time
 from collections import Counter
@@ -10,8 +8,6 @@ from typing import Any, Callable, Union
 from .llm_client import LLMResponse, MockLLMClient, OpenAICompatibleClient
 from .io_utils import utc_now_iso
 from .prompts import (
-    GENERALIST_AGENT_SYSTEM_PROMPT,
-    PROMPT_SCHEMA_VERSION,
     ROLE_SYSTEM_PROMPTS,
     agent_prompt,
     single_agent_prompt,
@@ -19,7 +15,6 @@ from .prompts import (
 
 
 Client = Union[OpenAICompatibleClient, MockLLMClient]
-PROTOCOL_SCHEMA_VERSION = "3.1-pdf-eight-protocols"
 CORE_AGENT_ROLES = ("Planner", "Researcher", "Analyst", "Critic", "Writer")
 WORK_ROLES = ("Planner", "Researcher", "Analyst", "Critic")
 
@@ -122,17 +117,14 @@ class RunState:
         model: str,
         config: dict[str, Any],
         protocol_config: dict[str, Any],
-        *,
-        role_mode: str,
     ) -> None:
         # Hard Agent/Judge boundary: raw private benchmark data must never reach
-        # this object unless an explicit open-book projection selected it.
+        # this object unless the caller explicitly selected those fields.
         self.task = agent_task
         self.client = client
         self.model = model
         self.config = config
         self.protocol_config = protocol_config
-        self.role_mode = role_mode
         self.intermediate_messages: list[dict[str, Any]] = []
         self.prompts: list[dict[str, Any]] = []
         self.tool_calls: list[dict[str, Any]] = []
@@ -184,11 +176,7 @@ class RunState:
                 f"Protocol token budget exhausted ({self.max_total_tokens}) before {role} could run"
             )
 
-        system_prompt = (
-            GENERALIST_AGENT_SYSTEM_PROMPT
-            if self.role_mode == "generalist"
-            else ROLE_SYSTEM_PROMPTS[role]
-        )
+        system_prompt = ROLE_SYSTEM_PROMPTS[role]
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": agent_prompt(role, self.task, instruction, visible_context)},
@@ -239,12 +227,9 @@ def run_protocol(
     agent_visible_fields: list[str],
     validity_warnings: list[str] | None = None,
     protocol_config: dict[str, Any] | None = None,
-    role_mode: str = "specialized",
 ) -> dict[str, Any]:
     if protocol_id not in PROTOCOLS:
         raise ValueError(f"Unknown protocol: {protocol_id}")
-    if role_mode not in {"specialized", "generalist"}:
-        raise ValueError("role_mode must be 'specialized' or 'generalist'")
     if set(agent_task) != set(agent_visible_fields):
         raise ValueError(
             "Agent task keys do not match agent_visible_fields; refusing to run with an ambiguous data boundary."
@@ -264,12 +249,11 @@ def run_protocol(
 
     model = client.model
     provider = client.provider
-    profile = client.profile
     metadata = dict(task_metadata or agent_task)
     task_id = metadata.get("task_id") or agent_task.get("task_id")
     if not task_id:
         raise ValueError("task_metadata.task_id is required to identify a benchmark run")
-    effective_run_id = run_id or build_run_id(task_id, protocol_id, profile, model, run_number)
+    effective_run_id = run_id or build_run_id(task_id, protocol_id, model, run_number)
 
     state = RunState(
         agent_task,
@@ -277,7 +261,6 @@ def run_protocol(
         model,
         config,
         effective_protocol_config,
-        role_mode=role_mode,
     )
     start_time = utc_now_iso()
     started = time.perf_counter()
@@ -300,20 +283,16 @@ def run_protocol(
 
     return {
         "record_type": "agent_run",
-        "schema_version": "3.0",
         "run_id": effective_run_id,
+        "run_number": run_number,
         "task_id": task_id,
         "category": metadata.get("category"),
         "difficulty": metadata.get("difficulty"),
         "protocol": definition["name"],
         "protocol_id": protocol_id,
-        "protocol_version": PROTOCOL_SCHEMA_VERSION,
         "protocol_definition": definition,
         "protocol_config": effective_protocol_config,
-        "prompt_schema_version": PROMPT_SCHEMA_VERSION,
-        "role_mode": role_mode,
         "agent_provider": provider,
-        "agent_profile": profile,
         "agent_model": model,
         "temperature": (config.get("request_options") or {}).get("temperature"),
         "tool_requirement": metadata.get("tool_requirement"),
@@ -339,7 +318,6 @@ def run_protocol(
         "intermediate_messages": state.intermediate_messages,
         "tool_calls": state.tool_calls,
         "agent_visible_fields": list(agent_task),
-        "agent_view_sha256": _stable_sha256(agent_task),
         "prompts": state.prompts,
         "final_output": final_output,
         "validity_warnings": list(validity_warnings or []),
@@ -347,32 +325,17 @@ def run_protocol(
     }
 
 
-def build_condition_id(condition: dict[str, Any]) -> str:
-    return _stable_sha256(condition)[:12]
-
-
 def build_run_id(
     task_id: str,
     protocol_id: str,
-    agent_profile: str,
     model: str,
     run_number: int,
-    *,
-    condition_id: str | None = None,
-    experiment_id: str | None = None,
 ) -> str:
-    components = []
-    if experiment_id:
-        components.append(_slug_component(experiment_id))
-    components.extend(
-        [
-            _slug_component(task_id),
-            _slug_component(protocol_id),
-            _slug_component(f"{agent_profile}-{model}"),
-        ]
-    )
-    if condition_id:
-        components.append(f"c-{_slug_component(condition_id)}")
+    components = [
+        _slug_component(task_id),
+        _slug_component(protocol_id),
+        _slug_component(model),
+    ]
     components.append(f"run{run_number:02d}")
     return "__".join(components)
 
@@ -773,11 +736,6 @@ def _parse_ballot(text: str, upper: int) -> int | None:
 def _slug_component(value: Any) -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value)).strip("-._").lower()
     return slug or "unknown"
-
-
-def _stable_sha256(value: Any) -> str:
-    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 _RUNNERS: dict[str, Callable[[RunState], str]] = {

@@ -104,24 +104,24 @@ def resolve_profile(
     selected = raw_profiles[selected_name]
     if not isinstance(common, Mapping) or not isinstance(selected, Mapping):
         raise ValueError("client_defaults and each model profile must be JSON objects")
-    merged = copy.deepcopy(dict(common))
-    common_options = merged.pop("request_options", {}) or {}
+    resolved: dict[str, Any] = copy.deepcopy(dict(common))
+    common_options = resolved.pop("request_options", {}) or {}
     selected_copy = copy.deepcopy(dict(selected))
     selected_options = selected_copy.pop("request_options", {}) or {}
     if not isinstance(common_options, Mapping) or not isinstance(selected_options, Mapping):
         raise ValueError("request_options must be a JSON object")
-    merged.update(selected_copy)
+    resolved.update(selected_copy)
     request_options = copy.deepcopy(dict(common_options))
     request_options.update(copy.deepcopy(dict(selected_options)))
 
-    _reject_embedded_secrets(merged)
+    _reject_embedded_secrets(resolved)
     _reject_embedded_secrets(request_options)
 
-    provider = str(merged.get("provider") or "").strip().lower()
-    base_url = str(merged.get("base_url") or "").strip()
-    resolved_model = str(model or merged.get("model") or "").strip()
-    api_key_env = str(merged.get("api_key_env") or "").strip()
-    max_tokens_param = str(merged.get("max_tokens_param") or "").strip()
+    provider = str(resolved.get("provider") or "").strip().lower()
+    base_url = str(resolved.get("base_url") or "").strip()
+    resolved_model = str(model or resolved.get("model") or "").strip()
+    api_key_env = str(resolved.get("api_key_env") or "").strip()
+    max_tokens_param = str(resolved.get("max_tokens_param") or "").strip()
 
     if not provider:
         raise ValueError(f"Profile '{selected_name}' has no provider")
@@ -133,11 +133,10 @@ def resolve_profile(
         raise ValueError(f"Profile '{selected_name}' has no api_key_env")
     if not max_tokens_param or any(character.isspace() for character in max_tokens_param):
         raise ValueError(f"Profile '{selected_name}' has an invalid max_tokens_param")
-    supported_roles = merged.get("supported_roles") or []
+    supported_roles = resolved.get("supported_roles") or []
     if supported_roles and role not in supported_roles:
         raise ValueError(f"Profile '{selected_name}' does not support the {role} role")
 
-    resolved: dict[str, Any] = copy.deepcopy(merged)
     resolved.update(
         {
             "provider": provider,
@@ -375,7 +374,7 @@ class OpenAICompatibleClient:
 
 
 class MockLLMClient:
-    """Deterministic local client for smoke tests without API calls."""
+    """Deterministic local client for checks without API calls."""
 
     def __init__(
         self,

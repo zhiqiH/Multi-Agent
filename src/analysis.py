@@ -41,21 +41,10 @@ NUMERIC_FIELDS = [
 SCORE_IDENTITY_FIELDS = [
     "score_id",
     "run_id",
-    "experiment_id",
-    "condition_id",
-    "judge_condition_id",
     "task_id",
     "category",
-    "protocol_id",
     "protocol",
-    "protocol_version",
-    "role_mode",
-    "evaluation_mode",
-    "agent_provider",
-    "agent_profile",
     "agent_model",
-    "judge_provider",
-    "judge_profile",
     "judge_model",
 ]
 
@@ -92,26 +81,18 @@ SCORE_CSV_FIELDS = SCORE_IDENTITY_FIELDS + [
     "judge_finish_reason",
     "judge_estimated_cost",
     "total_estimated_cost",
-    "benchmark_sha256",
+    "benchmark_id",
+    "benchmark_file",
     "run_validity_warnings",
     "raw_evaluation",
 ]
 
 CONDITION_GROUP_FIELDS = [
-    "condition_id",
-    "judge_condition_id",
-    "agent_provider",
-    "agent_profile",
     "agent_model",
-    "evaluation_mode",
-    "role_mode",
-    "judge_provider",
-    "judge_profile",
     "judge_model",
-    "protocol_id",
     "protocol",
 ]
-GROUP_BY_CHOICES = ("condition", "protocol", "experiment")
+GROUP_BY_CHOICES = ("condition", "protocol")
 
 
 def write_scores_csv(path: Path, scores: list[dict[str, Any]]) -> None:
@@ -128,10 +109,8 @@ def aggregate_scores(scores: list[dict[str, Any]], *, group_by: str = "condition
         raise ValueError(f"Unknown group_by={group_by!r}. Choose from {GROUP_BY_CHOICES}.")
     if group_by == "condition":
         group_fields = CONDITION_GROUP_FIELDS
-    elif group_by == "experiment":
-        group_fields = ["experiment_id", *CONDITION_GROUP_FIELDS]
     else:
-        group_fields = ["protocol_id", "protocol"]
+        group_fields = ["protocol"]
 
     buckets: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
     for score in scores:
@@ -178,7 +157,7 @@ def write_summary_markdown(
         raise ValueError(f"Unknown group_by={group_by!r}. Choose from {GROUP_BY_CHOICES}.")
 
     best = max(rows, key=lambda row: _as_float(row.get("avg_overall_quality_score")), default=None)
-    lines = ["# Experiment Summary", "", f"- Total scored runs: {len(scores)}"]
+    lines = ["# Benchmark Summary", "", f"- Total scored runs: {len(scores)}"]
     if best:
         best_label = _protocol_label(best) if group_by == "protocol" else _condition_label(best)
         lines.append(
@@ -207,17 +186,16 @@ def write_summary_markdown(
             )
     else:
         lines.append(
-            "| Agent | Judge | Protocol | Mode | Runs | Avg Quality | Avg Tokens | Avg Messages | Avg Runtime | Avg Cost |"
+            "| Agent Model | Judge Model | Protocol | Runs | Avg Quality | Avg Tokens | Avg Messages | Avg Runtime | Avg Cost |"
         )
-        lines.append("|---|---|---|---|---:|---:|---:|---:|---:|---:|")
+        lines.append("|---|---|---|---:|---:|---:|---:|---:|---:|")
         for row in rows:
             lines.append(
-                "| {agent} | {judge} | {protocol} | {mode} | {runs} | {quality:.4f} | "
+                "| {agent} | {judge} | {protocol} | {runs} | {quality:.4f} | "
                 "{tokens:.1f} | {messages:.2f} | {runtime:.2f} | {cost:.6f} |".format(
                     agent=_markdown_cell(_agent_label(row)),
                     judge=_markdown_cell(_judge_label(row)),
                     protocol=_markdown_cell(_protocol_label(row)),
-                    mode=_markdown_cell(row["evaluation_mode"]),
                     runs=row["runs"],
                     quality=_as_float(row.get("avg_overall_quality_score")),
                     tokens=_as_float(row.get("avg_total_tokens")),
@@ -270,19 +248,15 @@ def _as_float(value: Any) -> float:
 
 
 def _agent_label(row: dict[str, Any]) -> str:
-    return "/".join(
-        _identity_value(row, field) for field in ("agent_provider", "agent_profile", "agent_model")
-    )
+    return _identity_value(row, "agent_model")
 
 
 def _judge_label(row: dict[str, Any]) -> str:
-    return "/".join(
-        _identity_value(row, field) for field in ("judge_provider", "judge_profile", "judge_model")
-    )
+    return _identity_value(row, "judge_model")
 
 
 def _protocol_label(row: dict[str, Any]) -> str:
-    return f"{_identity_value(row, 'protocol_id')} ({_identity_value(row, 'protocol')})"
+    return _identity_value(row, "protocol")
 
 
 def _condition_label(row: dict[str, Any]) -> str:
