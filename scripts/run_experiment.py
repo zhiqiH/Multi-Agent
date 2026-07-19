@@ -97,7 +97,9 @@ def main() -> int:
 
     experiment_config_path = _project_path(args.experiment_config)
     experiment_config = read_json(experiment_config_path)
-    tool_registry = ToolRegistry(experiment_config.get("tool_policy", {}), project_root=PROJECT_ROOT)
+    base_tool_registry = ToolRegistry(
+        experiment_config.get("tool_policy", {}), project_root=PROJECT_ROOT
+    )
     benchmark_path = _project_path(args.benchmark)
     benchmark = load_benchmark(benchmark_path)
 
@@ -134,12 +136,22 @@ def main() -> int:
         )
 
     agent_tasks = [(raw, project_task(raw, agent_fields)) for raw in raw_tasks]
+    task_tool_registries = {
+        raw["task_id"]: base_tool_registry.for_task(raw) for raw, _ in agent_tasks
+    }
     if args.print_agent_view:
         print(
             json.dumps(
                 {
                     "agent_visible_fields": list(agent_fields),
                     "tasks": [agent_task for _, agent_task in agent_tasks],
+                    "task_tool_surfaces": {
+                        task_id: {
+                            "available_tools": list(registry.names),
+                            "tool_expectations": registry.tool_expectations,
+                        }
+                        for task_id, registry in task_tool_registries.items()
+                    },
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -184,7 +196,9 @@ def main() -> int:
         effective_config = dict(getattr(client, "effective_config", {}) or {})
         print(f"Agent model: {client.model}")
         capabilities = effective_config.get("capabilities") or {}
-        if tool_registry.names and not capabilities.get("tool_calling", False):
+        if any(registry.names for registry in task_tool_registries.values()) and not capabilities.get(
+            "tool_calling", False
+        ):
             raise SystemExit(
                 f"Agent model {client.model} is not configured with tool_calling capability."
             )
@@ -209,10 +223,18 @@ def main() -> int:
                 "agent_visible_fields": list(agent_fields),
                 "tool_policy": experiment_config.get("tool_policy", {}),
             }
-            manifest_conditions.append(condition)
-
             for raw_task, agent_task in agent_tasks:
-                task_warnings = _task_validity_warnings(raw_task, tool_registry)
+                task_tool_registry = task_tool_registries[raw_task["task_id"]]
+                task_condition = {
+                    **condition,
+                    "task_id": raw_task["task_id"],
+                    "task_tool_policy": {
+                        "available_tools": list(task_tool_registry.names),
+                        "tool_expectations": task_tool_registry.tool_expectations,
+                    },
+                }
+                manifest_conditions.append(task_condition)
+                task_warnings = _task_validity_warnings(raw_task, task_tool_registry)
                 if task_warnings and args.strict_tool_requirements:
                     raise SystemExit(f"{raw_task['task_id']}: {task_warnings[0]}")
                 for warning in task_warnings:
@@ -220,7 +242,14 @@ def main() -> int:
                     warnings_seen += 1
                 metadata = {
                     field: raw_task.get(field)
-                    for field in ("task_id", "category", "difficulty", "tool_requirement")
+                    for field in (
+                        "task_id",
+                        "category",
+                        "difficulty",
+                        "tool_requirement",
+                        "available_tools",
+                        "tool_expectations",
+                    )
                 }
                 for run_number in range(args.run_number, args.run_number + runs):
                     run_id = build_run_id(
@@ -236,7 +265,7 @@ def main() -> int:
                             skipped += 1
                             continue
                         existing_log = read_json(out_path)
-                        if not _same_recorded_condition(existing_log, condition):
+                        if not _same_recorded_condition(existing_log, task_condition):
                             raise SystemExit(
                                 f"Refusing to overwrite {out_path.name}: its recorded configuration differs. "
                                 "Use a different --out-dir or --run-number for the new condition."
@@ -253,7 +282,7 @@ def main() -> int:
                         agent_visible_fields=list(agent_fields),
                         validity_warnings=task_warnings,
                         protocol_config=protocol_config,
-                        tool_registry=tool_registry,
+                        tool_registry=task_tool_registry,
                     )
                     post_tool_warnings = _post_tool_validity_warnings(raw_task, log)
                     for warning in post_tool_warnings:
@@ -264,7 +293,7 @@ def main() -> int:
                         log["errors"].extend(post_tool_warnings)
                     log.update(
                         {
-                            "condition": condition,
+                            "condition": task_condition,
                             "benchmark_id": benchmark.get("benchmark_id", benchmark_path.stem),
                             "benchmark_file": _display_path(benchmark_path),
                             "experiment_config_file": _display_path(experiment_config_path),
@@ -275,13 +304,7 @@ def main() -> int:
                         log.pop("prompts", None)
                     write_json(out_path, log)
                     status = "ERROR" if log["errors"] else "OK"
-                    print(
-                        f"{status} {run_id}: tokens={log['total_tokens']}/{log['max_total_tokens']} "
-                        f"budget={log['budget_utilization']:.1%} messages={log['message_count']} "
-                        f"rounds={log['rounds_completed']} tools={log['tool_call_count']} "
-                        f"source_access={'pass' if log['tool_requirement_satisfied'] else 'fail'} "
-                        f"runtime={log['runtime_seconds']}s"
-                    )
+                    print(_format_run_result(status, run_id, log))
                     completed += 1
 
     manifest_conditions = _deduplicate_conditions(manifest_conditions)
@@ -392,8 +415,8 @@ def _task_validity_warnings(task: dict[str, Any], tool_registry: ToolRegistry) -
     warnings: list[str] = []
     if not set(tool_registry.names).intersection(EVIDENCE_TOOL_NAMES):
         warnings.append(
-            "This task requires external evidence, but no evidence tools are enabled in "
-            "tool_policy.available_tools."
+            "This task requires external evidence, but its benchmark available_tools field "
+            "does not enable an evidence-producing tool."
         )
     prompt = str(task.get("prompt") or "").lower()
     if "local pdf" in prompt and not tool_registry.has_local_documents:
@@ -405,14 +428,29 @@ def _task_validity_warnings(task: dict[str, Any], tool_registry: ToolRegistry) -
 
 def _post_tool_validity_warnings(task: dict[str, Any], log: dict[str, Any]) -> list[str]:
     requirement = str(task.get("tool_requirement", "")).strip().lower()
+    warnings: list[str] = []
+    allowed_tools = set(task.get("available_tools") or [])
+    unexpected_tools = sorted(
+        {
+            str(call.get("tool_name") or "")
+            for call in log.get("tool_calls") or []
+            if isinstance(call, dict) and str(call.get("tool_name") or "") not in allowed_tools
+        }
+    )
+    if unexpected_tools:
+        warnings.append(
+            "The run recorded tools outside this task's benchmark available_tools field: "
+            + ", ".join(unexpected_tools)
+            + "."
+        )
     if requirement == "required" and not log.get("tool_requirement_satisfied"):
-        return [
+        warnings.append(
             "The task requires external evidence, but the model completed the run without a successful "
-            "URL fetch, academic query, or local-document read. Search-result listings alone are not evidence."
-        ]
+            "authorized evidence call satisfying the benchmark tool expectation."
+        )
     if requirement == "prohibited" and log.get("tool_call_count"):
-        return ["The task prohibits tools, but a tool call was recorded."]
-    return []
+        warnings.append("The task prohibits tools, but a tool call was recorded.")
+    return warnings
 
 
 def _deduplicate_conditions(conditions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -441,6 +479,22 @@ def _same_manifest_scope(existing: dict[str, Any], expected: dict[str, Any]) -> 
         "conditions",
     )
     return all(existing.get(field) == expected.get(field) for field in scope_fields)
+
+
+def _tool_call_signal(record: dict[str, Any]) -> str:
+    requirement = str(record.get("tool_requirement") or "").strip().lower()
+    call_count = int(record.get("tool_call_count") or 0)
+    if requirement == "prohibited":
+        return "not_required" if call_count == 0 else "failed"
+    return "success" if record.get("tool_requirement_satisfied") else "failed"
+
+
+def _format_run_result(status: str, run_id: str, record: dict[str, Any]) -> str:
+    return (
+        f"{status} {run_id}: tokens={int(record.get('total_tokens') or 0)} "
+        f"runtime={float(record.get('runtime_seconds') or 0):.1f}s "
+        f"tool={_tool_call_signal(record)}"
+    )
 
 
 def _safe_name(value: str) -> str:

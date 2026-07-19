@@ -7,6 +7,7 @@ from typing import Any
 from .evidence import build_evidence_audit, compact_evidence_audit
 from .llm_client import LLMClient
 from .prompts import scoring_prompt
+from .response_audit import apply_criterion_caps, build_response_audit
 
 
 def build_result_run_id(run_log: dict[str, Any]) -> str:
@@ -29,7 +30,8 @@ def score_run_log(
     client: LLMClient,
 ) -> dict[str, Any]:
     evidence_audit = build_evidence_audit(run_log, task, run_log["final_output"])
-    messages = scoring_prompt(task, run_log["final_output"], evidence_audit)
+    response_audit = build_response_audit(task, run_log["final_output"], evidence_audit)
+    messages = scoring_prompt(task, run_log["final_output"], evidence_audit, response_audit)
     effective_config = dict(getattr(client, "effective_config", {}) or {})
     judge_max_tokens = int(effective_config["judge_max_tokens"])
     response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=judge_max_tokens)
@@ -46,12 +48,16 @@ def score_run_log(
         )
     parsed = _parse_json_object(response.content)
     evidence_assessment = _validated_evidence_assessment(parsed.get("evidence_assessment"))
+    judge_criterion_scores = _validated_criterion_scores(
+        task.get("evaluation_criteria", []), parsed.get("criterion_scores")
+    )
+    criterion_scores = apply_criterion_caps(judge_criterion_scores, response_audit)
 
     accuracy_raw = _clamp_int(parsed.get("accuracy_raw", 3), 1, 5)
     helpfulness_raw = _clamp_int(parsed.get("helpfulness_raw", 3), 1, 5)
     completeness_norm = _criterion_completeness(
         task.get("evaluation_criteria", []),
-        parsed.get("criterion_scores"),
+        criterion_scores,
         fallback=parsed.get("completeness_norm", 0.5),
     )
     hallucination_rate = _clamp_float(parsed.get("hallucination_rate", 0.2), 0.0, 1.0)
@@ -65,7 +71,17 @@ def score_run_log(
     )
     judge_reported_score_cap = _clamp_float(parsed.get("overall_score_cap", 1.0), 0.0, 1.0)
     judge_evidence_score_cap = evidence_assessment["evidence_score_cap"]
-    judge_score_cap = min(judge_reported_score_cap, judge_evidence_score_cap)
+    deterministic_hard_fail_cap = _clamp_float(
+        response_audit.get("deterministic_hard_fail_score_cap", 1.0), 0.0, 1.0
+    )
+    # Judge evidence caps are advisory. Tool execution, source traceability,
+    # evidence policy, and objective hard fails are enforced by deterministic
+    # audits. An uncorroborated LLM cap must not override those audits.
+    judge_score_cap = (
+        min(judge_reported_score_cap, deterministic_hard_fail_cap)
+        if deterministic_hard_fail_cap < 1.0
+        else 1.0
+    )
     evidence_score_cap = _clamp_float(
         evidence_audit.get("deterministic_score_cap", 1.0), 0.0, 1.0
     )
@@ -74,9 +90,9 @@ def score_run_log(
     overall_quality_score = round(min(uncapped_quality_score, overall_score_cap), 4)
     cap_reasons = _deduplicate_strings(
         [
-            *(parsed.get("cap_reasons") or []),
-            *(evidence_assessment.get("evidence_cap_reasons") or []),
+            *((parsed.get("cap_reasons") or []) if judge_score_cap < 1.0 else []),
             *(evidence_audit.get("deterministic_cap_reasons") or []),
+            *(response_audit.get("triggered_hard_fail_rules") or []),
         ]
     )
     agent_tokens = max(1, int(run_log.get("total_tokens", 0)))
@@ -111,6 +127,8 @@ def score_run_log(
         "evidence_score_cap": evidence_score_cap,
         "overall_score_cap": overall_score_cap,
         "cap_reasons": cap_reasons,
+        "criterion_scores": criterion_scores,
+        "response_audit": response_audit,
         "runtime_seconds": run_log.get("runtime_seconds", 0),
         "input_tokens": run_log.get("input_tokens", 0),
         "output_tokens": run_log.get("output_tokens", 0),
@@ -134,6 +152,15 @@ def score_run_log(
         "agreement_rate": run_log.get("agreement_rate"),
         "critique_acceptance_rate": run_log.get("critique_acceptance_rate"),
         "tool_requirement": evidence_audit["tool_requirement"],
+        "task_available_tools": evidence_audit["allowed_tools"],
+        "run_exposed_tools": evidence_audit["exposed_tools"],
+        "tool_surface_matches_benchmark": evidence_audit[
+            "tool_surface_matches_benchmark"
+        ],
+        "tool_expectations_satisfied": evidence_audit["tool_expectations_satisfied"],
+        "tool_expectation_violations": evidence_audit["tool_expectation_violations"],
+        "unauthorized_tool_names": evidence_audit["unauthorized_tool_names"],
+        "unauthorized_tool_call_count": evidence_audit["unauthorized_tool_call_count"],
         "tool_access_used": bool(run_log.get("tool_access_used")),
         "tool_requirement_satisfied": bool(evidence_audit["execution_requirement_satisfied"]),
         "score_eligible": bool(evidence_audit["score_eligible"]),
@@ -143,6 +170,9 @@ def score_run_log(
         "evidence_policy_violations": evidence_audit["evidence_policy_violations"],
         "tool_call_count": evidence_audit["tool_call_count"],
         "successful_tool_call_count": evidence_audit["successful_tool_call_count"],
+        "successful_authorized_tool_call_count": evidence_audit[
+            "successful_authorized_tool_call_count"
+        ],
         "successful_substantive_tool_call_count": evidence_audit[
             "successful_substantive_tool_call_count"
         ],
@@ -224,6 +254,41 @@ def _validated_evidence_assessment(value: Any) -> dict[str, Any]:
         "unsupported_or_unverified_citations": unsupported,
         "source_requirement_findings": findings,
     }
+
+
+def _validated_criterion_scores(criteria: Any, value: Any) -> list[dict[str, Any]]:
+    if not isinstance(criteria, list) or not criteria:
+        raise ValueError("Task evaluation_criteria must be a non-empty list")
+    if not isinstance(value, list):
+        raise ValueError("Judge output criterion_scores must be a list")
+    expected_ids = [str(item.get("id")) for item in criteria if isinstance(item, dict)]
+    rendered: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict) or item.get("id") is None:
+            raise ValueError("Each Judge criterion score must be an object with an id")
+        criterion_id = str(item["id"])
+        if criterion_id in seen:
+            raise ValueError(f"Judge returned duplicate criterion id: {criterion_id}")
+        seen.add(criterion_id)
+        try:
+            score = float(item.get("score"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Judge criterion {criterion_id} has a non-numeric score") from exc
+        if score not in {0.0, 0.5, 1.0}:
+            raise ValueError(f"Judge criterion {criterion_id} score must be 0, 0.5, or 1")
+        reason = item.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError(f"Judge criterion {criterion_id} must include a non-empty reason")
+        rendered.append({"id": criterion_id, "score": score, "reason": reason.strip()})
+    missing = [criterion_id for criterion_id in expected_ids if criterion_id not in seen]
+    extra = [criterion_id for criterion_id in seen if criterion_id not in expected_ids]
+    if missing or extra or len(rendered) != len(expected_ids):
+        raise ValueError(
+            f"Judge criterion ids do not match task criteria (missing={missing}, extra={sorted(extra)})"
+        )
+    by_id = {item["id"]: item for item in rendered}
+    return [by_id[criterion_id] for criterion_id in expected_ids]
 
 
 def _criterion_completeness(criteria: Any, raw_scores: Any, *, fallback: Any) -> float:

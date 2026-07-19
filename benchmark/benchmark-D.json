@@ -1,869 +1,411 @@
 {
+  "schema_requirements": {
+    "metadata_recording": {
+      "per_call_logging": true,
+      "fields": [
+        "timestamp",
+        "api_provider",
+        "model",
+        "temperature",
+        "max_tokens",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "call_cost_usd",
+        "tool_used",
+        "tool_response_raw"
+      ]
+    },
+    "failure_taxonomy": [
+      "NoFailure",
+      "Hallucination",
+      "PartialAnswer",
+      "Timeout",
+      "FormatError",
+      "ToolError",
+      "Hallucination Propagation"
+    ],
+    "tool_interface_schema": {
+      "tool_id": "string",
+      "tool_type": "string",
+      "description": "string",
+      "expected_behavior": "string",
+      "required_parameters": "object"
+    },
+    "runner_enforcements": {
+      "enforce_tool_requirement": true,
+      "record_real_api_costs": true,
+      "require_raw_output_capture": true
+    }
+  },
   "tasks": [
     {
       "task_id": "EC-04",
+      "title": "Teaching Precision, Recall, F1 Score, and Threshold Tradeoffs",
       "category": "Educational Content",
       "difficulty": "Hard",
-      "author": "Haofan Hou",
+      "prompt": "Design a 75-minute lesson that teaches precision, recall, F1 score, and decision-threshold tradeoffs in binary classification to a mixed-background audience. Some learners understand basic percentages but have no machine-learning experience; others know the definition of a confusion matrix but struggle to apply the metrics to real decisions.\n\nUse two scenarios: (1) a spam-email filter, where incorrectly blocking a legitimate email is costly, and (2) a fraud-detection system, where failing to detect a fraudulent transaction is costly.\n\nUse this confusion matrix as the main worked example:\n- True Positives = 36\n- False Negatives = 9\n- False Positives = 12\n- True Negatives = 43\n\nThe lesson must help learners distinguish TP, FP, TN, and FN; calculate precision, recall, and F1 score; explain why precision and recall may conflict; understand how threshold changes affect false positives and false negatives; decide which metric to emphasize in each scenario; and recognize that F1 does not automatically determine the best real-world decision.\n\nThe response must include audience analysis, observable learning objectives, a schedule totaling exactly 75 minutes, concept explanations, a worked example, a scenario-comparison table, a guided activity, at least four misconceptions with corrections, differentiation for beginner and more experienced learners, formative assessment, a five-question final quiz with answer key and brief explanations, an instructor contingency plan, and a lesson-design rationale.\n\nShow calculations for precision, recall, and F1, rounding final numerical answers to three decimal places. Use a lesson schedule table with columns: Time, Activity, Instructor Action, Learner Action, Learning Objective. Use a scenario table with columns: Scenario, More Costly Error, Metric to Emphasize, Explanation, Possible Tradeoff. The final quiz must include one terminology question, one calculation question, one scenario question, one threshold-tradeoff question, and one F1-limitation question.\n\nThe response should be approximately 1,000-1,400 words. No external citations are required. Any additional numerical examples must be clearly labeled as hypothetical and internally consistent.",
+      "required_output_format": {
+        "type": "markdown",
+        "sections": [
+          "Audience Analysis",
+          "Learning Objectives",
+          "75-Minute Lesson Schedule",
+          "Concept Explanations",
+          "Worked Confusion-Matrix Example",
+          "Scenario-Based Comparison",
+          "Guided Learner Activity",
+          "Common Misconceptions and Corrections",
+          "Differentiation Strategy",
+          "Formative Assessment",
+          "Final Quiz with Answer Key",
+          "Instructor Contingency Plan",
+          "Lesson-Design Rationale"
+        ]
+      },
+      "evaluation_rubric": [
+        {
+          "criterion": "requirement_coverage",
+          "weight": 0.15,
+          "description": "Full credit requires all 13 required sections, both required tables, at least four misconceptions with corrections, a guided activity, differentiation, formative assessment, a five-question quiz with answer explanations, a contingency plan, and a design rationale. Reduce proportionally for each missing element."
+        },
+        {
+          "criterion": "mathematical_accuracy",
+          "weight": 0.2,
+          "description": "Full credit requires TP=36, FN=9, FP=12, TN=43; precision=36/(36+12)=0.750; recall=36/(36+9)=0.800; and F1 approximately 0.774, with formulas shown and results rounded to three decimals. Reduce proportionally for each incorrect label or calculation."
+        },
+        {
+          "criterion": "conceptual_accuracy",
+          "weight": 0.15,
+          "description": "Full credit requires correct explanations of precision, recall, F1, false-positive/false-negative tradeoffs, and threshold effects. Lowering a threshold should be linked to more predicted positives, typically higher recall and potentially more false positives; raising it should be linked to fewer predicted positives and potentially more false negatives."
+        },
+        {
+          "criterion": "scenario_application",
+          "weight": 0.1,
+          "description": "Full credit requires correctly emphasizing false-positive control and precision concerns for spam filtering, and false-negative control and recall concerns for fraud detection, with a tradeoff explained for each scenario."
+        },
+        {
+          "criterion": "lesson_design_and_timing",
+          "weight": 0.15,
+          "description": "Full credit requires a schedule totaling exactly 75 minutes, activities aligned to observable objectives, and a logical progression from concepts to calculations to applications. A schedule that does not total 75 minutes receives no more than half credit."
+        },
+        {
+          "criterion": "audience_adaptation_and_misconception_handling",
+          "weight": 0.1,
+          "description": "Full credit requires actionable supports for both beginners and more experienced learners, plus at least four realistic misconceptions paired with specific corrections."
+        },
+        {
+          "criterion": "assessment_quality",
+          "weight": 0.1,
+          "description": "Full credit requires formative assessment aligned with the objectives and exactly five quiz questions covering the five specified question types, with accurate answers and brief explanations."
+        },
+        {
+          "criterion": "clarity_and_integrity",
+          "weight": 0.05,
+          "description": "Full credit requires clear organization, consistent terminology, readable Markdown, both required tables, and 1,000-1,400 words. Deduct for invented empirical results, inconsistent hypothetical numbers, contradictions, or major format omissions."
+        }
+      ],
       "tool_requirement": "Prohibited",
-      "prompt": "Design a 75-minute lesson that teaches precision, recall, F1 score, and decision-threshold tradeoffs in binary classification.\n\nThe lesson is intended for a mixed-background audience:\n\n- Some learners understand basic percentages but have no machine-learning experience.\n- Some learners already know the definition of a confusion matrix but have difficulty applying the metrics to real decisions.\n\nThe lesson must use the following two scenarios:\n\n1. A spam-email filter, where incorrectly blocking a legitimate email is costly.\n2. A fraud-detection system, where failing to detect a fraudulent transaction is costly.\n\nUse the following confusion matrix as the main worked example:\n\n|                    | Predicted Positive | Predicted Negative |\n|--------------------|-------------------:|-------------------:|\n| Actual Positive    | 36                 | 9                  |\n| Actual Negative    | 12                 | 43                 |\n\nThe lesson must help learners:\n\n- Distinguish true positives, false positives, true negatives, and false negatives.\n- Calculate precision, recall, and F1 score from the provided confusion matrix.\n- Explain why precision and recall may conflict.\n- Understand how changing a decision threshold can affect false positives and false negatives.\n- Decide whether precision or recall should receive greater emphasis in each of the two scenarios.\n- Recognize that F1 score is useful but does not automatically determine the best real-world decision.\n\nThe lesson should balance conceptual explanation, calculation practice, application, misconception correction, and assessment.",
-      "required_output_format": "Use the following structure:\n\n1. Audience analysis\n2. Learning objectives\n3. 75-minute lesson schedule\n4. Concept explanations\n5. Worked confusion-matrix example\n6. Scenario-based comparison\n7. Guided learner activity\n8. Common misconceptions and corrections\n9. Differentiation strategy\n10. Formative assessment\n11. Final quiz with answer key\n12. Instructor contingency plan\n13. Lesson-design rationale\n\n### Lesson Schedule Table\n\nInclude a table with the following columns:\n\n| Time | Activity | Instructor Action | Learner Action | Learning Objective |\n\nThe schedule must total exactly 75 minutes.\n\n### Worked Example\n\nShow the calculations for:\n\n- Precision\n- Recall\n- F1 score\n\nRound final numerical answers to three decimal places.\n\n### Scenario Comparison Table\n\nInclude a table with the following columns:\n\n| Scenario | More Costly Error | Metric to Emphasize | Explanation | Possible Tradeoff |\n\n### Final Quiz\n\nCreate five questions:\n\n- One terminology question\n- One calculation question\n- One scenario-based application question\n- One threshold-tradeoff question\n- One question about the limitations of F1 score\n\nProvide an answer key and a brief explanation for each answer.\n\nThe response should be approximately 1,000–1,400 words.",
-      "evaluation_criteria": [
-        {
-          "id": "C1",
-          "criterion": "Correctly identifies:\n- True positives as 36\n- False negatives as 9\n- False positives as 12\n- True negatives as 43",
-          "weight": 1
-        },
-        {
-          "id": "C2",
-          "criterion": "Correctly calculates precision:\nPrecision = 36 / (36 + 12) = 0.750",
-          "weight": 1
-        },
-        {
-          "id": "C3",
-          "criterion": "Correctly calculates recall:\nRecall = 36 / (36 + 9) = 0.800",
-          "weight": 1
-        },
-        {
-          "id": "C4",
-          "criterion": "Correctly calculates F1 score:\nF1 = 2 × (0.750 × 0.800) / (0.750 + 0.800) ≈ 0.774",
-          "weight": 1
-        },
-        {
-          "id": "C5",
-          "criterion": "Clearly explains that precision focuses on the reliability of positive predictions.",
-          "weight": 1
-        },
-        {
-          "id": "C6",
-          "criterion": "Clearly explains that recall focuses on the proportion of actual positive cases that are successfully detected.",
-          "weight": 1
-        },
-        {
-          "id": "C7",
-          "criterion": "Explains that lowering a positive-class decision threshold generally increases the number of predicted positives, which may increase recall while also increasing false positives.",
-          "weight": 1
-        },
-        {
-          "id": "C8",
-          "criterion": "Explains that raising the threshold generally reduces the number of predicted positives, which may improve precision in some situations while increasing false negatives.",
-          "weight": 1
-        },
-        {
-          "id": "C9",
-          "criterion": "Correctly connects the spam-filter scenario with concern about false positives, because legitimate emails may be incorrectly blocked.",
-          "weight": 1
-        },
-        {
-          "id": "C10",
-          "criterion": "Correctly connects the fraud-detection scenario with concern about false negatives, because fraudulent transactions may be missed.",
-          "weight": 1
-        },
-        {
-          "id": "C11",
-          "criterion": "Explains that the preferred metric depends on the relative consequences of different errors rather than on one metric always being superior.",
-          "weight": 1
-        },
-        {
-          "id": "C12",
-          "criterion": "Explains at least one limitation of F1 score, such as:\n- It does not include true negatives.\n- It assumes precision and recall deserve equal weight.\n- It does not directly represent the real-world cost of different errors.",
-          "weight": 1
-        },
-        {
-          "id": "C13",
-          "criterion": "Provides learning objectives that are observable and assessable.",
-          "weight": 1
-        },
-        {
-          "id": "C14",
-          "criterion": "Produces a lesson schedule that totals exactly 75 minutes.",
-          "weight": 1
-        },
-        {
-          "id": "C15",
-          "criterion": "Includes activities suitable for both beginner and more experienced learners.",
-          "weight": 1
-        },
-        {
-          "id": "C16",
-          "criterion": "Includes at least four realistic misconceptions and specific corrections.",
-          "weight": 1
-        },
-        {
-          "id": "C17",
-          "criterion": "Includes both formative assessment and a five-question final quiz with accurate answers.",
-          "weight": 1
-        },
-        {
-          "id": "C18",
-          "criterion": "Provides a practical contingency plan for limited time, calculation difficulties, or differences in learner progress.",
-          "weight": 1
-        },
-        {
-          "id": "C19",
-          "criterion": "Explains how the lesson design supports conceptual understanding, numerical calculation, and real-world application.",
-          "weight": 1
-        },
-        {
-          "id": "C20",
-          "criterion": "Follows all required output structures and tables.",
-          "weight": 1
-        }
-      ],
-      "required_evidence": "No external citations are required.\n\nAll numerical information required for the calculations is provided in the prompt.\n\nThe answer should use established definitions of confusion-matrix terms, precision, recall, F1 score, and decision thresholds.\n\nAny additional numerical examples must be clearly labeled as hypothetical and must be internally consistent.",
-      "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties when applicable.",
-        "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, missing required features, incorrect logic, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
-        },
-        "accuracy": "Definitions, calculations, threshold explanations, scenario interpretations, and quiz answers must be correct.",
-        "completeness": "The response must include all lesson components, both required tables, the worked example, misconception corrections, differentiation, assessments, contingency planning, and design rationale.",
-        "helpfulness": "The lesson should be practical for an instructor to deliver and understandable for learners with different levels of prior knowledge.",
-        "hallucination_penalty": "Penalize incorrect formulas, inconsistent calculations, invented empirical results, unsupported claims that one metric is always best, or contradictions between the lesson content and answer key.",
-        "hard_fail_rules": [],
-        "score_caps": []
-      },
-      "expected_failure_risks": [
-        "Confusing precision with recall.",
-        "Reversing false positives and false negatives.",
-        "Calculating F1 score incorrectly.",
-        "Treating accuracy and F1 score as interchangeable.",
-        "Claiming that a lower threshold always improves overall system performance.",
-        "Recommending the same metric for both scenarios without discussing error consequences.",
-        "Presenting F1 score as the automatic solution to every classification problem.",
-        "Creating learning objectives that cannot be assessed.",
-        "Producing lesson activities that are too advanced for beginners or too basic for experienced learners.",
-        "Listing misconceptions without explaining how the instructor should correct them.",
-        "Producing a schedule that does not total 75 minutes.",
-        "Writing quiz questions that do not match the lesson objectives.",
-        "Providing an answer key that conflicts with the worked example.",
-        "Omitting a realistic plan for time pressure or uneven learner progress."
-      ],
-      "notes": "This task evaluates educational planning, conceptual explanation, mathematical accuracy, audience adaptation, misconception correction, assessment design, and instructional decision-making.",
-      "ground_truth": {
-        "task_type": "Educational Content task; tool requirement: Prohibited.",
-        "must_have": [
-          "Correctly identifies:\n- True positives as 36\n- False negatives as 9\n- False positives as 12\n- True negatives as 43",
-          "Correctly calculates precision:\nPrecision = 36 / (36 + 12) = 0.750",
-          "Correctly calculates recall:\nRecall = 36 / (36 + 9) = 0.800",
-          "Correctly calculates F1 score:\nF1 = 2 × (0.750 × 0.800) / (0.750 + 0.800) ≈ 0.774",
-          "Clearly explains that precision focuses on the reliability of positive predictions.",
-          "Clearly explains that recall focuses on the proportion of actual positive cases that are successfully detected.",
-          "Explains that lowering a positive-class decision threshold generally increases the number of predicted positives, which may increase recall while also increasing false positives.",
-          "Explains that raising the threshold generally reduces the number of predicted positives, which may improve precision in some situations while increasing false negatives.",
-          "Correctly connects the spam-filter scenario with concern about false positives, because legitimate emails may be incorrectly blocked.",
-          "Correctly connects the fraud-detection scenario with concern about false negatives, because fraudulent transactions may be missed.",
-          "Explains that the preferred metric depends on the relative consequences of different errors rather than on one metric always being superior.",
-          "Explains at least one limitation of F1 score, such as:\n- It does not include true negatives.\n- It assumes precision and recall deserve equal weight.\n- It does not directly represent the real-world cost of different errors.",
-          "Provides learning objectives that are observable and assessable.",
-          "Produces a lesson schedule that totals exactly 75 minutes.",
-          "Includes activities suitable for both beginner and more experienced learners.",
-          "Includes at least four realistic misconceptions and specific corrections.",
-          "Includes both formative assessment and a five-question final quiz with accurate answers.",
-          "Provides a practical contingency plan for limited time, calculation difficulties, or differences in learner progress.",
-          "Explains how the lesson design supports conceptual understanding, numerical calculation, and real-world application.",
-          "Follows all required output structures and tables."
-        ],
-        "must_not_have": [],
-        "source_requirements": {
-          "external_citation_required": false,
-          "evidence_requirement": "No external citations are required.\n\nAll numerical information required for the calculations is provided in the prompt.\n\nThe answer should use established definitions of confusion-matrix terms, precision, recall, F1 score, and decision thresholds.\n\nAny additional numerical examples must be clearly labeled as hypothetical and must be internally consistent."
-        },
-        "acceptable_variations": [],
-        "critical_fail_conditions": [
-          "Confusing precision with recall.",
-          "Reversing false positives and false negatives.",
-          "Calculating F1 score incorrectly.",
-          "Treating accuracy and F1 score as interchangeable.",
-          "Claiming that a lower threshold always improves overall system performance.",
-          "Recommending the same metric for both scenarios without discussing error consequences.",
-          "Presenting F1 score as the automatic solution to every classification problem.",
-          "Creating learning objectives that cannot be assessed.",
-          "Producing lesson activities that are too advanced for beginners or too basic for experienced learners.",
-          "Listing misconceptions without explaining how the instructor should correct them.",
-          "Producing a schedule that does not total 75 minutes.",
-          "Writing quiz questions that do not match the lesson objectives.",
-          "Providing an answer key that conflicts with the worked example.",
-          "Omitting a realistic plan for time pressure or uneven learner progress."
-        ],
-        "notes": "This task evaluates educational planning, conceptual explanation, mathematical accuracy, audience adaptation, misconception correction, assessment design, and instructional decision-making."
-      }
+      "input_files": []
+    },{
+  "task_id": "LR-04",
+  "title": "Communication Methods in Multi-Agent LLM Systems",
+  "category": "Literature Review",
+  "difficulty": "Medium",
+  "prompt": "Write a 500-800 word literature review on communication methods in multi-agent LLM systems. Briefly summarize the purpose of communication in multi-agent LLM systems and the main research problems addressed in this field. Then review and compare the following three high-level communication patterns: (1) direct or message-passing communication, (2) shared-workspace communication such as shared memory or blackboard systems, and (3) discussion-based communication such as group discussion, debate, or iterative critique. Real systems may combine more than one pattern. For each category, explain the general approach, provide at least one relevant literature example, and identify one main strength and one main limitation. Include a comparison table with the columns: Method Category, General Approach, Literature Example, Main Strength, and Main Limitation. Finally, identify one specific unresolved issue or research gap supported by limitations discussed in at least two reviewed sources, explain why it matters, and propose one related future research direction. Cite at least three reliable sources, including at least two academic papers, conference papers, journal articles, or recognized research preprints. Use in-text citations that correspond to the reference list.",
+  "required_output_format": {
+    "type": "markdown",
+    "sections": [
+      "Field Overview",
+      "Direct or Message-Passing Communication",
+      "Shared-Workspace Communication",
+      "Discussion-Based Communication",
+      "Comparison Table",
+      "Research Gap and Future Research Direction",
+      "Conclusion",
+      "References"
+    ]
+  },
+  "evaluation_rubric": [
+    {
+      "criterion": "requirement_coverage",
+      "weight": 0.2,
+      "description": "Full credit requires all eight required sections; coverage of all three communication categories; and, for each category, a general approach, one literature example, one strength, and one limitation. The answer must also include one research gap and one future direction."
     },
     {
-      "task_id": "LR-04",
-      "category": "Literature Review",
-      "difficulty": "Easy",
-      "author": "Haofan Hou",
-      "tool_requirement": "Required",
-      "evidence_policy": {
-        "minimum_substantive_sources": 3,
-        "minimum_academic_records": 2,
-        "minimum_traceability_rate": 0.5,
-        "violation_score_cap": 0.5
-      },
-      "prompt": "Write a short literature review on communication methods in multi-agent LLM systems.\n\nFirst, briefly summarize the purpose of communication in multi-agent LLM systems and the main research problems addressed in this field.\n\nThen, review and compare the following three categories of communication methods:\n\n1. Direct or message-passing communication\n2. Shared-workspace communication, such as shared memory or blackboard systems\n3. Discussion-based communication, such as group discussion, debate, or iterative critique\n\nFor the purpose of this review, treat these as high-level communication patterns. A real multi-agent system may combine more than one pattern.\n\nFor each category, describe its general approach, provide at least one example from the literature, and summarize its main strengths and limitations.\n\nFinally, identify one specific unresolved issue or research gap that is supported by limitations discussed in at least two of the reviewed sources. Briefly explain why the gap is important and what future research could investigate.",
-      "required_output_format": "Use the following structure:\n\n1. Field overview\n2. Direct or message-passing communication\n3. Shared-workspace communication\n4. Discussion-based communication\n5. Comparison table\n6. Research gap and future research direction\n7. Conclusion\n8. References\n\nThe comparison table must include:\n\n| Method Category | General Approach | Literature Example | Main Strength | Main Limitation |\n\nThe response should be approximately 500-800 words.",
-      "evaluation_criteria": [
-        {
-          "id": "C1",
-          "criterion": "Clearly summarizes the purpose and major research concerns of communication in multi-agent LLM systems.",
-          "weight": 1
-        },
-        {
-          "id": "C2",
-          "criterion": "Correctly describes all three required categories of communication methods.",
-          "weight": 1
-        },
-        {
-          "id": "C3",
-          "criterion": "Includes at least one relevant literature example for each category.",
-          "weight": 1
-        },
-        {
-          "id": "C4",
-          "criterion": "Compares the methods using their general approaches, strengths, and limitations.",
-          "weight": 1
-        },
-        {
-          "id": "C5",
-          "criterion": "Identifies one specific and plausible research gap.",
-          "weight": 1
-        },
-        {
-          "id": "C6",
-          "criterion": "Connects the research gap to limitations or unresolved issues found in the reviewed literature.",
-          "weight": 1
-        },
-        {
-          "id": "C7",
-          "criterion": "Suggests a reasonable future research direction related to the identified gap.",
-          "weight": 1
-        },
-        {
-          "id": "C8",
-          "criterion": "Uses the required structure, comparison table, in-text citations, and reference list.",
-          "weight": 1
-        }
-      ],
-      "required_evidence": "The answer must cite at least three reliable sources.\n\nAt least two sources must be academic papers, conference papers, journal articles, or research preprints.\n\nOfficial technical reports may be used as additional sources.\n\nExamples, factual claims, and research limitations should be supported by appropriate citations.",
-      "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties when applicable.",
-        "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, missing required features, incorrect logic, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
-        },
-        "accuracy": "The descriptions of the research field, communication methods, and cited studies must be correct.",
-        "completeness": "The answer must cover the field overview, all three method categories, their comparison, one research gap, and one future direction.",
-        "helpfulness": "The review should clearly organize the literature and help the reader understand major approaches and unresolved issues.",
-        "hallucination_penalty": "Penalize fabricated papers, incorrect citations, unsupported descriptions of research findings, or research gaps that are not connected to the reviewed literature.",
-        "hard_fail_rules": [],
-        "score_caps": []
-      },
-      "expected_failure_risks": [
-        "Turning the literature review into a purely technical architecture analysis.",
-        "Listing papers without synthesizing or comparing their findings.",
-        "Confusing individual protocols with broader categories of communication methods.",
-        "Inventing papers, authors, experimental results, or publication details.",
-        "Presenting a vague limitation as a research gap without supporting evidence.",
-        "Suggesting a future direction that is unrelated to the identified gap."
-      ],
-      "notes": "The task evaluates literature summarization, method comparison, and research-gap identification. It does not require the system to design or recommend a complete communication architecture.",
-      "ground_truth": {
-        "task_type": "Literature Review task; tool requirement: Required.",
-        "must_have": [
-          "Clearly summarizes the purpose and major research concerns of communication in multi-agent LLM systems.",
-          "Correctly describes all three required categories of communication methods.",
-          "Includes at least one relevant literature example for each category.",
-          "Compares the methods using their general approaches, strengths, and limitations.",
-          "Identifies one specific and plausible research gap.",
-          "Connects the research gap to limitations or unresolved issues found in the reviewed literature.",
-          "Suggests a reasonable future research direction related to the identified gap.",
-          "Uses the required structure, comparison table, in-text citations, and reference list."
-        ],
-        "must_not_have": [],
-        "source_requirements": {
-          "external_citation_required": true,
-          "evidence_requirement": "The answer must cite at least three reliable sources.\n\nAt least two sources must be academic papers, conference papers, journal articles, or research preprints.\n\nOfficial technical reports may be used as additional sources.\n\nExamples, factual claims, and research limitations should be supported by appropriate citations."
-        },
-        "acceptable_variations": [],
-        "critical_fail_conditions": [
-          "Turning the literature review into a purely technical architecture analysis.",
-          "Listing papers without synthesizing or comparing their findings.",
-          "Confusing individual protocols with broader categories of communication methods.",
-          "Inventing papers, authors, experimental results, or publication details.",
-          "Presenting a vague limitation as a research gap without supporting evidence.",
-          "Suggesting a future direction that is unrelated to the identified gap."
-        ],
-        "notes": "The task evaluates literature summarization, method comparison, and research-gap identification. It does not require the system to design or recommend a complete communication architecture."
-      }
+      "criterion": "technical_accuracy",
+      "weight": 0.2,
+      "description": "Evaluate whether the field overview and all three communication patterns are technically correct and clearly distinguished. Each category contributes one third of this criterion."
     },
     {
-      "task_id": "MR-04",
-      "category": "Market Research",
-      "difficulty": "Easy",
-      "author": "Haofan Hou",
-      "tool_requirement": "Required",
-      "evidence_policy": {
-        "minimum_substantive_sources": 2,
-        "required_domain_groups": [
-          ["slack.com"],
-          ["microsoft.com"]
-        ],
-        "minimum_traceability_rate": 0.5,
-        "violation_score_cap": 0.5
-      },
-      "prompt": "Compare Slack and Microsoft Teams as communication and collaboration products for a small remote company.\n\nUse current information from the official product websites to compare the two products in terms of:\n\n1. Primary target users\n2. Core communication features\n3. Collaboration and integration features\n4. Main strength\n5. Main limitation\n\nBased on the comparison, recommend one product for a small remote company that needs daily messaging, file sharing, video meetings, and basic integration with other workplace tools.\n\nSupport the recommendation with evidence from the reviewed sources.",
-      "required_output_format": "Use the following structure:\n\n1. Brief market overview\n2. Product comparison table\n3. Recommendation paragraph\n4. Source list\n\nThe comparison table must use the following columns:\n\n| Product | Target Users | Core Communication Features | Collaboration and Integrations | Main Strength | Main Limitation |\n|---|---|---|---|---|---|\n\nThe response should be approximately 400–600 words.",
-      "evaluation_criteria": [
-        {
-          "id": "C1",
-          "criterion": "Correctly identifies Slack and Microsoft Teams as workplace communication and collaboration products.",
-          "weight": 1
-        },
-        {
-          "id": "C2",
-          "criterion": "Describes the primary target users of both products.",
-          "weight": 1
-        },
-        {
-          "id": "C3",
-          "criterion": "Summarizes the main messaging, file-sharing, meeting, and integration capabilities of both products.",
-          "weight": 1
-        },
-        {
-          "id": "C4",
-          "criterion": "Identifies at least one reasonable strength and one reasonable limitation for each product.",
-          "weight": 1
-        },
-        {
-          "id": "C5",
-          "criterion": "Clearly compares the two products rather than describing them separately without analysis.",
-          "weight": 1
-        },
-        {
-          "id": "C6",
-          "criterion": "Recommends one product for the stated small remote company.",
-          "weight": 1
-        },
-        {
-          "id": "C7",
-          "criterion": "Supports the recommendation with relevant comparison evidence.",
-          "weight": 1
-        },
-        {
-          "id": "C8",
-          "criterion": "Uses the required table, recommendation paragraph, and source list.",
-          "weight": 1
-        }
-      ],
-      "required_evidence": "The answer must use current public information from official Slack and Microsoft sources.\n\nAt least two sources are required, including at least one official source for each product.\n\nClaims about product features, integrations, availability, or plan limitations must be supported by the cited sources.\n\nExact pricing is not required.",
-      "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties when applicable.",
-        "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, missing required features, incorrect logic, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
-        },
-        "accuracy": "Product features, target users, strengths, and limitations must be described correctly and supported by official sources.",
-        "completeness": "The answer must compare both products across all five required areas and provide a recommendation.",
-        "helpfulness": "The comparison should make it easy for a small remote company to understand which product better fits its needs.",
-        "hallucination_penalty": "Penalize fabricated features, unsupported product claims, outdated information presented as current, or citations that do not support the claims.",
-        "hard_fail_rules": [],
-        "score_caps": []
-      },
-      "expected_failure_risks": [
-        "Listing product features without directly comparing the two products.",
-        "Using outdated or unofficial information.",
-        "Claiming that a feature is available without checking whether it depends on a particular plan.",
-        "Giving a recommendation without connecting it to messaging, file sharing, meetings, and integrations.",
-        "Presenting personal preference as market evidence.",
-        "Inventing product capabilities, limitations, or pricing information."
-      ],
-      "notes": "This task evaluates basic product comparison, current-source retrieval, and evidence-based recommendation.",
-      "ground_truth": {
-        "task_type": "Market Research task; tool requirement: Required.",
-        "must_have": [
-          "Correctly identifies Slack and Microsoft Teams as workplace communication and collaboration products.",
-          "Describes the primary target users of both products.",
-          "Summarizes the main messaging, file-sharing, meeting, and integration capabilities of both products.",
-          "Identifies at least one reasonable strength and one reasonable limitation for each product.",
-          "Clearly compares the two products rather than describing them separately without analysis.",
-          "Recommends one product for the stated small remote company.",
-          "Supports the recommendation with relevant comparison evidence.",
-          "Uses the required table, recommendation paragraph, and source list."
-        ],
-        "must_not_have": [],
-        "source_requirements": {
-          "external_citation_required": true,
-          "evidence_requirement": "The answer must use current public information from official Slack and Microsoft sources.\n\nAt least two sources are required, including at least one official source for each product.\n\nClaims about product features, integrations, availability, or plan limitations must be supported by the cited sources.\n\nExact pricing is not required."
-        },
-        "acceptable_variations": [],
-        "critical_fail_conditions": [
-          "Listing product features without directly comparing the two products.",
-          "Using outdated or unofficial information.",
-          "Claiming that a feature is available without checking whether it depends on a particular plan.",
-          "Giving a recommendation without connecting it to messaging, file sharing, meetings, and integrations.",
-          "Presenting personal preference as market evidence.",
-          "Inventing product capabilities, limitations, or pricing information."
-        ],
-        "notes": "This task evaluates basic product comparison, current-source retrieval, and evidence-based recommendation."
-      }
+      "criterion": "source_and_citation_quality",
+      "weight": 0.15,
+      "description": "Full credit requires at least three reliable sources, at least two academic sources, at least one cited source supporting each communication category, and complete correspondence between in-text citations and reference-list entries."
     },
     {
-      "task_id": "SE-04",
-      "category": "Software Engineering",
-      "difficulty": "Medium",
-      "author": "Haofan Hou",
-      "tool_requirement": "Prohibited",
-      "prompt": "Design the backend software architecture for a document-processing and search service.\n\nThe service must allow users to upload PDF, TXT, and Markdown files. After a file is uploaded, the system should:\n\n1. Validate the file type and size.\n2. Store the original file and its metadata.\n3. Extract the document text.\n4. Divide the text into searchable sections.\n5. Create a searchable index.\n6. Allow users to search the processed documents.\n7. Report the processing status of each uploaded file.\n\nThe design must also support the following requirements:\n\n- Files may be processed asynchronously.\n- A failed processing step should be retryable.\n- Repeated uploads of the same file should not create unnecessary duplicate records.\n- New document formats should be easy to add later.\n- The design should remain understandable and maintainable for a small development team.\n\nProduce a software design that explains the system components, data flow, API interface, data model, code organization, error-handling strategy, and testing plan.\n\nProvide a software design rather than a complete runnable application. Short pseudocode, interface definitions, data structures, or code examples may be included where they help clarify the design.",
-      "required_output_format": "Use the following structure:\n\n1. System overview\n2. Main components and responsibilities\n3. End-to-end processing workflow\n4. REST API design\n5. Data model\n6. Suggested project structure\n7. Error handling, retry, and duplicate prevention\n8. Testing plan\n9. Design tradeoff\n\nInclude the following two tables.\n\n### Component Table\n\n| Component | Main Responsibility | Input | Output |\n|---|---|---|---|\n\n### API Table\n\n| Method | Endpoint | Purpose | Main Request Data | Main Response Data |\n|---|---|---|---|---|\n\nThe response should be approximately 700–900 words.",
-      "evaluation_criteria": [
-        {
-          "id": "C1",
-          "criterion": "Separates file validation, storage, text extraction, text chunking, indexing, and search into clear responsibilities.",
-          "weight": 1
-        },
-        {
-          "id": "C2",
-          "criterion": "Describes a complete workflow from file upload to searchable document content.",
-          "weight": 1
-        },
-        {
-          "id": "C3",
-          "criterion": "Includes a mechanism for tracking processing states, such as uploaded, processing, completed, and failed.",
-          "weight": 1
-        },
-        {
-          "id": "C4",
-          "criterion": "Provides suitable API operations for file upload, processing-status retrieval, document search, and document retrieval or deletion.",
-          "weight": 1
-        },
-        {
-          "id": "C5",
-          "criterion": "Defines a data model that includes document identity, file metadata, processing status, and error information.",
-          "weight": 1
-        },
-        {
-          "id": "C6",
-          "criterion": "Includes a reasonable strategy for detecting or preventing unnecessary duplicate uploads.",
-          "weight": 1
-        },
-        {
-          "id": "C7",
-          "criterion": "Explains how failed processing steps can be retried without incorrectly repeating completed work.",
-          "weight": 1
-        },
-        {
-          "id": "C8",
-          "criterion": "Uses modular interfaces or components so that additional document formats can be added later.",
-          "weight": 1
-        },
-        {
-          "id": "C9",
-          "criterion": "Provides a clear and realistic project or folder structure.",
-          "weight": 1
-        },
-        {
-          "id": "C10",
-          "criterion": "Includes unit, integration, and end-to-end testing considerations.",
-          "weight": 1
-        },
-        {
-          "id": "C11",
-          "criterion": "Identifies at least one meaningful design tradeoff and explains its consequences.",
-          "weight": 1
-        },
-        {
-          "id": "C12",
-          "criterion": "Follows the required structure and includes both required tables.",
-          "weight": 1
-        }
-      ],
-      "required_evidence": "No external citations are required.\n\nThe task should be answered using software engineering reasoning based on the requirements in the prompt.\n\nThe answer may include short pseudocode, interface definitions, data structures, example JSON objects, or code snippets to clarify the proposed design.\n\nThe answer must not claim that the proposed system has been implemented, empirically tested, or proven to achieve specific performance results.",
-      "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties when applicable.",
-        "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, missing required features, incorrect logic, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
-        },
-        "accuracy": "The proposed architecture, API design, workflow, data model, and failure-handling strategy must be technically reasonable and internally consistent.",
-        "completeness": "The answer must cover all required system stages, APIs, processing states, duplicate prevention, retry handling, extensibility, code organization, testing, and one design tradeoff.",
-        "helpfulness": "The design should be clear and specific enough that a small development team could use it as an implementation plan.",
-        "hallucination_penalty": "Penalize unsupported claims about guaranteed performance, scalability, security certification, tested reliability, or implementation results.",
-        "hard_fail_rules": [],
-        "score_caps": []
-      },
-      "expected_failure_risks": [
-        "Producing only a high-level architecture without explaining component responsibilities or data flow.",
-        "Combining validation, extraction, indexing, and search into one poorly separated module.",
-        "Omitting processing-status tracking for asynchronous work.",
-        "Retrying the entire pipeline without considering idempotency or previously completed steps.",
-        "Suggesting duplicate detection without explaining which document identifier, upload metadata, or file property would be used.",
-        "Providing vague API endpoints without describing the main request and response data.",
-        "Ignoring extensibility for additional document formats.",
-        "Listing tests without distinguishing unit, integration, and end-to-end testing.",
-        "Providing excessive implementation code while neglecting the requested architecture and design reasoning.",
-        "Overengineering the system with unnecessary services for a small development team."
-      ],
-      "notes": "This task evaluates system design, modular architecture, implementation planning, failure handling, and test planning.",
-      "ground_truth": {
-        "task_type": "Software Engineering task; tool requirement: Prohibited.",
-        "must_have": [
-          "Separates file validation, storage, text extraction, text chunking, indexing, and search into clear responsibilities.",
-          "Describes a complete workflow from file upload to searchable document content.",
-          "Includes a mechanism for tracking processing states, such as uploaded, processing, completed, and failed.",
-          "Provides suitable API operations for file upload, processing-status retrieval, document search, and document retrieval or deletion.",
-          "Defines a data model that includes document identity, file metadata, processing status, and error information.",
-          "Includes a reasonable strategy for detecting or preventing unnecessary duplicate uploads.",
-          "Explains how failed processing steps can be retried without incorrectly repeating completed work.",
-          "Uses modular interfaces or components so that additional document formats can be added later.",
-          "Provides a clear and realistic project or folder structure.",
-          "Includes unit, integration, and end-to-end testing considerations.",
-          "Identifies at least one meaningful design tradeoff and explains its consequences.",
-          "Follows the required structure and includes both required tables."
-        ],
-        "must_not_have": [],
-        "source_requirements": {
-          "external_citation_required": false,
-          "evidence_requirement": "No external citations are required.\n\nThe task should be answered using software engineering reasoning based on the requirements in the prompt.\n\nThe answer may include short pseudocode, interface definitions, data structures, example JSON objects, or code snippets to clarify the proposed design.\n\nThe answer must not claim that the proposed system has been implemented, empirically tested, or proven to achieve specific performance results."
-        },
-        "acceptable_variations": [],
-        "critical_fail_conditions": [
-          "Producing only a high-level architecture without explaining component responsibilities or data flow.",
-          "Combining validation, extraction, indexing, and search into one poorly separated module.",
-          "Omitting processing-status tracking for asynchronous work.",
-          "Retrying the entire pipeline without considering idempotency or previously completed steps.",
-          "Suggesting duplicate detection without explaining which document identifier, upload metadata, or file property would be used.",
-          "Providing vague API endpoints without describing the main request and response data.",
-          "Ignoring extensibility for additional document formats.",
-          "Listing tests without distinguishing unit, integration, and end-to-end testing.",
-          "Providing excessive implementation code while neglecting the requested architecture and design reasoning.",
-          "Overengineering the system with unnecessary services for a small development team."
-        ],
-        "notes": "This task evaluates system design, modular architecture, implementation planning, failure handling, and test planning."
-      }
+      "criterion": "comparison_and_synthesis",
+      "weight": 0.15,
+      "description": "Full credit requires synthesis across sources rather than paper-by-paper listing, direct comparison of all three categories, discussion of meaningful tradeoffs, and a complete comparison table using all five specified columns."
     },
     {
-      "task_id": "SP-04",
-      "category": "Strategic Planning",
-      "difficulty": "Hard",
-      "author": "Haofan Hou",
-      "tool_requirement": "Prohibited",
-      "prompt": "Create a 12-week strategy for piloting and deciding whether to launch an AI-powered customer-support assistant for a mid-sized e-commerce company.\n\nThe company currently handles approximately 50,000 customer-support requests per month.\n\nCurrent performance:\n\n- Average first-response time: 18 hours\n- Customer satisfaction score: 78%\n- Support agents frequently spend time answering repetitive questions\n- Refunds, account changes, and payment disputes require human approval\n\nThe company wants the pilot to achieve the following goals:\n\n- Reduce average first-response time to 8 hours or less\n- Increase customer satisfaction to at least 84%\n- Reduce repetitive workload for support agents\n- Avoid unsafe or unauthorized actions\n- Protect customer and payment-related information\n\nThe project has the following constraints:\n\n- Total budget: $180,000\n- Total duration: 12 weeks\n- A limited pilot must begin by the end of Week 8\n- A final launch, revision, or cancellation decision must be made by the end of Week 12\n- The system may draft responses and recommend actions, but it may not independently issue refunds, modify accounts, or resolve payment disputes\n- Payment-card information must not be included in model inputs\n- The project team consists of:\n  - 1 Product Manager\n  - 1 Machine Learning Engineer\n  - 1 Backend Engineer\n  - 0.5 Full-Time Data Analyst\n  - 0.5 Full-Time Customer Support Lead\n  - 0.25 Full-Time Privacy and Legal Specialist\n- Eight customer-support agents may participate in testing for no more than two hours per person per week\n\nDevelop a practical strategy that balances delivery speed, service quality, employee workload, privacy, safety, and budget.\n\nThe plan must also address the following two possible disruptions:\n\n1. At the end of Week 6, the available budget may be reduced by 20%.\n2. At the end of Week 9, the pilot may show faster response times but fail to reach the customer-satisfaction target.",
-      "required_output_format": "Use the following structure:\n\n1. Executive summary\n2. Strategic objectives and priorities\n3. Assumptions and scope boundaries\n4. Twelve-week phased roadmap\n5. Team responsibilities\n6. Budget allocation\n7. Pilot design\n8. Success metrics and decision thresholds\n9. Risk register\n10. Disruption-response plans\n11. Final decision framework\n12. Short conclusion\n\n### Roadmap Table\n\nInclude a table with the following columns:\n\n| Phase and Weeks | Main Activities | Deliverables | Responsible Roles | Exit Criteria |\n\nThe roadmap must:\n\n- Cover all 12 weeks\n- Show important dependencies\n- Start the limited pilot no later than the end of Week 8\n- Include a final decision by the end of Week 12\n\n### Budget Table\n\nAllocate the full $180,000 budget using the following columns:\n\n| Budget Category | Amount | Purpose | Priority if Budget Is Reduced |\n\nThe amounts must total exactly $180,000.\n\n### Success Metrics Table\n\nInclude:\n\n| Metric | Baseline | Target | Measurement Method | Go/No-Go Threshold |\n\nThe metrics must address:\n\n- Response time\n- Customer satisfaction\n- Workload reduction\n- Response quality\n- Safety or unauthorized-action rate\n- Privacy compliance\n- Pilot adoption or usage\n\n### Risk Register\n\nInclude at least six risks using:\n\n| Risk | Likelihood | Impact | Early Warning Sign | Mitigation | Contingency Owner |\n\nThe response should be approximately 1,000–1,400 words.",
-      "evaluation_criteria": [
-        {
-          "id": "C1",
-          "criterion": "Defines clear strategic priorities that balance speed, quality, safety, privacy, employee workload, and cost.",
-          "weight": 1
-        },
-        {
-          "id": "C2",
-          "criterion": "Establishes realistic scope boundaries for the assistant, including mandatory human approval for refunds, account changes, and payment disputes.",
-          "weight": 1
-        },
-        {
-          "id": "C3",
-          "criterion": "Produces a complete 12-week roadmap with clear phases, dependencies, deliverables, and exit criteria.",
-          "weight": 1
-        },
-        {
-          "id": "C4",
-          "criterion": "Begins the limited pilot no later than the end of Week 8.",
-          "weight": 1
-        },
-        {
-          "id": "C5",
-          "criterion": "Includes a final launch, revision, or cancellation decision by the end of Week 12.",
-          "weight": 1
-        },
-        {
-          "id": "C6",
-          "criterion": "Assigns responsibilities that are consistent with the provided team capacity.",
-          "weight": 1
-        },
-        {
-          "id": "C7",
-          "criterion": "Does not assign more than two testing hours per week to each participating support agent.",
-          "weight": 1
-        },
-        {
-          "id": "C8",
-          "criterion": "Allocates a budget totaling exactly $180,000.",
-          "weight": 1
-        },
-        {
-          "id": "C9",
-          "criterion": "Identifies which budget items should be protected, reduced, delayed, or removed if the budget is cut by 20%.",
-          "weight": 1
-        },
-        {
-          "id": "C10",
-          "criterion": "Defines measurable pilot metrics for response time, customer satisfaction, workload, quality, safety, privacy, and adoption.",
-          "weight": 1
-        },
-        {
-          "id": "C11",
-          "criterion": "Provides clear go/no-go thresholds rather than listing goals without decision rules.",
-          "weight": 1
-        },
-        {
-          "id": "C12",
-          "criterion": "Explains how pilot data will be collected and evaluated.",
-          "weight": 1
-        },
-        {
-          "id": "C13",
-          "criterion": "Includes at least six relevant risks with early warning signs, mitigation actions, owners, and contingency responses.",
-          "weight": 1
-        },
-        {
-          "id": "C14",
-          "criterion": "Addresses privacy risks involving customer and payment-related information.",
-          "weight": 1
-        },
-        {
-          "id": "C15",
-          "criterion": "Addresses the possibility of unsafe, incorrect, or unauthorized recommendations.",
-          "weight": 1
-        },
-        {
-          "id": "C16",
-          "criterion": "Provides a practical response to the Week 6 budget reduction scenario.",
-          "weight": 1
-        },
-        {
-          "id": "C17",
-          "criterion": "Provides a practical response to the Week 9 scenario in which response time improves but customer satisfaction remains below target.",
-          "weight": 1
-        },
-        {
-          "id": "C18",
-          "criterion": "Avoids assuming that improved speed alone is sufficient for launch.",
-          "weight": 1
-        },
-        {
-          "id": "C19",
-          "criterion": "Includes a decision framework that distinguishes among launch, limited extension or revision, and cancellation.",
-          "weight": 1
-        },
-        {
-          "id": "C20",
-          "criterion": "Follows all required structures and tables.",
-          "weight": 1
-        }
-      ],
-      "required_evidence": "No external citations are required.\n\nThe plan should be based entirely on the company information, goals, resources, and constraints provided in the prompt.\n\nBudget calculations must be internally consistent.\n\nAny additional assumptions must be clearly labeled and must not contradict the provided constraints.\n\nThe answer must not invent completed pilot results or claim that the strategy has already been tested.",
-      "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties when applicable.",
-        "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, missing required features, incorrect logic, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
-        },
-        "accuracy": "The roadmap, staffing plan, budget, metrics, dependencies, and risk responses must be internally consistent and respect all stated constraints.",
-        "completeness": "The response must include all required sections, tables, strategic objectives, disruption plans, risks, and final decision rules.",
-        "helpfulness": "The strategy should be specific, practical, prioritized, and usable by the company’s project team.",
-        "hallucination_penalty": "Penalize invented project results, unsupported guarantees, contradictory assumptions, incorrect budget totals, or claims that ignore the stated staffing, privacy, safety, and timeline constraints.",
-        "hard_fail_rules": [],
-        "score_caps": []
-      },
-      "expected_failure_risks": [
-        "Creating a general roadmap that does not assign specific weeks, owners, deliverables, or exit criteria.",
-        "Failing to start the limited pilot by the end of Week 8.",
-        "Producing a budget that does not total exactly $180,000.",
-        "Assigning more work than the available staff can reasonably complete.",
-        "Exceeding the support-agent testing-time limit.",
-        "Treating response-time improvement as sufficient evidence for launch.",
-        "Ignoring customer satisfaction, response quality, privacy, or safety.",
-        "Allowing the system to perform refunds, account changes, or payment-dispute actions without human approval.",
-        "Providing vague success metrics without measurable thresholds.",
-        "Listing risks without early warning signs, mitigation plans, or responsible owners.",
-        "Responding to the 20% budget reduction by cutting critical privacy or safety work.",
-        "Recommending immediate cancellation when the Week 9 results may support targeted revision.",
-        "Failing to distinguish between launch, extended pilot, revision, and cancellation.",
-        "Inventing pilot outcomes or claiming guaranteed business benefits."
-      ],
-      "notes": "This task evaluates strategic prioritization, phased planning, resource allocation, risk management, contingency planning, and evidence-based decision-making.",
-      "ground_truth": {
-        "task_type": "Strategic Planning task; tool requirement: Prohibited.",
-        "must_have": [
-          "Defines clear strategic priorities that balance speed, quality, safety, privacy, employee workload, and cost.",
-          "Establishes realistic scope boundaries for the assistant, including mandatory human approval for refunds, account changes, and payment disputes.",
-          "Produces a complete 12-week roadmap with clear phases, dependencies, deliverables, and exit criteria.",
-          "Begins the limited pilot no later than the end of Week 8.",
-          "Includes a final launch, revision, or cancellation decision by the end of Week 12.",
-          "Assigns responsibilities that are consistent with the provided team capacity.",
-          "Does not assign more than two testing hours per week to each participating support agent.",
-          "Allocates a budget totaling exactly $180,000.",
-          "Identifies which budget items should be protected, reduced, delayed, or removed if the budget is cut by 20%.",
-          "Defines measurable pilot metrics for response time, customer satisfaction, workload, quality, safety, privacy, and adoption.",
-          "Provides clear go/no-go thresholds rather than listing goals without decision rules.",
-          "Explains how pilot data will be collected and evaluated.",
-          "Includes at least six relevant risks with early warning signs, mitigation actions, owners, and contingency responses.",
-          "Addresses privacy risks involving customer and payment-related information.",
-          "Addresses the possibility of unsafe, incorrect, or unauthorized recommendations.",
-          "Provides a practical response to the Week 6 budget reduction scenario.",
-          "Provides a practical response to the Week 9 scenario in which response time improves but customer satisfaction remains below target.",
-          "Avoids assuming that improved speed alone is sufficient for launch.",
-          "Includes a decision framework that distinguishes among launch, limited extension or revision, and cancellation.",
-          "Follows all required structures and tables."
-        ],
-        "must_not_have": [],
-        "source_requirements": {
-          "external_citation_required": false,
-          "evidence_requirement": "No external citations are required.\n\nThe plan should be based entirely on the company information, goals, resources, and constraints provided in the prompt.\n\nBudget calculations must be internally consistent.\n\nAny additional assumptions must be clearly labeled and must not contradict the provided constraints.\n\nThe answer must not invent completed pilot results or claim that the strategy has already been tested."
-        },
-        "acceptable_variations": [],
-        "critical_fail_conditions": [
-          "Creating a general roadmap that does not assign specific weeks, owners, deliverables, or exit criteria.",
-          "Failing to start the limited pilot by the end of Week 8.",
-          "Producing a budget that does not total exactly $180,000.",
-          "Assigning more work than the available staff can reasonably complete.",
-          "Exceeding the support-agent testing-time limit.",
-          "Treating response-time improvement as sufficient evidence for launch.",
-          "Ignoring customer satisfaction, response quality, privacy, or safety.",
-          "Allowing the system to perform refunds, account changes, or payment-dispute actions without human approval.",
-          "Providing vague success metrics without measurable thresholds.",
-          "Listing risks without early warning signs, mitigation plans, or responsible owners.",
-          "Responding to the 20% budget reduction by cutting critical privacy or safety work.",
-          "Recommending immediate cancellation when the Week 9 results may support targeted revision.",
-          "Failing to distinguish between launch, extended pilot, revision, and cancellation.",
-          "Inventing pilot outcomes or claiming guaranteed business benefits."
-        ],
-        "notes": "This task evaluates strategic prioritization, phased planning, resource allocation, risk management, contingency planning, and evidence-based decision-making."
-      }
+      "criterion": "research_gap_quality",
+      "weight": 0.1,
+      "description": "Full credit requires one specific and plausible research gap, support from limitations or unresolved issues in at least two reviewed sources, an explanation of why the gap matters, and one feasible future direction directly addressing it."
     },
     {
-      "task_id": "TA-04",
-      "category": "Technical Analysis",
-      "difficulty": "Medium",
-      "author": "Haofan Hou",
-      "tool_requirement": "Prohibited",
-      "prompt": "A system must answer questions based on a collection of long technical documents. The documents may exceed the language model's context-window limit.\n\nAnalyze and compare the following three technical approaches:\n\n1. Full-context prompting: place as much document content as possible directly into the model prompt.\n2. Retrieval-augmented generation: divide documents into chunks, retrieve relevant chunks for each question, and provide them to the model.\n3. Hierarchical summarization: summarize document sections first, combine the section summaries into higher-level summaries, and use the summaries to answer questions.\n\nCompare the three approaches in terms of:\n\n- Information coverage\n- Answer accuracy and grounding\n- Context-window usage\n- Computational cost\n- Implementation complexity\n- Main failure risks\n\nThen recommend the most suitable approach for a system that must answer detailed questions about a large collection of technical manuals. Justify the recommendation and identify one situation in which the recommended approach may perform poorly.\nUse qualitative technical reasoning. Do not invent numerical performance results.",
-      "required_output_format": "Use the following structure:\n\n1. Brief explanation of full-context prompting\n2. Brief explanation of retrieval-augmented generation\n3. Brief explanation of hierarchical summarization\n4. Comparison table\n5. Final recommendation\n6. Limitation of the recommended approach\n\nThe comparison table must use the following columns:\n\n| Approach | Information Coverage | Grounding | Context Usage | Cost | Implementation Complexity | Main Failure Risk |\n\nThe response should be approximately 500–700 words.",
-      "evaluation_criteria": [
-        {
-          "id": "C1",
-          "criterion": "Correctly explains that full-context prompting places document content directly into the model context and is limited by the available context window.",
-          "weight": 1
-        },
-        {
-          "id": "C2",
-          "criterion": "Correctly explains that retrieval-augmented generation retrieves selected document chunks that are relevant to the question.",
-          "weight": 1
-        },
-        {
-          "id": "C3",
-          "criterion": "Correctly explains that hierarchical summarization progressively compresses information from sections into higher-level summaries.",
-          "weight": 1
-        },
-        {
-          "id": "C4",
-          "criterion": "Compares all three approaches across the six required dimensions.",
-          "weight": 1
-        },
-        {
-          "id": "C5",
-          "criterion": "Recognizes that full-context prompting may omit content or become costly when documents are very long.",
-          "weight": 1
-        },
-        {
-          "id": "C6",
-          "criterion": "Recognizes that retrieval-augmented generation depends on retrieval and chunking quality and may miss relevant information.",
-          "weight": 1
-        },
-        {
-          "id": "C7",
-          "criterion": "Recognizes that hierarchical summarization may lose important details during repeated compression.",
-          "weight": 1
-        },
-        {
-          "id": "C8",
-          "criterion": "Gives a justified recommendation for the technical-manual question-answering scenario.",
-          "weight": 1
-        },
-        {
-          "id": "C9",
-          "criterion": "Identifies one realistic situation in which the recommended approach may perform poorly.",
-          "weight": 1
-        },
-        {
-          "id": "C10",
-          "criterion": "Follows the required structure and comparison-table format.",
-          "weight": 1
-        }
-      ],
-      "required_evidence": "No external citations are required.\n\nThe task is conceptual and should be answered using technical reasoning based on the three approaches described in the prompt.\n\nThe answer may use brief hypothetical examples, but it must not claim specific measured improvements in accuracy, latency, token usage, or cost unless those values are explicitly presented as illustrative assumptions.",
-      "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties when applicable.",
-        "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, missing required features, incorrect logic, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
-        },
-        "accuracy": "The three approaches, their mechanisms, and their typical failure risks must be explained correctly.",
-        "completeness": "The answer must cover all three approaches, all six comparison dimensions, a recommendation, and one limitation.",
-        "helpfulness": "The comparison should clearly support a practical architecture decision for the stated scenario.",
-        "hallucination_penalty": "Penalize fabricated benchmark results, unsupported numerical performance claims, or references to experiments not provided in the prompt.",
-        "hard_fail_rules": [],
-        "score_caps": []
-      },
-      "expected_failure_risks": [
-        "Confusing retrieval-augmented generation with document summarization.",
-        "Claiming that retrieval always finds every relevant passage.",
-        "Ignoring information loss in hierarchical summarization.",
-        "Recommending an approach without connecting it to the technical-manual scenario.",
-        "Discussing only advantages while omitting tradeoffs and failure risks.",
-        "Inventing numerical accuracy, latency, token, or cost results."
-      ],
-      "notes": "The task evaluates technical explanation, architecture comparison, tradeoff analysis, and design recommendation.\n\nThe task does not prescribe how many agents are used, what roles they have, or how they communicate. Every experimental protocol must receive the same prompt and tool restrictions.",
-      "ground_truth": {
-        "task_type": "Technical Analysis task; tool requirement: Prohibited.",
-        "must_have": [
-          "Correctly explains that full-context prompting places document content directly into the model context and is limited by the available context window.",
-          "Correctly explains that retrieval-augmented generation retrieves selected document chunks that are relevant to the question.",
-          "Correctly explains that hierarchical summarization progressively compresses information from sections into higher-level summaries.",
-          "Compares all three approaches across the six required dimensions.",
-          "Recognizes that full-context prompting may omit content or become costly when documents are very long.",
-          "Recognizes that retrieval-augmented generation depends on retrieval and chunking quality and may miss relevant information.",
-          "Recognizes that hierarchical summarization may lose important details during repeated compression.",
-          "Gives a justified recommendation for the technical-manual question-answering scenario.",
-          "Identifies one realistic situation in which the recommended approach may perform poorly.",
-          "Follows the required structure and comparison-table format."
-        ],
-        "must_not_have": [],
-        "source_requirements": {
-          "external_citation_required": false,
-          "evidence_requirement": "No external citations are required.\n\nThe task is conceptual and should be answered using technical reasoning based on the three approaches described in the prompt.\n\nThe answer may use brief hypothetical examples, but it must not claim specific measured improvements in accuracy, latency, token usage, or cost unless those values are explicitly presented as illustrative assumptions."
-        },
-        "acceptable_variations": [],
-        "critical_fail_conditions": [
-          "Confusing retrieval-augmented generation with document summarization.",
-          "Claiming that retrieval always finds every relevant passage.",
-          "Ignoring information loss in hierarchical summarization.",
-          "Recommending an approach without connecting it to the technical-manual scenario.",
-          "Discussing only advantages while omitting tradeoffs and failure risks.",
-          "Inventing numerical accuracy, latency, token, or cost results."
-        ],
-        "notes": "The task evaluates technical explanation, architecture comparison, tradeoff analysis, and design recommendation.\n\nThe task does not prescribe how many agents are used, what roles they have, or how they communicate. Every experimental protocol must receive the same prompt and tool restrictions."
-      }
+      "criterion": "evidence_integrity",
+      "weight": 0.15,
+      "description": "Full credit requires no fabricated papers, authors, venues, publication details, empirical results, or unsupported factual claims. Any fabricated source receives zero credit for this criterion and should be flagged as a critical failure."
+    },
+    {
+      "criterion": "clarity_and_format",
+      "weight": 0.05,
+      "description": "Full credit requires clear organization, consistent terminology, the required Markdown structure, the specified comparison table, and a total length of 500-800 words."
+    }
+  ],
+  "tool_requirement": "Required",
+  "input_files": []
+    },{
+  "task_id": "MR-04",
+  "title": "Slack vs. Microsoft Teams for a Small Remote Company",
+  "category": "Market Research",
+  "difficulty": "Easy",
+  "prompt": "Compare Slack and Microsoft Teams as communication and collaboration products for a small remote company. Use current information from official Slack and Microsoft product sources.\n\nCompare the two products in terms of primary target users, core communication features, collaboration and integration features, one main strength, and one main limitation. Then recommend one product for a small remote company that needs daily messaging, file sharing, video meetings, and basic integrations with workplace tools. Support the recommendation with evidence from the reviewed sources.\n\nUse the following structure: Brief Market Overview; Product Comparison Table; Recommendation; Sources. The comparison table must include the columns: Product, Target Users, Core Communication Features, Collaboration and Integrations, Main Strength, Main Limitation.\n\nThe response should be approximately 400-600 words. Use at least two current official sources, including at least one Slack source and one Microsoft source. Claims about features, integrations, availability, or plan limitations must be supported by the cited sources. Exact pricing is not required.",
+  "required_output_format": {
+    "type": "markdown",
+    "sections": [
+      "Brief Market Overview",
+      "Product Comparison Table",
+      "Recommendation",
+      "Sources"
+    ]
+  },
+  "evaluation_rubric": [
+    {
+      "criterion": "requirement_coverage",
+      "weight": 0.2,
+      "description": "Full credit requires all four required sections, both products, all five comparison areas, a clear recommendation, and a source list. Reduce proportionally for each missing section, product, comparison area, recommendation, or source list."
+    },
+    {
+      "criterion": "product_accuracy",
+      "weight": 0.25,
+      "description": "Evaluate whether Slack and Microsoft Teams are correctly described as workplace communication and collaboration products and whether claims about messaging, file sharing, meetings, integrations, target users, strengths, and limitations are accurate. Give approximately equal weight to both products."
+    },
+    {
+      "criterion": "official_source_quality",
+      "weight": 0.2,
+      "description": "Full credit requires at least two current official sources, including at least one official Slack source and one official Microsoft source, with clear correspondence between factual claims, in-text citations, and source-list entries. Using only unofficial sources receives no more than half credit."
+    },
+    {
+      "criterion": "comparison_quality",
+      "weight": 0.15,
+      "description": "Full credit requires direct comparison of both products across all five required dimensions and a complete table containing all six specified columns. Describing the products separately without contrasting them receives no more than half credit."
+    },
+    {
+      "criterion": "recommendation_quality",
+      "weight": 0.15,
+      "description": "Full credit requires one clear recommendation tailored to a small remote company and supported by evidence related to daily messaging, file sharing, video meetings, and workplace-tool integrations. A recommendation based only on personal preference receives little or no credit."
+    },
+    {
+      "criterion": "clarity_and_integrity",
+      "weight": 0.05,
+      "description": "Full credit requires clear organization, readable Markdown, the required table, and 400-600 words. Deduct for fabricated features, unsupported plan claims, outdated information presented as current, invented pricing, or citations that do not support the associated claims."
+    }
+  ],
+  "tool_requirement": "Required",
+  "input_files": []
+    },{
+  "task_id": "SE-04",
+  "title": "Backend Architecture for a Document-Processing and Search Service",
+  "category": "Software Engineering",
+  "difficulty": "Medium",
+  "prompt": "Design the backend software architecture for a document-processing and search service.\n\nThe service must allow users to upload PDF, TXT, and Markdown files. After upload, it must validate file type and size, store the original file and metadata, extract text, divide text into searchable sections, create a searchable index, support document search, and report processing status.\n\nThe design must also support asynchronous processing, retryable failed steps, prevention of unnecessary duplicate records for repeated uploads, easy addition of new document formats, and maintainability for a small development team.\n\nProduce a software design covering: system overview; main components and responsibilities; end-to-end workflow; REST API design; data model; suggested project structure; error handling, retry, and duplicate prevention; testing plan; and at least one meaningful design tradeoff.\n\nInclude a Component Table with columns: Component, Main Responsibility, Input, Output. Include an API Table with columns: Method, Endpoint, Purpose, Main Request Data, Main Response Data.\n\nProvide a software design rather than a complete runnable application. Short pseudocode, interface definitions, data structures, example JSON, or code snippets may be included when they clarify the design.\n\nThe response should be approximately 700-900 words. No external citations are required. Do not claim that the proposed system has been implemented, empirically tested, or proven to achieve specific performance results.",
+  "required_output_format": {
+    "type": "markdown",
+    "sections": [
+      "System Overview",
+      "Main Components and Responsibilities",
+      "End-to-End Processing Workflow",
+      "REST API Design",
+      "Data Model",
+      "Suggested Project Structure",
+      "Error Handling, Retry, and Duplicate Prevention",
+      "Testing Plan",
+      "Design Tradeoff"
+    ]
+  },
+  "evaluation_rubric": [
+    {
+      "criterion": "requirement_coverage",
+      "weight": 0.15,
+      "description": "Full credit requires all nine required sections, both required tables, and coverage of validation, storage, extraction, chunking, indexing, search, status tracking, retry, duplicate prevention, extensibility, testing, and one design tradeoff. Reduce proportionally for missing elements."
+    },
+    {
+      "criterion": "architecture_and_component_design",
+      "weight": 0.2,
+      "description": "Full credit requires clear separation of file validation, storage, text extraction, chunking, indexing, search, and status management into coherent responsibilities. Components must have sensible interfaces and data flow. A monolithic design with poorly separated concerns receives limited credit."
+    },
+    {
+      "criterion": "workflow_and_state_management",
+      "weight": 0.15,
+      "description": "Full credit requires a complete upload-to-search workflow and explicit processing states such as uploaded, processing, completed, and failed. The design must explain asynchronous execution and how state transitions are recorded. Missing status tracking or an incomplete workflow should substantially reduce the score."
+    },
+    {
+      "criterion": "api_and_data_model_quality",
+      "weight": 0.15,
+      "description": "Full credit requires suitable API operations for upload, processing-status retrieval, search, and document retrieval or deletion; all five required API-table columns; and a data model containing document identity, file metadata, processing status, timestamps, and error information. Vague endpoints or missing request/response details should reduce the score."
+    },
+    {
+      "criterion": "reliability_retry_and_deduplication",
+      "weight": 0.15,
+      "description": "Full credit requires a concrete duplicate-detection method such as a checksum or content hash, idempotent or step-aware retry behavior, and an explanation of how completed work is not incorrectly repeated. Simply saying 'retry on failure' or 'detect duplicates' without a mechanism receives no more than half credit."
+    },
+    {
+      "criterion": "extensibility_and_maintainability",
+      "weight": 0.1,
+      "description": "Full credit requires modular extractor or parser interfaces for adding new formats, a realistic folder or project structure, and a design proportionate to a small team. Unnecessary microservices or complexity without justification should reduce the score."
+    },
+    {
+      "criterion": "testing_and_tradeoff_analysis",
+      "weight": 0.05,
+      "description": "Full credit requires unit, integration, and end-to-end testing considerations, plus at least one meaningful design tradeoff with consequences explained. A generic test list or tradeoff without rationale receives partial credit."
+    },
+    {
+      "criterion": "clarity_and_integrity",
+      "weight": 0.05,
+      "description": "Full credit requires clear organization, internally consistent architecture and data flow, readable Markdown, both required tables, and 700-900 words. Deduct for unsupported guarantees about performance, scalability, security certification, reliability, or claims that the system has already been implemented or tested."
+    }
+  ],
+  "tool_requirement": "Prohibited",
+  "input_files": []
+    },{
+  "task_id": "SP-04",
+  "title": "AI Customer-Support Assistant Pilot and Launch Strategy",
+  "category": "Strategic Planning",
+  "difficulty": "Hard",
+  "prompt": "Create a 12-week strategy for piloting and deciding whether to launch an AI-powered customer-support assistant for a mid-sized e-commerce company.\n\nThe company currently handles approximately 50,000 customer-support requests per month.\n\nCurrent performance:\n- Average first-response time: 18 hours\n- Customer satisfaction score: 78%\n- Support agents frequently spend time answering repetitive questions\n- Refunds, account changes, and payment disputes require human approval\n\nThe company wants the pilot to achieve the following goals:\n- Reduce average first-response time to 8 hours or less\n- Increase customer satisfaction to at least 84%\n- Reduce repetitive workload for support agents\n- Avoid unsafe or unauthorized actions\n- Protect customer and payment-related information\n\nThe project has the following constraints:\n- Total budget: $180,000\n- Total duration: 12 weeks\n- A limited pilot must begin by the end of Week 8\n- A final launch, revision, or cancellation decision must be made by the end of Week 12\n- The system may draft responses and recommend actions, but it may not independently issue refunds, modify accounts, or resolve payment disputes\n- Payment-card information must not be included in model inputs\n- Project team: 1 Product Manager, 1 Machine Learning Engineer, 1 Backend Engineer, 0.5 Full-Time Data Analyst, 0.5 Full-Time Customer Support Lead, and 0.25 Full-Time Privacy and Legal Specialist\n- Eight customer-support agents may participate in testing for no more than two hours per person per week\n\nDevelop a practical strategy that balances delivery speed, service quality, employee workload, privacy, safety, and budget.\n\nThe plan must also address two possible disruptions:\n1. At the end of Week 6, the available budget may be reduced by 20%.\n2. At the end of Week 9, the pilot may show faster response times but fail to reach the customer-satisfaction target.\n\nThe response must include: an executive summary; strategic priorities; assumptions and scope boundaries; a complete 12-week roadmap; team responsibilities; a budget totaling exactly $180,000; pilot design; success metrics and go/no-go thresholds; a risk register with at least six risks; disruption-response plans; and a final decision framework distinguishing launch, limited extension or revision, and cancellation.\n\nUse the following required tables:\n1. Roadmap: Phase and Weeks | Main Activities | Deliverables | Responsible Roles | Exit Criteria\n2. Budget: Budget Category | Amount | Purpose | Priority if Budget Is Reduced\n3. Success Metrics: Metric | Baseline | Target | Measurement Method | Go/No-Go Threshold\n4. Risk Register: Risk | Likelihood | Impact | Early Warning Sign | Mitigation | Contingency Owner\n\nThe response should be approximately 1,000-1,400 words. Use only the information and constraints provided. Clearly label any additional assumptions. Do not invent completed pilot results or claim that the strategy has already been tested.",
+  "required_output_format": {
+    "type": "markdown",
+    "sections": [
+      "Executive Summary",
+      "Strategic Objectives and Priorities",
+      "Assumptions and Scope Boundaries",
+      "Twelve-Week Phased Roadmap",
+      "Team Responsibilities",
+      "Budget Allocation",
+      "Pilot Design",
+      "Success Metrics and Decision Thresholds",
+      "Risk Register",
+      "Disruption-Response Plans",
+      "Final Decision Framework",
+      "Conclusion"
+    ]
+  },
+  "evaluation_rubric": [
+    {
+      "criterion": "requirement_coverage",
+      "weight": 0.15,
+      "description": "Full credit requires all 12 required sections, all four required tables, at least six risks, both disruption scenarios, and a final framework covering launch, revision or extension, and cancellation. Reduce the score proportionally for each missing section, table, risk entry, disruption response, or decision option."
+    },
+    {
+      "criterion": "roadmap_and_timeline_quality",
+      "weight": 0.15,
+      "description": "Full credit requires a roadmap covering all 12 weeks with clear phases, dependencies, deliverables, owners, and exit criteria; the limited pilot must begin no later than the end of Week 8; and the final decision must occur by the end of Week 12. Missing either mandatory deadline should receive no more than half credit for this criterion."
+    },
+    {
+      "criterion": "resource_and_staffing_feasibility",
+      "weight": 0.1,
+      "description": "Evaluate whether responsibilities are consistent with the stated team capacity and whether support-agent testing stays within eight agents at no more than two hours per person per week. Full credit requires realistic ownership, no over-allocation of fractional roles, and no violation of the support-agent time limit."
+    },
+    {
+      "criterion": "budget_accuracy_and_prioritization",
+      "weight": 0.1,
+      "description": "Full credit requires budget line items totaling exactly $180,000, a clear purpose for each category, and explicit priority labels showing what is protected, reduced, delayed, or removed if the budget falls by 20%. An incorrect total receives zero credit for the budget-total portion and substantially reduces this criterion."
+    },
+    {
+      "criterion": "metrics_and_decision_thresholds",
+      "weight": 0.15,
+      "description": "Full credit requires measurable entries for response time, customer satisfaction, workload reduction, response quality, safety or unauthorized-action rate, privacy compliance, and pilot adoption or usage. Each metric must include baseline where available, target, measurement method, and a concrete go/no-go threshold. Vague goals without decision thresholds should receive no more than half credit."
+    },
+    {
+      "criterion": "safety_privacy_and_scope_control",
+      "weight": 0.1,
+      "description": "Full credit requires explicit human approval for refunds, account changes, and payment disputes; exclusion of payment-card information from model inputs; controls for unsafe, incorrect, or unauthorized recommendations; and preservation of critical privacy and safety work under budget pressure. Any plan allowing autonomous restricted actions should receive zero credit here."
+    },
+    {
+      "criterion": "risk_and_contingency_planning",
+      "weight": 0.1,
+      "description": "Full credit requires at least six relevant risks, each with likelihood, impact, an early warning sign, mitigation, and a contingency owner. Risks must include privacy and unauthorized-action concerns. The plan must provide practical responses to both the Week 6 budget cut and the Week 9 customer-satisfaction shortfall."
+    },
+    {
+      "criterion": "strategic_reasoning_and_decision_quality",
+      "weight": 0.1,
+      "description": "Evaluate whether the plan balances speed, quality, employee workload, cost, safety, and privacy; avoids treating faster response time alone as sufficient for launch; and uses evidence from the proposed pilot metrics to distinguish launch, revision or extension, and cancellation. Full credit requires clear tradeoffs and prioritized actions."
+    },
+    {
+      "criterion": "clarity_consistency_and_integrity",
+      "weight": 0.05,
+      "description": "Full credit requires clear organization, internally consistent dates, staffing, budget, targets, and assumptions, plus a response length of 1,000-1,400 words. Do not award full credit if the answer invents completed pilot results, guarantees business outcomes, contradicts stated constraints, or contains inconsistent calculations."
+    }
+  ],
+  "tool_requirement": "Prohibited",
+  "input_files": []
+    },{
+  "task_id": "TA-04",
+  "title": "Comparing Long-Document Question-Answering Approaches",
+  "category": "Technical Analysis",
+  "difficulty": "Medium",
+  "prompt": "A system must answer questions based on a collection of long technical documents. The documents may exceed the language model's context-window limit.\n\nAnalyze and compare the following three technical approaches:\n\n1. Full-context prompting: place as much document content as possible directly into the model prompt.\n2. Retrieval-augmented generation: divide documents into chunks, retrieve relevant chunks for each question, and provide them to the model.\n3. Hierarchical summarization: summarize document sections first, combine the section summaries into higher-level summaries, and use the summaries to answer questions.\n\nCompare the three approaches in terms of:\n- Information coverage\n- Answer accuracy and grounding\n- Context-window usage\n- Computational cost\n- Implementation complexity\n- Main failure risks\n\nThen recommend the most suitable approach for a system that must answer detailed questions about a large collection of technical manuals. Justify the recommendation and identify one situation in which the recommended approach may perform poorly.\n\nUse qualitative technical reasoning. Do not invent numerical performance results.",
+  "required_output_format": {
+    "type": "markdown",
+    "sections": [
+      "Full-Context Prompting",
+      "Retrieval-Augmented Generation",
+      "Hierarchical Summarization",
+      "Comparison Table",
+      "Final Recommendation",
+      "Limitation of the Recommended Approach"
+    ]
+  },
+  "evaluation_rubric": [
+    {
+      "criterion": "requirement_coverage",
+      "weight": 0.2,
+      "description": "Full credit requires all six required sections, coverage of all three approaches, comparison across all six required dimensions, one final recommendation, and one limitation of the recommended approach. Reduce the score proportionally for each missing section, approach, comparison dimension, recommendation, or limitation."
+    },
+    {
+      "criterion": "technical_accuracy",
+      "weight": 0.25,
+      "description": "Evaluate the correctness of the three approach descriptions. Full credit requires: (1) full-context prompting is correctly described as placing document content directly in the context and being constrained by the context window; (2) retrieval-augmented generation is correctly described as chunking, indexing, retrieving, and providing selected relevant content; and (3) hierarchical summarization is correctly described as progressive compression from lower-level sections to higher-level summaries. Each approach contributes one third of this criterion."
+    },
+    {
+      "criterion": "comparison_quality",
+      "weight": 0.2,
+      "description": "Full credit requires a comparison table containing all three approaches and all seven specified columns: Approach, Information Coverage, Grounding, Context Usage, Cost, Implementation Complexity, and Main Failure Risk. The table and prose must clearly explain meaningful tradeoffs rather than listing generic advantages. Reduce the score proportionally for missing rows, missing columns, vague entries, or contradictions between the table and the prose."
+    },
+    {
+      "criterion": "failure_risk_analysis",
+      "weight": 0.1,
+      "description": "Full credit requires at least one realistic failure risk for each approach: context omission or excessive cost for full-context prompting, retrieval or chunking failure for retrieval-augmented generation, and detail loss through repeated compression for hierarchical summarization. Missing or technically incorrect failure risks should reduce the score proportionally."
+    },
+    {
+      "criterion": "recommendation_quality",
+      "weight": 0.15,
+      "description": "Full credit requires one clear recommendation tailored to detailed question answering over a large collection of technical manuals, supported by at least three scenario-relevant reasons drawn from the required comparison dimensions. The answer must also identify one realistic situation in which the recommended approach may perform poorly. A recommendation without scenario-specific justification receives no more than half credit."
+    },
+    {
+      "criterion": "clarity_and_format",
+      "weight": 0.05,
+      "description": "Full credit requires clear organization, consistent terminology, readable Markdown, the required comparison table, and a total length of 500-700 words. Award partial credit for minor organization or length deviations; major format omissions or a response below 450 words or above 800 words should receive little or no credit."
+    },
+    {
+      "criterion": "evidence_integrity",
+      "weight": 0.05,
+      "description": "Full credit requires qualitative reasoning only, with no fabricated benchmark results, unsupported numerical accuracy claims, latency measurements, token savings, or cost figures. Any invented empirical number should substantially reduce this score. Brief hypothetical examples are acceptable only when clearly labeled as hypothetical."
+    }
+  ],
+  "tool_requirement": "Prohibited",
+  "input_files": []
     }
   ]
 }

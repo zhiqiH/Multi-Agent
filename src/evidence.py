@@ -5,7 +5,12 @@ import re
 import urllib.parse
 from typing import Any
 
-from .tools import DISCOVERY_TOOL_NAMES, EVIDENCE_TOOL_NAMES
+from .tools import (
+    DISCOVERY_TOOL_NAMES,
+    EVIDENCE_TOOL_NAMES,
+    filter_relevant_search_results,
+    validate_tool_output_expectation,
+)
 
 
 _URL_PATTERN = re.compile(r"https?://[^\s<>\"\]]+", re.IGNORECASE)
@@ -29,10 +34,25 @@ def build_evidence_audit(
 
     requirement = str(task.get("tool_requirement") or run_log.get("tool_requirement") or "").strip()
     normalized_requirement = requirement.lower()
+    raw_allowed_tools = task.get("available_tools")
+    allowed_tools = tuple(
+        dict.fromkeys(raw_allowed_tools if isinstance(raw_allowed_tools, list) else [])
+    )
+    allowed_tool_set = set(allowed_tools)
+    raw_exposed_tools = run_log.get("available_tools")
+    exposed_tools = tuple(
+        dict.fromkeys(raw_exposed_tools if isinstance(raw_exposed_tools, list) else [])
+    )
+    tool_surface_matches = set(exposed_tools) == allowed_tool_set
+    raw_expectations = task.get("tool_expectations")
+    tool_expectations = raw_expectations if isinstance(raw_expectations, dict) else {}
     call_trace: list[dict[str, Any]] = []
     source_records: list[dict[str, Any]] = []
     successful_substantive_calls = 0
     successful_discovery_calls = 0
+    successful_authorized_calls = 0
+    unauthorized_tool_names: set[str] = set()
+    tool_expectation_violations: list[str] = []
 
     raw_calls = run_log.get("tool_calls") or []
     if not isinstance(raw_calls, list):
@@ -42,6 +62,9 @@ def build_evidence_audit(
             continue
         tool_name = str(call.get("tool_name") or "")
         success = bool(call.get("success"))
+        authorized = tool_name in allowed_tool_set
+        if not authorized:
+            unauthorized_tool_names.add(tool_name or "<missing tool name>")
         if tool_name in EVIDENCE_TOOL_NAMES:
             evidence_level = "substantive"
         elif tool_name in DISCOVERY_TOOL_NAMES:
@@ -50,10 +73,42 @@ def build_evidence_audit(
             evidence_level = "non_evidence"
 
         payload = _parse_tool_output(call.get("output"))
-        records = _records_from_tool(tool_name, payload) if success else []
-        if success and records and evidence_level == "substantive":
+        expectation_errors = (
+            validate_tool_output_expectation(payload, tool_expectations[tool_name])
+            if authorized and success and tool_name in tool_expectations
+            else []
+        )
+        if authorized and success and tool_name == "google_search_tool":
+            raw_arguments = call.get("arguments")
+            query = (
+                str(raw_arguments.get("query") or "").strip()
+                if isinstance(raw_arguments, dict)
+                else ""
+            )
+            raw_results = payload.get("results")
+            relevant_results = (
+                filter_relevant_search_results(query, raw_results)
+                if query and isinstance(raw_results, list)
+                else raw_results
+            )
+            if query and not relevant_results:
+                expectation_errors.append(
+                    "output.results contains no records semantically relevant to the search query"
+                )
+            elif isinstance(relevant_results, list) and relevant_results is not raw_results:
+                payload = {**payload, "results": relevant_results}
+        if expectation_errors:
+            tool_expectation_violations.extend(
+                f"Tool call {index} ({tool_name}): {error}" for error in expectation_errors
+            )
+        output_contract_satisfied = not expectation_errors
+        valid_success = success and authorized and output_contract_satisfied
+        if valid_success:
+            successful_authorized_calls += 1
+        records = _records_from_tool(tool_name, payload) if valid_success else []
+        if valid_success and records and evidence_level == "substantive":
             successful_substantive_calls += 1
-        elif success and records and evidence_level == "discovery_only":
+        elif valid_success and records and evidence_level == "discovery_only":
             successful_discovery_calls += 1
         for record in records:
             record["evidence_level"] = evidence_level
@@ -65,6 +120,9 @@ def build_evidence_audit(
                 "index": index,
                 "tool_name": tool_name,
                 "success": success,
+                "authorized": authorized,
+                "output_contract_satisfied": output_contract_satisfied,
+                "expectation_errors": expectation_errors,
                 "evidence_level": evidence_level,
                 "source_records": len(records),
                 "error": str(call.get("error") or "")[:500] or None,
@@ -157,22 +215,35 @@ def build_evidence_audit(
         if record.get("doi") or record.get("arxiv_id")
     ]
 
-    if normalized_requirement == "required":
-        execution_satisfied = successful_substantive_calls > 0 and bool(substantive_records)
-        invalid_reason = (
-            None
-            if execution_satisfied
-            else "Required task completed without successfully reading or querying a substantive evidence source."
+    execution_failures: list[str] = []
+    if not tool_surface_matches:
+        execution_failures.append(
+            "Run exposed a tool surface different from benchmark available_tools "
+            f"(expected {list(allowed_tools)}, recorded {list(exposed_tools)})."
         )
-    elif normalized_requirement == "prohibited":
-        execution_satisfied = not raw_calls
-        invalid_reason = None if execution_satisfied else "Prohibited task recorded one or more tool calls."
-    else:
-        execution_satisfied = True
-        invalid_reason = None
+    if unauthorized_tool_names:
+        execution_failures.append(
+            "Run called tools outside benchmark available_tools: "
+            + ", ".join(sorted(unauthorized_tool_names))
+            + "."
+        )
+    if tool_expectation_violations:
+        execution_failures.append(
+            "One or more tool outputs failed the benchmark tool_expectations contract."
+        )
+    if normalized_requirement == "required" and not (
+        successful_substantive_calls > 0 and bool(substantive_records)
+    ):
+        execution_failures.append(
+            "Required task completed without a successful, authorized evidence call whose output "
+            "satisfied the benchmark tool expectation."
+        )
+    elif normalized_requirement == "prohibited" and raw_calls:
+        execution_failures.append("Prohibited task recorded one or more tool calls.")
+    execution_satisfied = not execution_failures
 
     deterministic_score_cap = 1.0 if execution_satisfied else 0.0
-    deterministic_cap_reasons = [invalid_reason] if invalid_reason else []
+    deterministic_cap_reasons = list(execution_failures)
     if not execution_satisfied:
         citation_alignment_status = "invalid_execution"
     elif normalized_requirement == "required":
@@ -225,6 +296,16 @@ def build_evidence_audit(
 
     return {
         "tool_requirement": requirement,
+        "allowed_tools": list(allowed_tools),
+        "exposed_tools": list(exposed_tools),
+        "tool_surface_matches_benchmark": tool_surface_matches,
+        "tool_expectations": tool_expectations,
+        "tool_expectations_satisfied": not tool_expectation_violations,
+        "tool_expectation_violations": tool_expectation_violations,
+        "unauthorized_tool_names": sorted(unauthorized_tool_names),
+        "unauthorized_tool_call_count": sum(
+            not bool(call.get("authorized")) for call in call_trace
+        ),
         "execution_requirement_satisfied": execution_satisfied,
         "execution_status": "valid" if execution_satisfied else "invalid",
         "score_eligible": execution_satisfied,
@@ -235,6 +316,7 @@ def build_evidence_audit(
         "deterministic_cap_reasons": deterministic_cap_reasons,
         "tool_call_count": len(raw_calls),
         "successful_tool_call_count": sum(bool(call.get("success")) for call in call_trace),
+        "successful_authorized_tool_call_count": successful_authorized_calls,
         "successful_substantive_tool_call_count": successful_substantive_calls,
         "successful_discovery_tool_call_count": successful_discovery_calls,
         "substantive_source_count": len(substantive_records),
@@ -266,6 +348,19 @@ def tool_call_has_substantive_source(call: dict[str, Any]) -> bool:
     if not call.get("success") or call.get("tool_name") not in EVIDENCE_TOOL_NAMES:
         return False
     payload = _parse_tool_output(call.get("output"))
+    if call.get("tool_name") == "google_search_tool":
+        raw_arguments = call.get("arguments")
+        query = (
+            str(raw_arguments.get("query") or "").strip()
+            if isinstance(raw_arguments, dict)
+            else ""
+        )
+        results = payload.get("results")
+        if query and (
+            not isinstance(results, list)
+            or not filter_relevant_search_results(query, results)
+        ):
+            return False
     return bool(_records_from_tool(str(call.get("tool_name") or ""), payload))
 
 
@@ -379,7 +474,7 @@ def _parse_tool_output(raw_output: Any) -> dict[str, Any]:
 
 
 def _records_from_tool(tool_name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
-    if tool_name == "web_search":
+    if tool_name in {"google_search_tool", "web_search"}:
         return [_web_record(item) for item in payload.get("results") or [] if isinstance(item, dict)]
     if tool_name == "fetch_url":
         return [_fetch_record(payload)]
@@ -423,11 +518,22 @@ def _records_from_tool(tool_name: str, payload: dict[str, Any]) -> list[dict[str
 
 
 def _web_record(item: dict[str, Any]) -> dict[str, Any]:
+    url_or_doi = item.get("url") or item.get("url_or_doi")
+    is_url = isinstance(url_or_doi, str) and url_or_doi.startswith(("http://", "https://"))
+    identifier_text = str(url_or_doi or "")
+    doi_match = _DOI_PATTERN.search(identifier_text)
+    arxiv_match = _ARXIV_PATTERN.search(identifier_text)
     return _clean_record(
         {
-            "url": item.get("url"),
+            "url": url_or_doi if is_url else None,
+            "doi": doi_match.group(0) if doi_match else (None if is_url else url_or_doi),
+            "arxiv_id": arxiv_match.group(1) if arxiv_match else None,
             "title": item.get("title"),
             "published_at": item.get("published_at"),
+            "source_provider": item.get("source_provider"),
+            "year": item.get("year"),
+            "venue": item.get("venue"),
+            "citation_count": item.get("citation_count"),
             "excerpt": item.get("snippet"),
         }
     )

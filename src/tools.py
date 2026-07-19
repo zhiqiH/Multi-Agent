@@ -21,6 +21,7 @@ from typing import Any, Callable
 
 EVIDENCE_TOOL_NAMES = frozenset(
     {
+        "google_search_tool",
         "fetch_url",
         "fetch_urls",
         "academic_search",
@@ -32,7 +33,77 @@ EVIDENCE_TOOL_NAMES = frozenset(
 DISCOVERY_TOOL_NAMES = frozenset({"web_search", "list_local_documents"})
 
 
+_ACADEMIC_QUERY_MARKERS = frozenset(
+    {
+        "academic",
+        "adapter",
+        "adapters",
+        "arxiv",
+        "citation",
+        "cited",
+        "doi",
+        "fine-tuning",
+        "finetuning",
+        "literature",
+        "lora",
+        "paper",
+        "papers",
+        "peft",
+        "prefix-tuning",
+        "scholarly",
+    }
+)
+_SEARCH_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "academic",
+        "are",
+        "as",
+        "at",
+        "by",
+        "com",
+        "for",
+        "from",
+        "highly",
+        "http",
+        "https",
+        "in",
+        "of",
+        "on",
+        "or",
+        "org",
+        "paper",
+        "papers",
+        "recent",
+        "research",
+        "site",
+        "the",
+        "to",
+        "with",
+        "www",
+    }
+)
+
+
 _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
+    "google_search_tool": {
+        "description": (
+            "Search task-required sources and return title, URL or DOI, and snippet records. "
+            "Scholarly queries use academic indexes before a public-web fallback, and irrelevant "
+            "results are rejected. This compatibility tool follows the Benchmark-C tool contract."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Focused search query."},
+                "max_results": {"type": "integer", "minimum": 1, "maximum": 10},
+            },
+            "required": ["query", "max_results"],
+            "additionalProperties": False,
+        },
+    },
     "web_search": {
         "description": (
             "Search the public web. Use this before fetch_url when current product, pricing, policy, "
@@ -201,7 +272,14 @@ class ToolResult:
 class ToolRegistry:
     """Controlled local function tools exposed to an LLM through function calling."""
 
-    def __init__(self, policy: dict[str, Any], *, project_root: Path) -> None:
+    def __init__(
+        self,
+        policy: dict[str, Any],
+        *,
+        project_root: Path,
+        available_tools: list[str] | None = None,
+        tool_expectations: dict[str, Any] | None = None,
+    ) -> None:
         self.policy = dict(policy or {})
         self.project_root = project_root.resolve()
         configured = self.policy.get("available_tools") or []
@@ -210,7 +288,36 @@ class ToolRegistry:
         unknown = sorted(set(configured) - set(_TOOL_SCHEMAS))
         if unknown:
             raise ValueError(f"Unknown configured tools: {unknown}")
-        self.names = tuple(dict.fromkeys(configured))
+        configured_names = tuple(dict.fromkeys(configured))
+        requested = list(configured_names) if available_tools is None else available_tools
+        if not isinstance(requested, list) or not all(
+            isinstance(name, str) and name.strip() for name in requested
+        ):
+            raise ValueError("task available_tools must be a list of non-empty tool names")
+        unknown_requested = sorted(set(requested) - set(_TOOL_SCHEMAS))
+        if unknown_requested:
+            raise ValueError(f"Unknown task tools: {unknown_requested}")
+        unavailable = sorted(set(requested) - set(configured_names))
+        if unavailable:
+            raise ValueError(
+                "Task requests tools that are not enabled by tool_policy.available_tools: "
+                + ", ".join(unavailable)
+            )
+        self.configured_names = configured_names
+        self.names = tuple(dict.fromkeys(requested))
+        raw_expectations = tool_expectations or {}
+        if not isinstance(raw_expectations, dict):
+            raise ValueError("task tool_expectations must be an object")
+        expectation_only = sorted(set(raw_expectations) - set(self.names))
+        if expectation_only:
+            raise ValueError(
+                "Task defines expectations for unavailable tools: " + ", ".join(expectation_only)
+            )
+        self.tool_expectations = {
+            name: dict(expectation)
+            for name, expectation in raw_expectations.items()
+            if isinstance(expectation, dict)
+        }
         self.timeout_seconds = max(1, int(self.policy.get("timeout_seconds", 20)))
         self.max_result_chars = max(1000, int(self.policy.get("max_result_chars", 12000)))
         raw_roots = self.policy.get("local_document_roots") or []
@@ -218,6 +325,7 @@ class ToolRegistry:
             raise ValueError("tool_policy.local_document_roots must be a list of paths")
         self.local_roots = tuple((self.project_root / path).resolve() for path in raw_roots)
         self._handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+            "google_search_tool": self._google_search_tool,
             "web_search": self._web_search,
             "fetch_url": self._fetch_url,
             "fetch_urls": self._fetch_urls,
@@ -236,13 +344,31 @@ class ToolRegistry:
                 "type": "function",
                 "function": {
                     "name": name,
-                    "description": _TOOL_SCHEMAS[name]["description"],
+                    "description": self._tool_description(name),
                     "parameters": _TOOL_SCHEMAS[name]["parameters"],
                     "strict": True,
                 },
             }
             for name in self.names
         ]
+
+    def for_task(self, task: dict[str, Any]) -> "ToolRegistry":
+        """Create the exact tool surface declared by one benchmark task."""
+
+        return ToolRegistry(
+            self.policy,
+            project_root=self.project_root,
+            available_tools=list(task.get("available_tools") or []),
+            tool_expectations=dict(task.get("tool_expectations") or {}),
+        )
+
+    def _tool_description(self, name: str) -> str:
+        description = str(_TOOL_SCHEMAS[name]["description"])
+        expectation = self.tool_expectations.get(name)
+        if not expectation:
+            return description
+        rendered = json.dumps(expectation, ensure_ascii=False, sort_keys=True)
+        return f"{description} Task-specific expectation: {rendered[:4000]}"
 
     @property
     def has_local_documents(self) -> bool:
@@ -263,6 +389,18 @@ class ToolRegistry:
             if not isinstance(arguments, dict):
                 raise ValueError("Tool arguments must be a JSON object")
             payload = self._handlers[name](arguments)
+            expectation_errors = (
+                validate_tool_output_expectation(payload, self.tool_expectations.get(name))
+                if payload.get("ok", True)
+                else []
+            )
+            if expectation_errors:
+                payload = dict(payload)
+                payload["ok"] = False
+                payload["tool_expectation_errors"] = expectation_errors
+                payload["error"] = (
+                    "Tool output did not satisfy this task's tool_expectations contract."
+                )
             content = _bounded_json(payload, self.max_result_chars)
             success = bool(payload.get("ok", True))
             error = None if success else str(payload.get("error") or "Tool returned no successful result")
@@ -271,6 +409,78 @@ class ToolRegistry:
             error = f"{type(exc).__name__}: {exc}"
             content = _bounded_json({"ok": False, "error": error}, self.max_result_chars)
             return ToolResult(False, content, error, round(time.perf_counter() - started, 3))
+
+    def _google_search_tool(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        query = _required_text(arguments, "query")
+        max_results = _bounded_int(arguments.get("max_results"), 1, 10)
+        candidates: list[dict[str, Any]] = []
+        providers: list[str] = []
+        provider_errors: list[str] = []
+
+        # Benchmark C exposes this compatibility tool instead of the newer
+        # academic_search surface. Route scholarly queries through academic
+        # indexes first so literature-review tasks do not depend on a generic
+        # web engine matching a single ambiguous word such as "parameter".
+        if _looks_like_academic_query(query):
+            for provider_name, search in (
+                ("Semantic Scholar", self._semantic_scholar),
+                ("OpenAlex", self._openalex),
+            ):
+                try:
+                    academic_payload = search(query, max_results)
+                except Exception as exc:  # noqa: BLE001 - preserve the web fallback.
+                    provider_errors.append(f"{provider_name}: {type(exc).__name__}: {exc}")
+                    continue
+                academic_results = _compatibility_academic_results(academic_payload)
+                candidates.extend(filter_relevant_search_results(query, academic_results))
+                if academic_results:
+                    providers.append(provider_name)
+                if len(_deduplicate_search_results(candidates)) >= max_results:
+                    break
+
+        if len(_deduplicate_search_results(candidates)) < max_results:
+            try:
+                web_payload = self._web_search(
+                    {"query": query, "allowed_domains": [], "max_results": max_results}
+                )
+                web_results = [
+                    {
+                        "title": item.get("title"),
+                        "url": item.get("url"),
+                        "url_or_doi": item.get("url"),
+                        "snippet": item.get("snippet"),
+                        "published_at": item.get("published_at"),
+                    }
+                    for item in web_payload.get("results") or []
+                    if isinstance(item, dict)
+                ]
+                candidates.extend(filter_relevant_search_results(query, web_results))
+                if web_results:
+                    providers.append("Bing")
+                retrieved_at = web_payload.get("retrieved_at") or _utc_now()
+            except Exception as exc:  # noqa: BLE001 - academic results may still be usable.
+                provider_errors.append(f"Bing: {type(exc).__name__}: {exc}")
+                retrieved_at = _utc_now()
+        else:
+            retrieved_at = _utc_now()
+
+        results = _deduplicate_search_results(candidates)[:max_results]
+        ok = bool(results)
+        payload: dict[str, Any] = {
+            "ok": ok,
+            "query": query,
+            "results": results,
+            "retrieved_at": retrieved_at,
+            "source_providers": list(dict.fromkeys(providers)),
+        }
+        if not ok:
+            payload["error"] = (
+                "Search returned no results semantically relevant to the query. "
+                "Use an exact title, DOI, ArXiv ID, distinctive author, or official domain."
+            )
+        if provider_errors:
+            payload["provider_errors"] = provider_errors
+        return payload
 
     def _web_search(self, arguments: dict[str, Any]) -> dict[str, Any]:
         query = _required_text(arguments, "query")
@@ -463,6 +673,9 @@ class ToolRegistry:
                     "citation_count": item.get("cited_by_count"),
                     "doi": item.get("doi"),
                     "url": primary.get("landing_page_url") or item.get("id"),
+                    "abstract": _reconstruct_openalex_abstract(
+                        item.get("abstract_inverted_index")
+                    )[:3000],
                 }
             )
         return {"ok": True, "source": "OpenAlex", "query": query, "results": papers, "retrieved_at": _utc_now()}
@@ -533,6 +746,133 @@ class ToolRegistry:
             "successful": successful,
             "documents": documents,
         }
+
+
+def filter_relevant_search_results(
+    query: str,
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep search records with enough lexical evidence to match the query.
+
+    This deliberately uses a conservative, deterministic check rather than an
+    LLM. It is intended to reject obvious search drift (for example a dictionary
+    definition for a PEFT-paper query), not to rank nuanced scholarly relevance.
+    """
+
+    query_tokens = _meaningful_search_tokens(query)
+    if not query_tokens:
+        return [item for item in results if isinstance(item, dict)]
+    minimum_matches = 1 if len(query_tokens) <= 2 else 2
+    relevant: list[dict[str, Any]] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        searchable = " ".join(
+            str(item.get(field) or "")
+            for field in (
+                "title",
+                "snippet",
+                "abstract",
+                "url",
+                "url_or_doi",
+                "venue",
+            )
+        )
+        result_tokens = set(re.findall(r"[a-z0-9]+", searchable.lower()))
+        if len(query_tokens & result_tokens) >= minimum_matches:
+            relevant.append(item)
+    return relevant
+
+
+def _looks_like_academic_query(query: str) -> bool:
+    normalized = query.lower()
+    return any(marker in normalized for marker in _ACADEMIC_QUERY_MARKERS)
+
+
+def _meaningful_search_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", value.lower())
+        if len(token) >= 3 and token not in _SEARCH_STOP_WORDS
+    }
+
+
+def _compatibility_academic_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    provider = str(payload.get("source") or "Academic index")
+    results: list[dict[str, Any]] = []
+    for item in payload.get("results") or []:
+        if not isinstance(item, dict) or not str(item.get("title") or "").strip():
+            continue
+        external_ids = item.get("external_ids") if isinstance(item.get("external_ids"), dict) else {}
+        doi = item.get("doi") or external_ids.get("DOI")
+        arxiv_id = external_ids.get("ArXiv")
+        source_url = item.get("url")
+        if doi:
+            url_or_doi = str(doi).removeprefix("https://doi.org/")
+        elif arxiv_id:
+            url_or_doi = f"https://arxiv.org/abs/{arxiv_id}"
+        else:
+            url_or_doi = source_url
+        abstract = str(item.get("abstract") or "").strip()
+        if not abstract:
+            details = [
+                f"Published {item['year']}" if item.get("year") else "",
+                f"in {item['venue']}" if item.get("venue") else "",
+                (
+                    f"with {item['citation_count']} citations"
+                    if item.get("citation_count") is not None
+                    else ""
+                ),
+            ]
+            abstract = " ".join(part for part in details if part) or "Academic publication record."
+        results.append(
+            {
+                "title": str(item["title"]),
+                "url": source_url,
+                "url_or_doi": url_or_doi,
+                "snippet": abstract,
+                "published_at": item.get("publication_date") or item.get("year"),
+                "source_provider": provider,
+                "year": item.get("year"),
+                "venue": item.get("venue"),
+                "citation_count": item.get("citation_count"),
+            }
+        )
+    return results
+
+
+def _reconstruct_openalex_abstract(value: Any) -> str:
+    """Convert OpenAlex's inverted-index abstract into readable text."""
+
+    if not isinstance(value, dict):
+        return ""
+    positioned: list[tuple[int, str]] = []
+    for token, raw_positions in value.items():
+        if not isinstance(token, str) or not isinstance(raw_positions, list):
+            continue
+        for position in raw_positions:
+            if isinstance(position, int) and not isinstance(position, bool) and position >= 0:
+                positioned.append((position, token))
+    positioned.sort(key=lambda item: item[0])
+    return _clean_text(" ".join(token for _, token in positioned))
+
+
+def _deduplicate_search_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
+    seen_identifiers: set[str] = set()
+    for item in results:
+        title = _clean_text(str(item.get("title") or "")).lower()
+        identifier = _clean_text(
+            str(item.get("url_or_doi") or item.get("url") or "")
+        ).lower()
+        if not title or title in seen_titles or (identifier and identifier in seen_identifiers):
+            continue
+        seen_titles.add(title)
+        if identifier:
+            seen_identifiers.add(identifier)
+        unique.append(item)
+    return unique
 
 
 class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -670,6 +1010,55 @@ def _extract_pdf(data: bytes, *, max_chars: int) -> tuple[str, str]:
             break
     title = str((reader.metadata or {}).get("/Title") or "")
     return "\n".join(parts), title
+
+
+def validate_tool_output_expectation(payload: Any, expectation: Any) -> list[str]:
+    """Validate the structural required_output contract declared by one task."""
+
+    if expectation is None:
+        return []
+    if not isinstance(expectation, dict):
+        return ["tool expectation must be an object"]
+    required_output = expectation.get("required_output")
+    if required_output is None:
+        return []
+    return _shape_errors(payload, required_output, path="output")
+
+
+def _shape_errors(actual: Any, expected: Any, *, path: str) -> list[str]:
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return [f"{path} must be an object"]
+        errors: list[str] = []
+        for key, child_expected in expected.items():
+            child_path = f"{path}.{key}"
+            if key not in actual:
+                errors.append(f"{child_path} is required")
+                continue
+            errors.extend(_shape_errors(actual[key], child_expected, path=child_path))
+        return errors
+    if isinstance(expected, list):
+        if not isinstance(actual, list):
+            return [f"{path} must be a list"]
+        if expected and not actual:
+            return [f"{path} must contain at least one item"]
+        if not expected:
+            return []
+        errors: list[str] = []
+        item_shape = expected[0]
+        for index, item in enumerate(actual):
+            errors.extend(_shape_errors(item, item_shape, path=f"{path}[{index}]"))
+        return errors
+    if isinstance(expected, str) and expected.strip().lower() == "string":
+        if not isinstance(actual, str) or not actual.strip():
+            return [f"{path} must be a non-empty string"]
+        return []
+    if isinstance(expected, bool) and not isinstance(actual, bool):
+        return [f"{path} must be boolean"]
+    if isinstance(expected, (int, float)) and not isinstance(expected, bool):
+        if not isinstance(actual, (int, float)) or isinstance(actual, bool):
+            return [f"{path} must be numeric"]
+    return []
 
 
 def _required_text(arguments: dict[str, Any], field: str) -> str:
