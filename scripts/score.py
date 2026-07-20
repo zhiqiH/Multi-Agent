@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Score agent-system logs and immediately aggregate all score results."
     )
-    parser.add_argument("--benchmark", default="benchmark/benchmark-D.json")
+    parser.add_argument("--benchmark", default="benchmark/benchmark-C.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--logs-dir", default="logs/raw/current")
     parser.add_argument(

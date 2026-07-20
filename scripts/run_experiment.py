@@ -32,7 +32,7 @@ from src.tools import EVIDENCE_TOOL_NAMES, ToolRegistry  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run controlled single-agent and multi-agent protocol experiments.")
-    parser.add_argument("--benchmark", default="benchmark/benchmark-D.json")
+    parser.add_argument("--benchmark", default="benchmark/benchmark-C.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--experiment-config", default="configs/experiment_config.json")
     parser.add_argument("--out-dir", default="logs/raw/current")
