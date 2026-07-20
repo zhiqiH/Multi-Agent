@@ -14,6 +14,8 @@ DEFAULT_AGENT_FIELDS: tuple[str, ...] = (
     "category",
     "difficulty",
     "tool_requirement",
+    "available_tools",
+    "tool_expectations",
     "prompt",
     "required_output_format",
 )
@@ -46,7 +48,13 @@ REQUIRED_TASK_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-KNOWN_TASK_FIELDS: frozenset[str] = REQUIRED_TASK_FIELDS | {"evidence_policy", "notes"}
+TOOL_CONTROL_FIELDS: frozenset[str] = frozenset({"available_tools", "tool_expectations"})
+KNOWN_TASK_FIELDS: frozenset[str] = REQUIRED_TASK_FIELDS | TOOL_CONTROL_FIELDS | {
+    "evidence_policy",
+    "notes",
+    "title",
+    "input_files",
+}
 BENCHMARK_CATEGORIES: tuple[str, ...] = (
     "Literature Review",
     "Technical Analysis",
@@ -58,6 +66,22 @@ BENCHMARK_CATEGORIES: tuple[str, ...] = (
 VALID_DIFFICULTIES = frozenset({"Easy", "Medium", "Hard"})
 VALID_TOOL_REQUIREMENTS = frozenset({"Required", "Optional", "Prohibited"})
 
+_LEGACY_GOOGLE_SEARCH_EXPECTATION: dict[str, Any] = {
+    "description": (
+        "Searches the web for task-relevant sources and returns auditable title, URL or DOI, "
+        "and snippet records."
+    ),
+    "required_output": {
+        "results": [
+            {
+                "title": "string",
+                "url_or_doi": "string",
+                "snippet": "string",
+            }
+        ]
+    },
+}
+
 _TASK_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9_-]*-\d{2}$")
 _TASK_FIELD_LABELS = {
     "task_id": "Task ID",
@@ -65,6 +89,8 @@ _TASK_FIELD_LABELS = {
     "difficulty": "Difficulty",
     "author": "Author",
     "tool_requirement": "Tool Requirement",
+    "available_tools": "Available Tools",
+    "tool_expectations": "Tool Expectations",
     "prompt": "Prompt",
     "required_output_format": "Required Output Format",
     "evaluation_criteria": "Evaluation Criteria",
@@ -74,6 +100,8 @@ _TASK_FIELD_LABELS = {
     "expected_failure_risks": "Expected Failure Risks",
     "ground_truth": "Ground Truth",
     "notes": "Notes",
+    "title": "Title",
+    "input_files": "Input Files",
 }
 _INLINE_TASK_FIELDS = {"task_id", "category", "difficulty", "author", "tool_requirement"}
 
@@ -111,7 +139,9 @@ def _load_benchmark(path: Path, *, seen: frozenset[Path]) -> dict[str, Any]:
         raise ValueError(f"No tasks found in benchmark file: {path}")
 
     task_ids: set[str] = set()
-    for task in tasks:
+    for index, raw_task in enumerate(tasks):
+        task = _normalize_task(raw_task, source=path)
+        tasks[index] = task
         _validate_task(task, source=path)
         task_id = str(task["task_id"])
         if task_id in task_ids:
@@ -121,6 +151,140 @@ def _load_benchmark(path: Path, *, seen: frozenset[Path]) -> dict[str, Any]:
     result = {key: deepcopy(value) for key, value in payload.items() if key != "tasks"}
     result["tasks"] = tasks
     return result
+
+
+def _normalize_task(task: Any, *, source: Path) -> Any:
+    """Return the canonical Benchmark-C task shape.
+
+    Benchmark D predates the current Agent/Judge field boundary and stores one
+    weighted ``evaluation_rubric`` instead of the canonical private grading
+    fields.  The conversion below preserves that source rubric rather than
+    inventing new task-specific answers.  New benchmark files should be authored
+    directly in the canonical Benchmark-C shape.
+    """
+
+    if not isinstance(task, dict):
+        return task
+    normalized = deepcopy(task)
+
+    legacy_rubric = normalized.pop("evaluation_rubric", None)
+    is_legacy_task = isinstance(legacy_rubric, list)
+    if "evaluation_criteria" not in normalized and isinstance(legacy_rubric, list):
+        criteria: list[dict[str, Any]] = []
+        for index, item in enumerate(legacy_rubric, start=1):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("criterion") or f"criterion_{index}").strip()
+            description = str(item.get("description") or name).strip()
+            criteria.append(
+                {
+                    "id": f"C{index}",
+                    "criterion": f"{name}: {description}",
+                    "weight": item.get("weight", 1),
+                }
+            )
+        normalized["evaluation_criteria"] = criteria
+        normalized.setdefault(
+            "scoring_rubric",
+            {
+                "scoring_method": (
+                    "Score each converted legacy evaluation criterion independently using its "
+                    "recorded weight, then apply the standard benchmark caps."
+                ),
+                "legacy_evaluation_rubric": deepcopy(legacy_rubric),
+            },
+        )
+        normalized.setdefault(
+            "ground_truth",
+            {
+                "evaluation_requirements": [
+                    criterion["criterion"] for criterion in criteria
+                ]
+            },
+        )
+        normalized.setdefault(
+            "expected_failure_risks",
+            [
+                "Failure to satisfy one or more recorded evaluation-rubric requirements.",
+                "Failure to follow the required output structure or quantitative constraints.",
+                "Use of a prohibited tool or failure to use a task-required tool.",
+            ],
+        )
+
+    normalized.setdefault("author", f"Legacy task from {source.stem}")
+    requirement = str(normalized.get("tool_requirement") or "").strip().lower()
+    normalized.setdefault(
+        "required_evidence",
+        (
+            "External evidence is required as specified by the task prompt and task tool expectations."
+            if requirement == "required"
+            else "No external evidence is required; external tool use is prohibited."
+        ),
+    )
+
+    output_format = normalized.get("required_output_format")
+    if output_format is not None and not isinstance(output_format, str):
+        normalized["required_output_format"] = json.dumps(
+            output_format, ensure_ascii=False, indent=2
+        )
+
+    evidence_policy = normalized.get("evidence_policy")
+    if isinstance(evidence_policy, dict):
+        evidence_policy = deepcopy(evidence_policy)
+        legacy_traceability = evidence_policy.pop(
+            "minimum_citation_traceability_rate", None
+        )
+        if legacy_traceability is not None:
+            evidence_policy.setdefault("minimum_traceability_rate", legacy_traceability)
+        normalized["evidence_policy"] = evidence_policy
+    elif is_legacy_task and requirement == "required":
+        # Benchmark D predates structured evidence policies.  Keep it runnable
+        # without editing the benchmark while applying a conservative minimum;
+        # the legacy rubric and prompt remain the semantic source of truth.
+        normalized["evidence_policy"] = {
+            "minimum_substantive_sources": 1,
+            "minimum_traceability_rate": 0.0,
+            "violation_score_cap": 0.5,
+        }
+
+    uses_compatibility_tools = "available_tools" not in normalized
+    if uses_compatibility_tools:
+        normalized["available_tools"] = _compatibility_available_tools(
+            requirement, normalized.get("evidence_policy")
+        )
+    if "tool_expectations" not in normalized:
+        normalized["tool_expectations"] = (
+            {"google_search_tool": deepcopy(_LEGACY_GOOGLE_SEARCH_EXPECTATION)}
+            if uses_compatibility_tools
+            and normalized["available_tools"] == ["google_search_tool"]
+            else {}
+        )
+    return normalized
+
+
+def _compatibility_available_tools(requirement: str, evidence_policy: Any) -> list[str]:
+    """Derive a narrow tool surface for tasks authored before task-level tool fields."""
+
+    if requirement != "required":
+        return []
+    policy = evidence_policy if isinstance(evidence_policy, dict) else {}
+    tools: list[str] = []
+    if int(policy.get("minimum_local_documents", 0)) > 0:
+        tools.extend(
+            ["list_local_documents", "read_local_document", "read_local_documents"]
+        )
+    if any(
+        int(policy.get(field, 0)) > 0
+        for field in (
+            "minimum_academic_records",
+            "minimum_recent_academic_records",
+            "minimum_identifier_records",
+        )
+    ) or policy.get("academic_provider_consistency"):
+        tools.extend(["academic_search", "academic_lookup"])
+    if policy.get("required_domain_groups"):
+        tools.extend(["web_search", "fetch_url", "fetch_urls"])
+    return list(dict.fromkeys(tools)) or ["google_search_tool"]
 
 
 def _validate_task(task: Any, *, source: Path) -> None:
@@ -143,6 +307,35 @@ def _validate_task(task: Any, *, source: Path) -> None:
     for field in ("category", "author", "prompt", "required_output_format"):
         if not isinstance(task[field], str) or not task[field].strip():
             raise ValueError(f"Task {task_id} field {field!r} must be a non-empty string")
+
+    available_tools = task.get("available_tools")
+    if not isinstance(available_tools, list) or not all(
+        isinstance(name, str) and name.strip() for name in available_tools
+    ):
+        raise ValueError(f"Task {task_id} available_tools must be a list of non-empty names")
+    if len(set(available_tools)) != len(available_tools):
+        raise ValueError(f"Task {task_id} available_tools contains duplicate names")
+    if task["tool_requirement"] == "Required" and not available_tools:
+        raise ValueError(
+            f"Task {task_id} requires tools but available_tools is empty; "
+            "the benchmark task must declare its exact tool surface"
+        )
+    if task["tool_requirement"] == "Prohibited" and available_tools:
+        raise ValueError(f"Task {task_id} prohibits tools but available_tools is not empty")
+
+    tool_expectations = task.get("tool_expectations")
+    if not isinstance(tool_expectations, dict):
+        raise ValueError(f"Task {task_id} tool_expectations must be an object")
+    unknown_expectations = sorted(set(tool_expectations) - set(available_tools))
+    if unknown_expectations:
+        raise ValueError(
+            f"Task {task_id} has tool_expectations for unavailable tools: {unknown_expectations}"
+        )
+    for name, expectation in tool_expectations.items():
+        if not isinstance(expectation, dict) or not expectation:
+            raise ValueError(
+                f"Task {task_id} tool_expectations.{name} must be a non-empty object"
+            )
 
     criteria = task["evaluation_criteria"]
     if not isinstance(criteria, list) or not criteria:

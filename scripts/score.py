@@ -112,7 +112,7 @@ def main() -> int:
             secrets_path=PROJECT_ROOT / ".secrets" / "model_keys.json",
         )
         effective_config = dict(getattr(client, "effective_config", {}) or {})
-        judge_condition = {
+        judge_condition_base = {
             "judge_provider": client.provider,
             "judge_profile": client.profile,
             "judge_model": client.model,
@@ -146,6 +146,16 @@ def main() -> int:
                 skipped_unknown_task += 1
                 continue
 
+            judge_task = judge_tasks[task_id]
+            judge_condition = {
+                **judge_condition_base,
+                "task_id": task_id,
+                "task_tool_policy": {
+                    "available_tools": list(judge_task.get("available_tools") or []),
+                    "tool_expectations": dict(judge_task.get("tool_expectations") or {}),
+                },
+            }
+
             score_id = build_score_id(run_log, client)
             existing_score = scores_by_id.get(score_id)
             if existing_score is not None:
@@ -163,7 +173,7 @@ def main() -> int:
                     continue
 
             try:
-                score = score_run_log(run_log, judge_tasks[task_id], client)
+                score = score_run_log(run_log, judge_task, client)
             except Exception as exc:  # noqa: BLE001 - keep other completed scores.
                 error = {
                     "record_type": "scoring_error",
@@ -195,13 +205,7 @@ def main() -> int:
             )
             scores.append(score)
             scores_by_id[score_id] = score
-            print(
-                f"SCORED task={task_id} protocol={run_log['protocol_id']} "
-                f"agent={agent_model} judge={client.model} quality={score['overall_quality_score']} "
-                f"evidence={score['evidence_execution_status']} "
-                f"policy={'pass' if score['evidence_policy_satisfied'] else 'fail'} "
-                f"citations={score['citation_alignment_status']}"
-            )
+            print(_format_score_result(task_id, run_log, score, client.model))
             scored += 1
 
     write_jsonl(scores_path, scores)
@@ -250,6 +254,33 @@ def _print_model_profiles(config: dict[str, Any]) -> None:
         roles = [role for role in ("agent", "judge") if defaults.get(role) == name]
         label = f" defaults={','.join(roles)}" if roles else ""
         print(f"{name}: model={profile.get('model', 'unknown')}{label}")
+
+
+def _tool_call_signal(record: dict[str, Any]) -> str:
+    requirement = str(record.get("tool_requirement") or "").strip().lower()
+    call_count = int(record.get("tool_call_count") or 0)
+    if requirement == "prohibited":
+        return "not_required" if call_count == 0 else "failed"
+    successful_field = (
+        "successful_authorized_tool_call_count"
+        if "successful_authorized_tool_call_count" in record
+        else "successful_tool_call_count"
+    )
+    successful = int(record.get(successful_field) or 0)
+    return "success" if successful > 0 else "failed"
+
+
+def _format_score_result(
+    task_id: str,
+    run_log: dict[str, Any],
+    score: dict[str, Any],
+    judge_model: str,
+) -> str:
+    return (
+        f"SCORED task={task_id} protocol={run_log['protocol_id']} "
+        f"agent={run_log['agent_model']} judge={judge_model} "
+        f"quality={score['overall_quality_score']} tool={_tool_call_signal(score)}"
+    )
 
 
 def _project_path(raw: str | Path) -> Path:
