@@ -20,6 +20,7 @@ from .tools import DISCOVERY_TOOL_NAMES, ToolRegistry, ToolResult
 
 CORE_AGENT_ROLES = ("Planner", "Researcher", "Analyst", "Critic", "Writer")
 WORK_ROLES = ("Planner", "Researcher", "Analyst", "Critic")
+REQUIRED_EVIDENCE_ROLES = frozenset({"Researcher", "Analyst", "Writer", "Single Agent"})
 
 
 PROTOCOLS: dict[str, dict[str, Any]] = {
@@ -312,7 +313,7 @@ class RunState:
                 messages,
                 max_tokens=effective_max_tokens,
                 tools=tool_schemas or None,
-                tool_choice="auto" if tool_schemas else None,
+                tool_choice=self._tool_choice(role, tool_schemas),
             )
             self.model_call_count += 1
             self.add_usage(response)
@@ -398,6 +399,21 @@ class RunState:
                 self.model_call_count += 1
                 self.add_usage(final_response)
                 return final_response
+
+    def _tool_choice(
+        self,
+        role: str,
+        tool_schemas: list[dict[str, Any]],
+    ) -> str | None:
+        if not tool_schemas:
+            return None
+        requires_evidence = self.tool_requirement.strip().lower() == "required"
+        evidence_already_accessed = any(
+            tool_call_has_substantive_source(call) for call in self.tool_calls
+        )
+        if requires_evidence and role in REQUIRED_EVIDENCE_ROLES and not evidence_already_accessed:
+            return "required"
+        return "auto"
 
     def _record_tool_call(
         self,

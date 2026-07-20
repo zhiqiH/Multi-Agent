@@ -17,6 +17,7 @@ from src.analysis import (  # noqa: E402
     write_scores_csv,
     write_summary_markdown,
 )
+from src.failure_taxonomy import FAILURE_TYPES  # noqa: E402
 from src.io_utils import read_json, read_jsonl, slug_list, write_jsonl  # noqa: E402
 from src.llm_client import build_client  # noqa: E402
 from src.scorer import build_result_run_id, build_score_id, score_run_log  # noqa: E402
@@ -89,6 +90,12 @@ def main() -> int:
 
     wanted_agents = set(slug_list(args.agent_models))
     wanted_tasks = set(slug_list(args.tasks))
+    _preflight_run_compatibility(
+        log_paths,
+        judge_tasks,
+        wanted_tasks=wanted_tasks,
+        wanted_agents=wanted_agents,
+    )
     results_dir = _project_path(args.results_dir)
     scores_path = results_dir / "scores.jsonl"
     scores = read_jsonl(scores_path)
@@ -119,6 +126,9 @@ def main() -> int:
             "judge_effective_config": effective_config,
             "judge_visible_fields": list(judge_fields),
             "uses_run_evidence_audit": True,
+            "failure_taxonomy": list(FAILURE_TYPES),
+            "uses_protocol_failure_trace": True,
+            "uses_deterministic_voting_failure_audit": True,
         }
         print(f"Judge model: {client.model}")
 
@@ -232,6 +242,74 @@ def main() -> int:
     return 0 if not scoring_errors else 2
 
 
+def _preflight_run_compatibility(
+    log_paths: list[Path],
+    tasks: dict[str, dict[str, Any]],
+    *,
+    wanted_tasks: set[str],
+    wanted_agents: set[str],
+) -> None:
+    mismatched: list[str] = []
+    for path in log_paths:
+        run_log = read_json(path)
+        if run_log.get("record_type") != "agent_run":
+            continue
+        task_id = str(run_log.get("task_id") or "")
+        agent_model = str(run_log.get("agent_model") or "")
+        if wanted_tasks and task_id not in wanted_tasks:
+            continue
+        if wanted_agents and agent_model not in wanted_agents:
+            continue
+        task = tasks.get(task_id)
+        if task is None:
+            continue
+        reasons = _run_task_mismatches(run_log, task)
+        if reasons:
+            mismatched.append(f"{path.name}: " + "; ".join(reasons))
+
+    if mismatched:
+        details = "\n".join(f"- {item}" for item in mismatched[:20])
+        remainder = len(mismatched) - 20
+        if remainder > 0:
+            details += f"\n- ... and {remainder} more mismatched logs"
+        raise SystemExit(
+            "Raw logs do not match the selected benchmark's current Agent/tool configuration. "
+            "Scoring them would produce invalid or misleading zero scores.\n"
+            f"{details}\n"
+            "Rerun the affected conditions with scripts/run_experiment.py --overwrite, then score again."
+        )
+
+
+def _run_task_mismatches(run_log: dict[str, Any], task: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    recorded_requirement = str(run_log.get("tool_requirement") or "")
+    expected_requirement = str(task.get("tool_requirement") or "")
+    if recorded_requirement != expected_requirement:
+        reasons.append(
+            f"tool_requirement recorded={recorded_requirement!r}, expected={expected_requirement!r}"
+        )
+
+    recorded_tools = sorted(str(name) for name in run_log.get("available_tools") or [])
+    expected_tools = sorted(str(name) for name in task.get("available_tools") or [])
+    if recorded_tools != expected_tools:
+        reasons.append(
+            f"available_tools recorded={recorded_tools!r}, expected={expected_tools!r}"
+        )
+
+    recorded_expectations = run_log.get("tool_expectations") or {}
+    expected_expectations = task.get("tool_expectations") or {}
+    if recorded_expectations != expected_expectations:
+        reasons.append("tool_expectations differ from the selected benchmark")
+
+    recorded_agent_task = (run_log.get("condition") or {}).get("agent_task")
+    visible_fields = run_log.get("agent_visible_fields") or []
+    if isinstance(recorded_agent_task, dict) and isinstance(visible_fields, list):
+        expected_agent_task = project_task(task, visible_fields)
+        if recorded_agent_task != expected_agent_task:
+            reasons.append("Agent-visible task snapshot differs from the selected benchmark")
+    return reasons
+
+
 def _selected_profiles(config: dict[str, Any], raw: str, *, role: str) -> list[str | None]:
     selected = slug_list(raw)
     if not selected:
@@ -261,13 +339,9 @@ def _tool_call_signal(record: dict[str, Any]) -> str:
     call_count = int(record.get("tool_call_count") or 0)
     if requirement == "prohibited":
         return "not_required" if call_count == 0 else "failed"
-    successful_field = (
-        "successful_authorized_tool_call_count"
-        if "successful_authorized_tool_call_count" in record
-        else "successful_tool_call_count"
-    )
-    successful = int(record.get(successful_field) or 0)
-    return "success" if successful > 0 else "failed"
+    if requirement not in {"required", "optional"}:
+        return "not_required"
+    return "success" if record.get("tool_requirement_satisfied") else "failed"
 
 
 def _format_score_result(

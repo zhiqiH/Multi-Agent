@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from typing import Any
 
 from .evidence import build_evidence_audit, compact_evidence_audit
+from .failure_taxonomy import FAILURE_TYPES, NO_FAILURE
 from .llm_client import LLMClient
 from .prompts import scoring_prompt
 from .response_audit import apply_criterion_caps, build_response_audit
@@ -31,7 +33,14 @@ def score_run_log(
 ) -> dict[str, Any]:
     evidence_audit = build_evidence_audit(run_log, task, run_log["final_output"])
     response_audit = build_response_audit(task, run_log["final_output"], evidence_audit)
-    messages = scoring_prompt(task, run_log["final_output"], evidence_audit, response_audit)
+    failure_trace = _build_failure_trace(run_log)
+    messages = scoring_prompt(
+        task,
+        run_log["final_output"],
+        evidence_audit,
+        response_audit,
+        failure_trace,
+    )
     effective_config = dict(getattr(client, "effective_config", {}) or {})
     judge_max_tokens = int(effective_config["judge_max_tokens"])
     response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=judge_max_tokens)
@@ -48,6 +57,17 @@ def score_run_log(
         )
     parsed = _parse_json_object(response.content)
     evidence_assessment = _validated_evidence_assessment(parsed.get("evidence_assessment"))
+    judge_failure_type, failure_evidence = _validated_failure_assessment(parsed, run_log)
+    failure_type, failure_evidence, failure_classification_source = (
+        _apply_deterministic_failure_rules(
+            judge_failure_type,
+            failure_evidence,
+            run_log,
+            task,
+            evidence_audit,
+            response_audit,
+        )
+    )
     judge_criterion_scores = _validated_criterion_scores(
         task.get("evaluation_criteria", []), parsed.get("criterion_scores")
     )
@@ -191,7 +211,10 @@ def score_run_log(
         "quality_api_cost_ratio": (
             round(overall_quality_score / total_estimated_cost, 8) if total_estimated_cost > 0 else None
         ),
-        "failure_type": parsed.get("failure_type") or "None",
+        "failure_type": failure_type,
+        "failure_evidence": failure_evidence,
+        "failure_classification_source": failure_classification_source,
+        "judge_failure_type": judge_failure_type,
         "detected_failure_risks": parsed.get("detected_failure_risks") or [],
         "judge_evidence_assessment": evidence_assessment,
         "evidence_audit": compact_evidence_audit(evidence_audit),
@@ -204,6 +227,259 @@ def score_run_log(
         "total_estimated_cost": total_estimated_cost,
         "raw_evaluation": parsed,
     }
+
+
+def _build_failure_trace(run_log: dict[str, Any]) -> dict[str, Any]:
+    messages: list[dict[str, Any]] = []
+    for index, raw_message in enumerate(run_log.get("intermediate_messages") or [], start=1):
+        if not isinstance(raw_message, dict):
+            continue
+        messages.append(
+            {
+                "message_id": str(raw_message.get("message_id") or f"m{index:03d}"),
+                "sender": raw_message.get("sender"),
+                "recipients": raw_message.get("recipients") or [],
+                "round": raw_message.get("round"),
+                "channel": raw_message.get("channel"),
+                "content": str(raw_message.get("content") or ""),
+                "finish_reason": raw_message.get("finish_reason"),
+                "input_tokens": raw_message.get("input_tokens", 0),
+                "output_tokens": raw_message.get("output_tokens", 0),
+                "total_tokens": raw_message.get("total_tokens", 0),
+            }
+        )
+    return {
+        "execution_summary": {
+            "protocol": run_log.get("protocol"),
+            "protocol_id": run_log.get("protocol_id"),
+            "is_multi_agent": run_log.get("protocol_id") != "single_agent",
+            "termination_reason": run_log.get("termination_reason"),
+            "run_errors": run_log.get("errors") or [],
+            "run_metrics": {
+                "active_agent_count": run_log.get("active_agent_count"),
+                "interaction_count": run_log.get("interaction_count"),
+                "rounds_completed": run_log.get("rounds_completed"),
+                "message_count": run_log.get("message_count"),
+                "communication_density": run_log.get("communication_density"),
+                "agreement_rate": run_log.get("agreement_rate"),
+                "critique_count": run_log.get("critique_count"),
+                "critique_acceptance_rate": run_log.get("critique_acceptance_rate"),
+                "total_tokens": run_log.get("total_tokens"),
+                "max_total_tokens": run_log.get("max_total_tokens"),
+                "budget_utilization": run_log.get("budget_utilization"),
+                "budget_limited_call_count": run_log.get("budget_limited_call_count"),
+                "budget_skipped_call_count": run_log.get("budget_skipped_call_count"),
+            },
+            "role_usage": run_log.get("role_usage") or {},
+            "final_output_present": bool(str(run_log.get("final_output") or "").strip()),
+            "protocol_signals": _protocol_signals(run_log),
+        },
+        "intermediate_messages": messages,
+    }
+
+
+def _protocol_signals(run_log: dict[str, Any]) -> dict[str, Any]:
+    if run_log.get("protocol_id") != "voting":
+        return {}
+    messages = [
+        message
+        for message in run_log.get("intermediate_messages") or []
+        if isinstance(message, dict)
+    ]
+    proposals = [message for message in messages if message.get("channel") == "private_answer"]
+    ballots = [message for message in messages if message.get("channel") == "private_ballot"]
+    ballot_values: list[int] = []
+    ballot_records: list[dict[str, Any]] = []
+    for message in ballots:
+        match = re.search(r"\b(\d+)\b", str(message.get("content") or ""))
+        value = int(match.group(1)) if match else None
+        if value is not None and 1 <= value <= len(proposals):
+            ballot_values.append(value)
+        ballot_records.append(
+            {
+                "message_id": message.get("message_id"),
+                "sender": message.get("sender"),
+                "selected_proposal": value,
+            }
+        )
+    counts = Counter(ballot_values)
+    winner = (
+        min(range(1, len(proposals) + 1), key=lambda index: (-counts[index], index))
+        if proposals and ballot_values
+        else None
+    )
+    final_output = str(run_log.get("final_output") or "").strip()
+    final_matches = next(
+        (
+            index
+            for index, proposal in enumerate(proposals, start=1)
+            if str(proposal.get("content") or "").strip() == final_output
+        ),
+        None,
+    )
+    return {
+        "proposal_message_ids": [proposal.get("message_id") for proposal in proposals],
+        "ballots": ballot_records,
+        "ballot_counts": {str(index): counts[index] for index in range(1, len(proposals) + 1)},
+        "computed_winner_proposal": winner,
+        "final_matches_proposal": final_matches,
+        "unanimous_valid_ballots": bool(ballot_values)
+        and len(set(ballot_values)) == 1,
+    }
+
+
+def _validated_failure_assessment(
+    parsed: dict[str, Any], run_log: dict[str, Any]
+) -> tuple[str, list[dict[str, Any]]]:
+    raw_failure_type = str(parsed.get("failure_type") or NO_FAILURE).strip()
+    if raw_failure_type not in FAILURE_TYPES:
+        raise ValueError(
+            f"Judge failure_type must be one of {FAILURE_TYPES}; got {raw_failure_type!r}"
+        )
+    raw_evidence = parsed.get("failure_evidence")
+    if not isinstance(raw_evidence, list):
+        raise ValueError("Judge output must include failure_evidence as a list")
+    if len(raw_evidence) > 3:
+        raise ValueError("Judge failure_evidence may contain at most three observable signals")
+
+    message_refs = {
+        str(message.get("message_id") or f"m{index:03d}")
+        for index, message in enumerate(run_log.get("intermediate_messages") or [], start=1)
+        if isinstance(message, dict)
+    }
+    valid_refs = {
+        "final_output",
+        "run_metrics",
+        "termination_reason",
+        "run_errors",
+        "role_usage",
+        "protocol_signals",
+    }
+    valid_refs.update(message_refs)
+    evidence: list[dict[str, Any]] = []
+    referenced: set[str] = set()
+    for item in raw_evidence:
+        if not isinstance(item, dict):
+            raise ValueError("Each failure_evidence item must be an object")
+        signal = item.get("signal")
+        refs = item.get("trace_refs")
+        if not isinstance(signal, str) or not signal.strip():
+            raise ValueError("Each failure_evidence item must include a non-empty signal")
+        if not isinstance(refs, list) or not refs or not all(isinstance(ref, str) for ref in refs):
+            raise ValueError("Each failure_evidence item must include non-empty trace_refs")
+        normalized_refs = list(dict.fromkeys(ref.strip() for ref in refs if ref.strip()))
+        unknown_refs = sorted(set(normalized_refs) - valid_refs)
+        if unknown_refs:
+            raise ValueError(f"Judge failure_evidence contains unknown trace_refs: {unknown_refs}")
+        referenced.update(normalized_refs)
+        evidence.append({"signal": signal.strip(), "trace_refs": normalized_refs})
+
+    if raw_failure_type == NO_FAILURE:
+        if evidence:
+            raise ValueError("failure_evidence must be empty when failure_type is None")
+        return raw_failure_type, []
+    if run_log.get("protocol_id") == "single_agent":
+        raise ValueError("Single-agent runs cannot be assigned a multi-agent collaboration failure")
+    if not evidence:
+        raise ValueError("A non-None failure_type requires observable failure_evidence")
+    if "final_output" not in referenced:
+        raise ValueError("A collaboration failure must cite final_output to show material downstream impact")
+    if raw_failure_type in {
+        "Communication Failure",
+        "Hallucination Propagation",
+        "Premature Consensus",
+    } and not referenced.intersection(message_refs):
+        raise ValueError(f"{raw_failure_type} must cite at least one recorded intermediate message")
+    if raw_failure_type == "Over-Collaboration":
+        if "run_metrics" not in referenced:
+            raise ValueError(
+                "Over-Collaboration must cite run_metrics in addition to repeated work and final impact"
+            )
+        if len(referenced.intersection(message_refs)) < 2:
+            raise ValueError("Over-Collaboration must cite at least two repeated intermediate messages")
+    return raw_failure_type, evidence
+
+
+def _apply_deterministic_failure_rules(
+    failure_type: str,
+    failure_evidence: list[dict[str, Any]],
+    run_log: dict[str, Any],
+    task: dict[str, Any],
+    evidence_audit: dict[str, Any],
+    response_audit: dict[str, Any],
+) -> tuple[str, list[dict[str, Any]], str]:
+    """Correct only collaboration failures that are directly proven by the run trace."""
+
+    if failure_type != NO_FAILURE or run_log.get("protocol_id") != "voting":
+        return failure_type, failure_evidence, "judge"
+    triggered_rules = set(response_audit.get("triggered_hard_fail_rules") or [])
+    if not triggered_rules:
+        return failure_type, failure_evidence, "judge"
+
+    messages = [
+        message
+        for message in run_log.get("intermediate_messages") or []
+        if isinstance(message, dict)
+    ]
+    proposals = [message for message in messages if message.get("channel") == "private_answer"]
+    ballots = [message for message in messages if message.get("channel") == "private_ballot"]
+    final_output = str(run_log.get("final_output") or "").strip()
+    selected_index = next(
+        (
+            index
+            for index, proposal in enumerate(proposals, start=1)
+            if str(proposal.get("content") or "").strip() == final_output
+        ),
+        None,
+    )
+    if selected_index is None or not ballots:
+        return failure_type, failure_evidence, "judge"
+
+    alternatives: list[tuple[int, dict[str, Any]]] = []
+    for index, proposal in enumerate(proposals, start=1):
+        if index == selected_index:
+            continue
+        audit = build_response_audit(task, str(proposal.get("content") or ""), evidence_audit)
+        alternative_rules = set(audit.get("triggered_hard_fail_rules") or [])
+        if not triggered_rules.intersection(alternative_rules):
+            alternatives.append((index, proposal))
+    if not alternatives:
+        return failure_type, failure_evidence, "judge"
+
+    selected = proposals[selected_index - 1]
+    alternative_index, alternative = alternatives[0]
+    ballot_refs = [
+        str(ballot.get("message_id"))
+        for ballot in ballots
+        if ballot.get("message_id")
+    ]
+    selected_ref = str(selected.get("message_id") or f"proposal-{selected_index}")
+    alternative_ref = str(alternative.get("message_id") or f"proposal-{alternative_index}")
+    signal = (
+        f"Voting selected proposal {selected_index} ({selected_ref}), whose final output triggered "
+        f"the benchmark hard-fail rule, even though proposal {alternative_index} "
+        f"({alternative_ref}) avoided that rule; the recorded ballots converged on the failing proposal."
+    )
+    return (
+        "Premature Consensus",
+        [
+            {
+                "signal": signal,
+                "trace_refs": list(
+                    dict.fromkeys(
+                        [
+                            alternative_ref,
+                            selected_ref,
+                            *ballot_refs,
+                            "protocol_signals",
+                            "final_output",
+                        ]
+                    )
+                ),
+            }
+        ],
+        "deterministic_voting_audit",
+    )
 
 
 def _deduplicate_strings(values: list[Any]) -> list[str]:

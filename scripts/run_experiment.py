@@ -228,6 +228,7 @@ def main() -> int:
                 task_condition = {
                     **condition,
                     "task_id": raw_task["task_id"],
+                    "agent_task": agent_task,
                     "task_tool_policy": {
                         "available_tools": list(task_tool_registry.names),
                         "tool_expectations": task_tool_registry.tool_expectations,
@@ -260,16 +261,18 @@ def main() -> int:
                     )
                     out_path = out_dir / f"{run_id}.json"
                     if out_path.exists():
+                        existing_log = read_json(out_path)
+                        same_condition = _same_recorded_condition(existing_log, task_condition)
+                        if not same_condition and not args.overwrite:
+                            raise SystemExit(
+                                f"Existing run {out_path.name} used a different benchmark or execution "
+                                "condition. Rerun with --overwrite to replace the stale log, or use a different "
+                                "--out-dir/--run-number to preserve both conditions."
+                            )
                         if not args.overwrite:
                             print(f"SKIP existing run {run_id}")
                             skipped += 1
                             continue
-                        existing_log = read_json(out_path)
-                        if not _same_recorded_condition(existing_log, task_condition):
-                            raise SystemExit(
-                                f"Refusing to overwrite {out_path.name}: its recorded configuration differs. "
-                                "Use a different --out-dir or --run-number for the new condition."
-                            )
 
                     log = run_protocol(
                         protocol_id,
@@ -333,10 +336,10 @@ def main() -> int:
     manifest_path = out_dir / f"manifest__{manifest_id}.json"
     if manifest_path.exists():
         existing_manifest = read_json(manifest_path)
-        if not _same_manifest_scope(existing_manifest, manifest):
+        if not _same_manifest_scope(existing_manifest, manifest) and not args.overwrite:
             raise SystemExit(
-                f"Refusing to overwrite {manifest_path.name}: its recorded experiment scope differs. "
-                "Use a different --out-dir or --run-number."
+                f"Existing manifest {manifest_path.name} used a different experiment scope. "
+                "Rerun with --overwrite to replace it, or use a different --out-dir/--run-number."
             )
     write_json(manifest_path, manifest)
     print(
