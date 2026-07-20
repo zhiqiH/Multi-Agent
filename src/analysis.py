@@ -69,6 +69,9 @@ NUMERIC_FIELDS = [
     "scorer_total_tokens",
     "judge_estimated_cost",
     "total_estimated_cost",
+    "single_agent_baseline_score",
+    "relative_score_drop",
+    "relative_failure_suspected",
 ]
 
 SCORE_IDENTITY_FIELDS = [
@@ -154,6 +157,11 @@ SCORE_CSV_FIELDS = SCORE_IDENTITY_FIELDS + [
     "failure_evidence",
     "failure_classification_source",
     "judge_failure_type",
+    "judge_failure_evidence",
+    "single_agent_baseline_score",
+    "relative_score_drop",
+    "relative_failure_suspected",
+    "failure_analysis_condition",
     "detected_failure_risks",
     "judge_evidence_assessment",
     "evidence_audit",

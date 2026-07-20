@@ -12,7 +12,7 @@ FAILURE_TYPES = (
     "Communication Failure",
     "Role Confusion",
     "Hallucination Propagation",
-    "Premature Consensus",
+    "Tool Failure",
     "Over-Collaboration",
 )
 
@@ -24,7 +24,8 @@ FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
         ),
         "observable_signals": (
             "Use only when none of the six collaboration failures passes its evidence gate. "
-            "Single-agent runs must use None because propagation between agents cannot be observed."
+            "Single-agent runs normally use None, but may use Tool Failure when the raw execution log "
+            "objectively shows that a required or prohibited tool constraint failed."
         ),
     },
     "Coordination Failure": {
@@ -69,15 +70,15 @@ FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
             "is an ordinary answer error, not propagation."
         ),
     },
-    "Premature Consensus": {
+    "Tool Failure": {
         "definition": (
-            "Agents converge on a decision before critical facts, constraints, or disagreements are checked, and stop "
-            "meaningful exploration while a material issue remains unresolved."
+            "The run fails an explicit tool requirement or tool contract, so required evidence is not successfully "
+            "obtained, a prohibited tool is used, or the final answer depends on an invalid tool execution."
         ),
         "observable_signals": (
-            "A proposal is selected only because it is the first or majority choice; all agents adopt an unverified "
-            "premise; or an explicit Critic objection is ignored and the disputed conclusion remains in the final output. "
-            "Agreement rate alone is insufficient."
+            "The raw log records tool_requirement_satisfied=false for a Required task, a tool call or output-contract "
+            "failure that makes execution invalid, an unauthorized tool call, or tool use on a Prohibited task. "
+            "A harmless failed optional call is insufficient."
         ),
     },
     "Over-Collaboration": {

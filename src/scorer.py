@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import re
-from collections import Counter
+from difflib import SequenceMatcher
+from statistics import mean
 from typing import Any
 
 from .evidence import build_evidence_audit, compact_evidence_audit
@@ -58,8 +59,9 @@ def score_run_log(
     parsed = _parse_json_object(response.content)
     evidence_assessment = _validated_evidence_assessment(parsed.get("evidence_assessment"))
     judge_failure_type, failure_evidence = _validated_failure_assessment(parsed, run_log)
+    judge_failure_evidence = list(failure_evidence)
     failure_type, failure_evidence, failure_classification_source = (
-        _apply_deterministic_failure_rules(
+        _apply_log_failure_rules(
             judge_failure_type,
             failure_evidence,
             run_log,
@@ -215,6 +217,7 @@ def score_run_log(
         "failure_evidence": failure_evidence,
         "failure_classification_source": failure_classification_source,
         "judge_failure_type": judge_failure_type,
+        "judge_failure_evidence": judge_failure_evidence,
         "detected_failure_risks": parsed.get("detected_failure_risks") or [],
         "judge_evidence_assessment": evidence_assessment,
         "evidence_audit": compact_evidence_audit(evidence_audit),
@@ -272,59 +275,25 @@ def _build_failure_trace(run_log: dict[str, Any]) -> dict[str, Any]:
             },
             "role_usage": run_log.get("role_usage") or {},
             "final_output_present": bool(str(run_log.get("final_output") or "").strip()),
-            "protocol_signals": _protocol_signals(run_log),
+            "tool_execution": _tool_execution_summary(run_log),
         },
         "intermediate_messages": messages,
     }
 
 
-def _protocol_signals(run_log: dict[str, Any]) -> dict[str, Any]:
-    if run_log.get("protocol_id") != "voting":
-        return {}
-    messages = [
-        message
-        for message in run_log.get("intermediate_messages") or []
-        if isinstance(message, dict)
-    ]
-    proposals = [message for message in messages if message.get("channel") == "private_answer"]
-    ballots = [message for message in messages if message.get("channel") == "private_ballot"]
-    ballot_values: list[int] = []
-    ballot_records: list[dict[str, Any]] = []
-    for message in ballots:
-        match = re.search(r"\b(\d+)\b", str(message.get("content") or ""))
-        value = int(match.group(1)) if match else None
-        if value is not None and 1 <= value <= len(proposals):
-            ballot_values.append(value)
-        ballot_records.append(
-            {
-                "message_id": message.get("message_id"),
-                "sender": message.get("sender"),
-                "selected_proposal": value,
-            }
-        )
-    counts = Counter(ballot_values)
-    winner = (
-        min(range(1, len(proposals) + 1), key=lambda index: (-counts[index], index))
-        if proposals and ballot_values
-        else None
-    )
-    final_output = str(run_log.get("final_output") or "").strip()
-    final_matches = next(
-        (
-            index
-            for index, proposal in enumerate(proposals, start=1)
-            if str(proposal.get("content") or "").strip() == final_output
-        ),
-        None,
+def _tool_execution_summary(run_log: dict[str, Any]) -> dict[str, Any]:
+    calls = [call for call in run_log.get("tool_calls") or [] if isinstance(call, dict)]
+    failed_errors = _deduplicate_strings(
+        call.get("error") for call in calls if not call.get("success") and call.get("error")
     )
     return {
-        "proposal_message_ids": [proposal.get("message_id") for proposal in proposals],
-        "ballots": ballot_records,
-        "ballot_counts": {str(index): counts[index] for index in range(1, len(proposals) + 1)},
-        "computed_winner_proposal": winner,
-        "final_matches_proposal": final_matches,
-        "unanimous_valid_ballots": bool(ballot_values)
-        and len(set(ballot_values)) == 1,
+        "tool_requirement": run_log.get("tool_requirement"),
+        "tool_requirement_satisfied": bool(run_log.get("tool_requirement_satisfied")),
+        "tool_call_count": len(calls),
+        "successful_tool_call_count": sum(bool(call.get("success")) for call in calls),
+        "failed_tool_call_count": sum(not bool(call.get("success")) for call in calls),
+        "failed_tool_errors": failed_errors[:5],
+        "validity_warnings": run_log.get("validity_warnings") or [],
     }
 
 
@@ -353,7 +322,7 @@ def _validated_failure_assessment(
         "termination_reason",
         "run_errors",
         "role_usage",
-        "protocol_signals",
+        "tool_execution",
     }
     valid_refs.update(message_refs)
     evidence: list[dict[str, Any]] = []
@@ -378,8 +347,8 @@ def _validated_failure_assessment(
         if evidence:
             raise ValueError("failure_evidence must be empty when failure_type is None")
         return raw_failure_type, []
-    if run_log.get("protocol_id") == "single_agent":
-        raise ValueError("Single-agent runs cannot be assigned a multi-agent collaboration failure")
+    if run_log.get("protocol_id") == "single_agent" and raw_failure_type != "Tool Failure":
+        raise ValueError("Single-agent runs may only be assigned Tool Failure or None")
     if not evidence:
         raise ValueError("A non-None failure_type requires observable failure_evidence")
     if "final_output" not in referenced:
@@ -387,9 +356,10 @@ def _validated_failure_assessment(
     if raw_failure_type in {
         "Communication Failure",
         "Hallucination Propagation",
-        "Premature Consensus",
     } and not referenced.intersection(message_refs):
         raise ValueError(f"{raw_failure_type} must cite at least one recorded intermediate message")
+    if raw_failure_type == "Tool Failure" and "tool_execution" not in referenced:
+        raise ValueError("Tool Failure must cite tool_execution from the raw execution log")
     if raw_failure_type == "Over-Collaboration":
         if "run_metrics" not in referenced:
             raise ValueError(
@@ -400,7 +370,7 @@ def _validated_failure_assessment(
     return raw_failure_type, evidence
 
 
-def _apply_deterministic_failure_rules(
+def _apply_log_failure_rules(
     failure_type: str,
     failure_evidence: list[dict[str, Any]],
     run_log: dict[str, Any],
@@ -408,78 +378,256 @@ def _apply_deterministic_failure_rules(
     evidence_audit: dict[str, Any],
     response_audit: dict[str, Any],
 ) -> tuple[str, list[dict[str, Any]], str]:
-    """Correct only collaboration failures that are directly proven by the run trace."""
+    """Prefer objective raw-log failures over an LLM's semantic trace classification."""
 
-    if failure_type != NO_FAILURE or run_log.get("protocol_id") != "voting":
-        return failure_type, failure_evidence, "judge"
-    triggered_rules = set(response_audit.get("triggered_hard_fail_rules") or [])
-    if not triggered_rules:
-        return failure_type, failure_evidence, "judge"
+    del task, response_audit
+    tool_failure = _tool_failure_from_log(run_log, evidence_audit)
+    if tool_failure is not None:
+        return "Tool Failure", tool_failure, "deterministic_log_audit"
 
-    messages = [
-        message
-        for message in run_log.get("intermediate_messages") or []
-        if isinstance(message, dict)
-    ]
-    proposals = [message for message in messages if message.get("channel") == "private_answer"]
-    ballots = [message for message in messages if message.get("channel") == "private_ballot"]
-    final_output = str(run_log.get("final_output") or "").strip()
-    selected_index = next(
-        (
-            index
-            for index, proposal in enumerate(proposals, start=1)
-            if str(proposal.get("content") or "").strip() == final_output
-        ),
-        None,
-    )
-    if selected_index is None or not ballots:
-        return failure_type, failure_evidence, "judge"
+    over_collaboration = _budget_over_collaboration_from_log(run_log)
+    if over_collaboration is not None:
+        return "Over-Collaboration", over_collaboration, "deterministic_log_audit"
 
-    alternatives: list[tuple[int, dict[str, Any]]] = []
-    for index, proposal in enumerate(proposals, start=1):
-        if index == selected_index:
+    if run_log.get("protocol_id") == "single_agent" and failure_type != "Tool Failure":
+        return NO_FAILURE, [], "deterministic_log_audit"
+    return failure_type, failure_evidence, "judge"
+
+
+def apply_log_failure_analysis(
+    scores: list[dict[str, Any]],
+    run_logs_by_id: dict[str, dict[str, Any]],
+    *,
+    relative_drop_threshold: float = 0.15,
+) -> int:
+    """Re-audit every score from its raw log and a matching Single Agent baseline."""
+
+    baseline_groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
+    for score in scores:
+        if score.get("protocol") != "Single Agent":
             continue
-        audit = build_response_audit(task, str(proposal.get("content") or ""), evidence_audit)
-        alternative_rules = set(audit.get("triggered_hard_fail_rules") or [])
-        if not triggered_rules.intersection(alternative_rules):
-            alternatives.append((index, proposal))
-    if not alternatives:
-        return failure_type, failure_evidence, "judge"
+        baseline_log = run_logs_by_id.get(str(score.get("run_id") or ""))
+        if baseline_log is None or _tool_failure_from_log(baseline_log, score) is not None:
+            continue
+        baseline_groups.setdefault(_baseline_key(score), []).append(score)
 
-    selected = proposals[selected_index - 1]
-    alternative_index, alternative = alternatives[0]
-    ballot_refs = [
-        str(ballot.get("message_id"))
-        for ballot in ballots
-        if ballot.get("message_id")
-    ]
-    selected_ref = str(selected.get("message_id") or f"proposal-{selected_index}")
-    alternative_ref = str(alternative.get("message_id") or f"proposal-{alternative_index}")
-    signal = (
-        f"Voting selected proposal {selected_index} ({selected_ref}), whose final output triggered "
-        f"the benchmark hard-fail rule, even though proposal {alternative_index} "
-        f"({alternative_ref}) avoided that rule; the recorded ballots converged on the failing proposal."
-    )
-    return (
-        "Premature Consensus",
-        [
+    analyzed = 0
+    for score in scores:
+        run_log = run_logs_by_id.get(str(score.get("run_id") or ""))
+        if run_log is None:
+            continue
+        baselines = baseline_groups.get(_baseline_key(score), [])
+        baseline_score = (
+            mean(float(item.get("overall_quality_score") or 0.0) for item in baselines)
+            if baselines
+            else None
+        )
+        baseline_tokens = (
+            mean(float(item.get("total_tokens") or 0.0) for item in baselines)
+            if baselines
+            else None
+        )
+        quality = float(score.get("overall_quality_score") or 0.0)
+        relative_drop = (
+            max(0.0, (baseline_score - quality) / baseline_score)
+            if baseline_score is not None and baseline_score > 0
+            else None
+        )
+        suspected = bool(
+            run_log.get("protocol_id") != "single_agent"
+            and relative_drop is not None
+            and relative_drop > relative_drop_threshold
+        )
+
+        judge_type = str(score.get("judge_failure_type") or NO_FAILURE)
+        if judge_type not in FAILURE_TYPES:
+            judge_type = NO_FAILURE
+        judge_evidence = (
+            score.get("judge_failure_evidence", score.get("failure_evidence"))
+            if judge_type != NO_FAILURE
+            else []
+        )
+        if not isinstance(judge_evidence, list):
+            judge_evidence = []
+        failure_type, failure_evidence, source = _apply_log_failure_rules(
+            judge_type,
+            judge_evidence,
+            run_log,
+            {},
+            score,
+            {},
+        )
+
+        if failure_type == NO_FAILURE and suspected:
+            relative_over_collaboration = _relative_over_collaboration_from_log(
+                run_log,
+                baseline_tokens=baseline_tokens,
+                relative_drop=relative_drop,
+            )
+            if relative_over_collaboration is not None:
+                failure_type = "Over-Collaboration"
+                failure_evidence = relative_over_collaboration
+                source = "relative_log_audit"
+
+        score.update(
             {
-                "signal": signal,
-                "trace_refs": list(
-                    dict.fromkeys(
-                        [
-                            alternative_ref,
-                            selected_ref,
-                            *ballot_refs,
-                            "protocol_signals",
-                            "final_output",
-                        ]
-                    )
+                "failure_type": failure_type,
+                "failure_evidence": failure_evidence,
+                "failure_classification_source": source,
+                "single_agent_baseline_score": (
+                    round(baseline_score, 4) if baseline_score is not None else None
                 ),
+                "relative_score_drop": (
+                    round(relative_drop, 4) if relative_drop is not None else None
+                ),
+                "relative_failure_suspected": suspected,
+                "failure_analysis_condition": {
+                    "source": "raw_log",
+                    "relative_single_agent_drop_threshold": relative_drop_threshold,
+                },
             }
-        ],
-        "deterministic_voting_audit",
+        )
+        analyzed += 1
+    return analyzed
+
+
+def _baseline_key(score: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        str(score.get("benchmark_id") or ""),
+        str(score.get("task_id") or ""),
+        str(score.get("agent_model") or ""),
+        str(score.get("judge_model") or ""),
     )
+
+
+def _tool_failure_from_log(
+    run_log: dict[str, Any], evidence_audit: dict[str, Any]
+) -> list[dict[str, Any]] | None:
+    requirement = str(
+        evidence_audit.get("tool_requirement") or run_log.get("tool_requirement") or ""
+    ).strip().lower()
+    satisfied_value = evidence_audit.get("execution_requirement_satisfied")
+    if satisfied_value is None:
+        satisfied_value = evidence_audit.get("tool_requirement_satisfied")
+    if satisfied_value is None:
+        satisfied_value = run_log.get("tool_requirement_satisfied")
+    satisfied = bool(satisfied_value)
+    call_count = int(
+        evidence_audit.get("tool_call_count")
+        if evidence_audit.get("tool_call_count") is not None
+        else len(run_log.get("tool_calls") or [])
+    )
+    unauthorized = int(evidence_audit.get("unauthorized_tool_call_count") or 0)
+    surface_matches = evidence_audit.get("tool_surface_matches_benchmark", True)
+
+    failed = (
+        (requirement == "required" and not satisfied)
+        or (requirement == "prohibited" and call_count > 0)
+        or unauthorized > 0
+        or surface_matches is False
+    )
+    if not failed:
+        return None
+    failed_calls = [
+        call
+        for call in run_log.get("tool_calls") or []
+        if isinstance(call, dict) and not call.get("success")
+    ]
+    failed_errors = _deduplicate_strings(call.get("error") for call in failed_calls)
+    error_text = "; ".join(error.rstrip(". ") for error in failed_errors[:2])
+    detail = f"; recorded errors include: {error_text}" if error_text else ""
+    signal = (
+        f"The raw log records tool_requirement={requirement or 'unknown'}, "
+        f"tool_requirement_satisfied={satisfied}, tool_call_count={call_count}, and "
+        f"unauthorized_tool_call_count={unauthorized}{detail}. The task's tool execution condition therefore failed."
+    )
+    return [{"signal": signal, "trace_refs": ["tool_execution", "final_output"]}]
+
+
+def _budget_over_collaboration_from_log(
+    run_log: dict[str, Any]
+) -> list[dict[str, Any]] | None:
+    if run_log.get("protocol_id") == "single_agent":
+        return None
+    termination = str(run_log.get("termination_reason") or "").strip().lower()
+    final_output = str(run_log.get("final_output") or "").strip().lower()
+    budget_terminated = termination == "max_total_tokens" or (
+        "token budget" in final_output and "exhaust" in final_output
+    )
+    budget_pressure = (
+        int(run_log.get("budget_skipped_call_count") or 0) > 0
+        or int(run_log.get("budget_limited_call_count") or 0) > 0
+    )
+    repeated_pair = _most_repeated_message_pair(run_log)
+    if not (budget_terminated and budget_pressure and repeated_pair):
+        return None
+    first_ref, second_ref, similarity = repeated_pair
+    signal = (
+        f"The multi-agent run repeated highly similar work in {first_ref} and {second_ref} "
+        f"(similarity={similarity:.2f}), exhausted its token budget, skipped or limited later calls, "
+        "and returned no usable final deliverable."
+    )
+    return [
+        {
+            "signal": signal,
+            "trace_refs": [
+                first_ref,
+                second_ref,
+                "run_metrics",
+                "termination_reason",
+                "final_output",
+            ],
+        }
+    ]
+
+
+def _relative_over_collaboration_from_log(
+    run_log: dict[str, Any], *, baseline_tokens: float | None, relative_drop: float
+) -> list[dict[str, Any]] | None:
+    repeated_pair = _most_repeated_message_pair(run_log)
+    total_tokens = float(run_log.get("total_tokens") or 0.0)
+    if (
+        baseline_tokens is None
+        or baseline_tokens <= 0
+        or total_tokens < 1.5 * baseline_tokens
+        or repeated_pair is None
+    ):
+        return None
+    first_ref, second_ref, similarity = repeated_pair
+    signal = (
+        f"Quality was {relative_drop:.1%} below the matching Single Agent baseline while the run used "
+        f"{total_tokens / baseline_tokens:.1f}x its tokens and repeated highly similar work in "
+        f"{first_ref} and {second_ref} (similarity={similarity:.2f})."
+    )
+    return [
+        {
+            "signal": signal,
+            "trace_refs": [first_ref, second_ref, "run_metrics", "final_output"],
+        }
+    ]
+
+
+def _most_repeated_message_pair(
+    run_log: dict[str, Any], *, minimum_similarity: float = 0.72
+) -> tuple[str, str, float] | None:
+    messages: list[tuple[str, str]] = []
+    for index, message in enumerate(run_log.get("intermediate_messages") or [], start=1):
+        if not isinstance(message, dict):
+            continue
+        content = " ".join(str(message.get("content") or "").lower().split())
+        if len(content) < 200:
+            continue
+        message_id = str(message.get("message_id") or f"m{index:03d}")
+        messages.append((message_id, content))
+    best: tuple[str, str, float] | None = None
+    for index, (first_id, first_content) in enumerate(messages):
+        for second_id, second_content in messages[index + 1 :]:
+            similarity = SequenceMatcher(None, first_content, second_content).ratio()
+            if similarity < minimum_similarity:
+                continue
+            if best is None or similarity > best[2]:
+                best = (first_id, second_id, similarity)
+    return best
 
 
 def _deduplicate_strings(values: list[Any]) -> list[str]:

@@ -10,7 +10,7 @@ import os
 import statistics
 import sys
 import tempfile
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +55,7 @@ LEGACY_FIGURE_FILENAMES = (
     "protocol_score_distribution.png",
     "communication_vs_quality.png",
     "quality_vs_cost.png",
+    "quality_vs_tokens.png",
     "evidence_pass_rate.png",
 )
 
@@ -69,15 +70,6 @@ def parse_args() -> argparse.Namespace:
         help="Directory containing scores.csv; figures are written to its figures subdirectory.",
     )
     parser.add_argument("--dpi", type=int, default=200, help="PNG resolution.")
-    parser.add_argument(
-        "--failure-threshold",
-        type=float,
-        default=0.5,
-        help=(
-            "Quality scores below this value are displayed as outcome failures "
-            "in failure_distribution.png (default: 0.5)."
-        ),
-    )
     return parser.parse_args()
 
 
@@ -85,8 +77,6 @@ def main() -> int:
     args = parse_args()
     if args.dpi <= 0:
         raise SystemExit("--dpi must be positive")
-    if not 0.0 <= args.failure_threshold <= 1.0:
-        raise SystemExit("--failure-threshold must be between 0 and 1")
 
     results_dir = _project_path(args.results_dir)
     scores_path = results_dir / "scores.csv"
@@ -106,11 +96,9 @@ def main() -> int:
     plotters = (
         (_plot_protocol_quality, {}),
         (_plot_category_protocol_heatmap, {}),
-        (_plot_quality_vs_tokens, {}),
-        (
-            _plot_failure_distribution,
-            {"failure_threshold": args.failure_threshold},
-        ),
+        (_plot_failure_distribution, {}),
+        (_plot_protocol_token_quality, {}),
+        (_plot_protocol_parallel_coordinates, {}),
     )
     generated: list[Path] = []
     skipped: list[str] = []
@@ -152,7 +140,6 @@ def _read_scores(path: Path) -> list[dict[str, Any]]:
             "overall_quality_score",
             "total_tokens",
             "failure_type",
-            "score_eligible",
         }
         missing = sorted(required - set(reader.fieldnames or []))
         if missing:
@@ -168,7 +155,7 @@ def _read_scores(path: Path) -> list[dict[str, Any]]:
             row["overall_quality_score"] = quality
             row["category"] = _category(raw)
             row["total_tokens"] = _as_float(raw.get("total_tokens"))
-            row["score_eligible"] = _as_bool(raw.get("score_eligible"))
+            row["runtime_seconds"] = _as_float(raw.get("runtime_seconds"))
             try:
                 row["failure_type"] = display_failure_type(raw.get("failure_type"))
             except ValueError as exc:
@@ -306,7 +293,7 @@ def _plot_category_protocol_heatmap(
     return _save(fig, figure_dir / "category_protocol_quality.png", dpi)
 
 
-def _plot_quality_vs_tokens(
+def _plot_protocol_token_quality(
     plt: Any,
     rows: list[dict[str, Any]],
     protocols: list[str],
@@ -314,18 +301,165 @@ def _plot_quality_vs_tokens(
     figure_dir: Path,
     dpi: int,
 ) -> Path | None:
-    return _scatter_metric(
-        plt,
-        rows,
-        protocols,
-        colors,
-        figure_dir / "quality_vs_tokens.png",
-        dpi,
-        field="total_tokens",
-        xlabel="Total Agent tokens",
-        title="Token Cost vs Quality",
-        logarithmic=True,
+    summaries = _protocol_metric_means(rows, protocols)
+    available = [
+        summary
+        for summary in summaries
+        if summary["mean_tokens"] is not None and summary["mean_tokens"] > 0
+    ]
+    if not available:
+        return None
+
+    fig, ax = plt.subplots(figsize=(9.5, 6.2))
+    label_offsets = ((7, 7), (7, -14), (-7, 8), (-7, -15))
+    for index, summary in enumerate(available):
+        protocol = summary["protocol"]
+        mean_tokens = summary["mean_tokens"]
+        mean_quality = summary["mean_quality"]
+        ax.scatter(
+            mean_tokens,
+            mean_quality,
+            color=colors[protocol],
+            edgecolor="black",
+            linewidth=0.65,
+            s=90,
+            zorder=3,
+        )
+        offset_x, offset_y = label_offsets[index % len(label_offsets)]
+        ax.annotate(
+            f"{protocol} (n={summary['count']})",
+            xy=(mean_tokens, mean_quality),
+            xytext=(offset_x, offset_y),
+            textcoords="offset points",
+            ha="left" if offset_x > 0 else "right",
+            va="bottom" if offset_y > 0 else "top",
+            fontsize=8.5,
+        )
+
+    token_values = [summary["mean_tokens"] for summary in available]
+    lower = min(token_values)
+    upper = max(token_values)
+    if math.isclose(lower, upper):
+        lower /= 2
+        upper *= 2
+    else:
+        lower = 10 ** (math.log10(lower) - 0.12)
+        upper = 10 ** (math.log10(upper) + 0.12)
+    ax.set_xscale("log")
+    ax.set_xlim(lower, upper)
+    ax.set_ylim(0, 1.02)
+    ax.set_xlabel("Mean Agent tokens (log scale)")
+    ax.set_ylabel("Mean overall quality score")
+    ax.set_title("Protocol Mean Token Cost vs Quality")
+    return _save(fig, figure_dir / "protocol_token_quality.png", dpi)
+
+
+def _plot_protocol_parallel_coordinates(
+    plt: Any,
+    rows: list[dict[str, Any]],
+    protocols: list[str],
+    colors: dict[str, Any],
+    figure_dir: Path,
+    dpi: int,
+) -> Path | None:
+    summaries = _protocol_metric_means(rows, protocols)
+    available = [
+        summary
+        for summary in summaries
+        if summary["mean_tokens"] is not None
+        and summary["mean_tokens"] > 0
+        and summary["mean_runtime"] is not None
+        and summary["mean_runtime"] > 0
+    ]
+    if not available:
+        return None
+
+    token_values = [summary["mean_tokens"] for summary in available]
+    runtime_values = [summary["mean_runtime"] for summary in available]
+    token_bounds = _log_bounds(token_values, expected=(100.0, 100_000.0))
+    runtime_bounds = _log_bounds(runtime_values, expected=(5.0, 100.0))
+    protocol_positions = {
+        summary["protocol"]: (
+            0.5
+            if len(available) == 1
+            else 1 - index / (len(available) - 1)
+        )
+        for index, summary in enumerate(available)
+    }
+
+    x_positions = (0, 1, 2, 3)
+    fig, ax = plt.subplots(figsize=(11.5, max(6.2, 0.68 * len(available))))
+    for x_position in x_positions:
+        ax.axvline(x_position, color="#c7c7c7", linewidth=1.0, zorder=0)
+
+    for summary in available:
+        protocol = summary["protocol"]
+        y_values = (
+            protocol_positions[protocol],
+            _log_normalize(summary["mean_tokens"], token_bounds),
+            _log_normalize(summary["mean_runtime"], runtime_bounds),
+            min(1.0, max(0.0, summary["mean_quality"])),
+        )
+        ax.plot(
+            x_positions,
+            y_values,
+            color=colors[protocol],
+            marker="o",
+            markersize=5,
+            linewidth=2.0,
+            alpha=0.82,
+            zorder=2,
+        )
+        ax.text(
+            -0.04,
+            y_values[0],
+            protocol,
+            ha="right",
+            va="center",
+            fontsize=8.5,
+        )
+
+    for x_position, bounds, formatter in (
+        (1, token_bounds, _format_tokens),
+        (2, runtime_bounds, _format_seconds),
+    ):
+        lower, upper = bounds
+        middle = math.sqrt(lower * upper)
+        for value in (lower, middle, upper):
+            ax.text(
+                x_position + 0.035,
+                _log_normalize(value, bounds),
+                formatter(value),
+                ha="left",
+                va="center",
+                fontsize=8,
+                color="#555555",
+            )
+    for value in (0.0, 0.5, 1.0):
+        ax.text(
+            3.035,
+            value,
+            f"{value:.1f}",
+            ha="left",
+            va="center",
+            fontsize=8,
+            color="#555555",
+        )
+
+    ax.set_xlim(-0.65, 3.3)
+    ax.set_ylim(-0.04, 1.04)
+    ax.set_xticks(
+        x_positions,
+        labels=("Protocol", "Mean tokens (log)", "Mean time (log)", "Mean quality"),
     )
+    ax.xaxis.tick_top()
+    ax.tick_params(axis="x", length=0, pad=9)
+    ax.set_yticks([])
+    ax.grid(False)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_title("Protocol Resource–Quality Profiles", pad=28)
+    return _save(fig, figure_dir / "protocol_parallel_coordinates.png", dpi)
 
 
 def _plot_failure_distribution(
@@ -335,114 +469,29 @@ def _plot_failure_distribution(
     colors: dict[str, Any],
     figure_dir: Path,
     dpi: int,
-    *,
-    failure_threshold: float,
 ) -> Path | None:
     del protocols, colors
     ordered = list(FAILURE_DISPLAY_ORDER)
-    passed_counts = {label: 0 for label in ordered}
-    failed_counts = {label: 0 for label in ordered}
-    for row in rows:
-        label = str(row["failure_type"])
-        outcome_failed = (
-            label != NO_FAILURE_DISPLAY
-            or row["score_eligible"] is not True
-            or row["overall_quality_score"] < failure_threshold
-        )
-        target = failed_counts if outcome_failed else passed_counts
-        target[label] += 1
-
+    counts = Counter(str(row["failure_type"]) for row in rows)
     fig, ax = plt.subplots(figsize=(9, max(4.5, 0.5 * len(ordered))))
     positions = list(range(len(ordered)))
-    passed_values = [passed_counts[label] for label in ordered]
-    failed_values = [failed_counts[label] for label in ordered]
-    totals = [passed + failed for passed, failed in zip(passed_values, failed_values)]
+    values = [counts[label] for label in ordered]
     ax.barh(
         positions,
-        passed_values,
-        color=plt.get_cmap("tab10")(2),
-        alpha=0.78,
-        label="No failure signal",
-    )
-    ax.barh(
-        positions,
-        failed_values,
-        left=passed_values,
+        values,
         color=plt.get_cmap("tab10")(3),
         alpha=0.82,
-        label="Failure: classified, low score, or invalid",
     )
     ax.set_yticks(positions, labels=ordered)
     ax.invert_yaxis()
     ax.set_xlabel("Scored run count")
-    ax.set_title(
-        "Failure Distribution "
-        f"(all scored runs; low score < {failure_threshold:.2f})"
-    )
-    ax.legend(loc="lower right")
-    maximum = max(totals, default=0)
+    ax.set_title(f"Log-Derived Failure Distribution (all scored runs; n={len(rows)})")
+    maximum = max(values, default=0)
     ax.set_xlim(0, max(1, maximum * 1.12))
-    for position, value in zip(positions, totals):
+    for position, value in zip(positions, values):
         offset = max(0.06, maximum * 0.015)
         ax.text(value + offset, position, str(value), va="center")
     return _save(fig, figure_dir / "failure_distribution.png", dpi)
-
-
-def _scatter_metric(
-    plt: Any,
-    rows: list[dict[str, Any]],
-    protocols: list[str],
-    colors: dict[str, Any],
-    output: Path,
-    dpi: int,
-    *,
-    field: str,
-    xlabel: str,
-    title: str,
-    logarithmic: bool,
-) -> Path | None:
-    available_rows = [
-        row
-        for row in rows
-        if row.get(field) is not None
-        and row[field] > 0
-    ]
-    if not available_rows:
-        return None
-    fig, ax = plt.subplots(figsize=(8.5, 6))
-    for protocol in protocols:
-        selected = [row for row in available_rows if row["protocol"] == protocol]
-        if not selected:
-            continue
-        x_values = [row[field] for row in selected]
-        y_values = [row["overall_quality_score"] for row in selected]
-        ax.scatter(
-            x_values,
-            y_values,
-            color=colors[protocol],
-            alpha=0.62,
-            s=42,
-            label=protocol,
-        )
-        ax.scatter(
-            [statistics.fmean(x_values)],
-            [statistics.fmean(y_values)],
-            color=colors[protocol],
-            edgecolor="black",
-            linewidth=0.7,
-            marker="X",
-            s=110,
-        )
-    positive = [row[field] for row in available_rows]
-    if logarithmic and min(positive) > 0 and max(positive) / min(positive) >= 20:
-        ax.set_xscale("log")
-        xlabel += " (log scale)"
-    ax.set_ylim(0, 1.02)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel("Overall quality score")
-    ax.set_title(title)
-    ax.legend(loc="best", fontsize=8, frameon=True)
-    return _save(fig, output, dpi)
 
 
 def _quality_by_protocol(
@@ -452,6 +501,63 @@ def _quality_by_protocol(
     for row in rows:
         grouped[row["protocol"]].append(row["overall_quality_score"])
     return grouped
+
+
+def _protocol_metric_means(
+    rows: list[dict[str, Any]], protocols: list[str]
+) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for protocol in protocols:
+        selected = [row for row in rows if row["protocol"] == protocol]
+        token_values = [
+            row["total_tokens"]
+            for row in selected
+            if row.get("total_tokens") is not None and row["total_tokens"] > 0
+        ]
+        runtime_values = [
+            row["runtime_seconds"]
+            for row in selected
+            if row.get("runtime_seconds") is not None and row["runtime_seconds"] > 0
+        ]
+        summaries.append(
+            {
+                "protocol": protocol,
+                "count": len(selected),
+                "mean_quality": statistics.fmean(
+                    row["overall_quality_score"] for row in selected
+                ),
+                "mean_tokens": statistics.fmean(token_values) if token_values else None,
+                "mean_runtime": (
+                    statistics.fmean(runtime_values) if runtime_values else None
+                ),
+            }
+        )
+    return summaries
+
+
+def _log_bounds(
+    values: list[float], *, expected: tuple[float, float]
+) -> tuple[float, float]:
+    lower = min(expected[0], min(values))
+    upper = max(expected[1], max(values))
+    if math.isclose(lower, upper):
+        return lower / 10, upper * 10
+    return lower, upper
+
+
+def _log_normalize(value: float, bounds: tuple[float, float]) -> float:
+    lower, upper = bounds
+    return (math.log10(value) - math.log10(lower)) / (
+        math.log10(upper) - math.log10(lower)
+    )
+
+
+def _format_tokens(value: float) -> str:
+    return f"{value:,.0f}"
+
+
+def _format_seconds(value: float) -> str:
+    return f"{value:.1f}s"
 
 
 def _confidence_interval(values: list[float]) -> float:
@@ -482,15 +588,6 @@ def _as_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
-
-
-def _as_bool(value: Any) -> bool | None:
-    normalized = str(value or "").strip().lower()
-    if normalized in {"true", "1", "yes"}:
-        return True
-    if normalized in {"false", "0", "no"}:
-        return False
-    return None
 
 
 def _save(fig: Any, path: Path, dpi: int) -> Path:

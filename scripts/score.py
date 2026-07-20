@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,12 @@ from src.analysis import (  # noqa: E402
 from src.failure_taxonomy import FAILURE_TYPES  # noqa: E402
 from src.io_utils import read_json, read_jsonl, slug_list, write_jsonl  # noqa: E402
 from src.llm_client import build_client  # noqa: E402
-from src.scorer import build_result_run_id, build_score_id, score_run_log  # noqa: E402
+from src.scorer import (  # noqa: E402
+    apply_log_failure_analysis,
+    build_result_run_id,
+    build_score_id,
+    score_run_log,
+)
 from src.tasks import load_benchmark, project_task  # noqa: E402
 
 
@@ -62,12 +68,24 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Only score logs produced by these Agent model IDs.",
     )
+    parser.add_argument(
+        "--relative-failure-drop",
+        type=float,
+        default=0.15,
+        help=(
+            "Flag a multi-agent run when its quality is more than this fraction below "
+            "the matching Single Agent baseline; a failure type is assigned only when "
+            "the raw log also supplies the required signal (default: 0.15)."
+        ),
+    )
 
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if not 0.0 <= args.relative_failure_drop <= 1.0:
+        raise SystemExit("--relative-failure-drop must be between 0 and 1")
     model_config = read_json(_project_path(args.model_config))
     if args.list_models:
         _print_model_profiles(model_config)
@@ -96,6 +114,11 @@ def main() -> int:
         wanted_tasks=wanted_tasks,
         wanted_agents=wanted_agents,
     )
+    run_logs_by_id: dict[str, dict[str, Any]] = {}
+    for path in log_paths:
+        run_log = read_json(path)
+        if run_log.get("record_type") == "agent_run":
+            run_logs_by_id[build_result_run_id(run_log)] = run_log
     results_dir = _project_path(args.results_dir)
     scores_path = results_dir / "scores.jsonl"
     scores = read_jsonl(scores_path)
@@ -128,7 +151,7 @@ def main() -> int:
             "uses_run_evidence_audit": True,
             "failure_taxonomy": list(FAILURE_TYPES),
             "uses_protocol_failure_trace": True,
-            "uses_deterministic_voting_failure_audit": True,
+            "uses_deterministic_log_failure_audit": True,
         }
         print(f"Judge model: {client.model}")
 
@@ -169,7 +192,12 @@ def main() -> int:
             score_id = build_score_id(run_log, client)
             existing_score = scores_by_id.get(score_id)
             if existing_score is not None:
-                if existing_score.get("judge_condition") != judge_condition and not args.overwrite:
+                if (
+                    not _same_judge_scoring_condition(
+                        existing_score.get("judge_condition"), judge_condition
+                    )
+                    and not args.overwrite
+                ):
                     raise SystemExit(
                         f"Existing score {score_id} used a different Judge field/configuration set. "
                         "Run again with --overwrite to replace it using all current benchmark fields."
@@ -218,6 +246,11 @@ def main() -> int:
             print(_format_score_result(task_id, run_log, score, client.model))
             scored += 1
 
+    failure_analyzed = apply_log_failure_analysis(
+        scores,
+        run_logs_by_id,
+        relative_drop_threshold=args.relative_failure_drop,
+    )
     write_jsonl(scores_path, scores)
     scores_csv_path = results_dir / "scores.csv"
     errors_path = results_dir / "scoring_errors.jsonl"
@@ -232,14 +265,41 @@ def main() -> int:
     write_aggregate_json(aggregate_json_path, aggregate_rows)
     write_summary_markdown(summary_path, aggregate_rows, scores, group_by=args.group_by)
 
+    audited_scores = [
+        score for score in scores if str(score.get("run_id") or "") in run_logs_by_id
+    ]
+    failure_counts = Counter(str(score.get("failure_type") or "None") for score in audited_scores)
+    print(
+        "Failure audit: "
+        + ", ".join(
+            f"{failure_type}={failure_counts[failure_type]}" for failure_type in FAILURE_TYPES
+        )
+    )
+
     print(
         "Done. "
         f"scored={scored}, skipped={skipped}, "
         f"unknown_task_skipped={skipped_unknown_task}, "
-        f"malformed={malformed}, errors={len(scoring_errors)}"
+        f"malformed={malformed}, errors={len(scoring_errors)}, "
+        f"failure_logs_analyzed={failure_analyzed}"
     )
     print(f"Results: {results_dir}")
     return 0 if not scoring_errors else 2
+
+
+def _same_judge_scoring_condition(existing: Any, current: dict[str, Any]) -> bool:
+    """Ignore failure-audit metadata when deciding whether paid Judge work is stale."""
+
+    if not isinstance(existing, dict):
+        return False
+    audit_only_keys = {
+        "failure_taxonomy",
+        "uses_deterministic_voting_failure_audit",
+        "uses_deterministic_log_failure_audit",
+    }
+    existing_core = {key: value for key, value in existing.items() if key not in audit_only_keys}
+    current_core = {key: value for key, value in current.items() if key not in audit_only_keys}
+    return existing_core == current_core
 
 
 def _preflight_run_compatibility(

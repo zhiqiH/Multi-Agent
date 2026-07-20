@@ -225,20 +225,20 @@ Return JSON only. Use these scales:
 - helpfulness_raw: integer 1-5.
 - hallucination_rate: number from 0 to 1.
 - failure_type: choose exactly one dominant type from the taxonomy below. This classifies collaboration-process
-  failures, not ordinary answer errors. A low score, factual error, missing section, tool failure, high token count, or
-  high agreement rate is not sufficient by itself. If several types are plausible, choose the proximal collaboration
-  failure with the strongest trace evidence. If the evidence gate is not met, use None. A single-agent run must use None.
+  failures plus objective Tool Failure, not ordinary answer errors. Derive the classification from the raw protocol
+  messages and trusted execution summary, never from the quality score. A factual error, missing section, high token
+  count, or high agreement rate is not sufficient by itself. A Required run with a trusted
+  tool_requirement_satisfied=false signal is Tool Failure. If several types are plausible, choose the proximal failure
+  with the strongest trace evidence. If the evidence gate is not met, use None. A single-agent run normally uses None,
+  but may use Tool Failure when its trusted tool execution condition failed.
 {failure_taxonomy}
-- Voting-specific rule: compare the selected proposal with every recorded alternative. If the selected final output
-  triggers a trusted benchmark hard-fail rule while another proposal avoids that same hard fail, and the ballots
-  converge on the failing proposal, classify Premature Consensus rather than None. Cite both proposals, the ballots,
-  protocol_signals, and final_output. Unanimous voting alone remains insufficient.
 - failure_evidence: use [] for failure_type=None. Otherwise provide 1-3 objects with keys signal and trace_refs.
   signal must state the directly observed behavior and its downstream harm. trace_refs must contain only recorded
-  message IDs plus final_output, run_metrics, termination_reason, run_errors, role_usage, or protocol_signals. Every non-None failure must
-  cite final_output. Communication Failure, Hallucination Propagation, and Premature Consensus must cite at least one
-  intermediate message. Over-Collaboration must cite run_metrics and at least two repeated intermediate messages. Do not invent
-  missing messages, hidden intentions, or causal links that are not visible in the trace.
+  message IDs plus final_output, run_metrics, termination_reason, run_errors, role_usage, or tool_execution. Every
+  non-None failure must cite final_output. Communication Failure and Hallucination Propagation must cite at least one
+  intermediate message. Tool Failure must cite tool_execution. Over-Collaboration must cite run_metrics and at least
+  two repeated intermediate messages. Do not invent missing messages, hidden intentions, or causal links that are not
+  visible in the trace.
 """,
         },
     ]
