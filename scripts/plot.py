@@ -62,7 +62,7 @@ LEGACY_FIGURE_FILENAMES = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate PNG figures from score.py outputs."
+        description="Generate PNG figures from judge.py outputs."
     )
     parser.add_argument(
         "--results-dir",
@@ -130,7 +130,7 @@ def main() -> int:
 def _read_scores(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         raise SystemExit(
-            f"Score file not found: {path}. Run 'python3 scripts/score.py' first."
+            f"Score file not found: {path}. Run 'python3 scripts/judge.py' first."
         )
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -160,7 +160,7 @@ def _read_scores(path: Path) -> list[dict[str, Any]]:
             except ValueError as exc:
                 raise SystemExit(
                     f"{path} contains a failure type outside the current failure taxonomy. "
-                    "Rescore the logs with 'python3 scripts/score.py --overwrite'."
+                    "Rescore the logs with 'python3 scripts/judge.py --overwrite'."
                 ) from exc
             rows.append(row)
     if not rows:

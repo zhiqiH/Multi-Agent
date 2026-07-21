@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--benchmark", default="benchmark/benchmark-C.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
-    parser.add_argument("--logs-dir", default="logs/raw/current")
+    parser.add_argument("--logs-dir", default="logs/current")
     parser.add_argument(
         "--results-dir",
         default="results/current",
@@ -335,7 +335,7 @@ def _preflight_run_compatibility(
             "Raw logs do not match the selected benchmark's current Agent/tool configuration. "
             "Scoring them would produce invalid or misleading zero scores.\n"
             f"{details}\n"
-            "Rerun the affected conditions with scripts/run_experiment.py --overwrite, then score again."
+            "Rerun the affected conditions with scripts/experiment.py --overwrite, then judge again."
         )
 
 

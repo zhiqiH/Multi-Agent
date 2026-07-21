@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmark", default="benchmark/benchmark-C.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--experiment-config", default="configs/experiment_config.json")
-    parser.add_argument("--out-dir", default="logs/raw/current")
+    parser.add_argument("--out-dir", default="logs/current")
 
     parser.add_argument("--protocols", default=",".join(DEFAULT_PROTOCOLS))
     parser.add_argument("--tasks", default="", help="Comma-separated task IDs. Empty means all tasks.")
