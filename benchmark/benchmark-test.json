@@ -1,0 +1,252 @@
+{
+  "schema_requirements": {
+    "metadata_recording": {
+      "per_call_logging": true,
+      "fields": [
+        "timestamp",
+        "api_provider",
+        "model",
+        "temperature",
+        "max_tokens",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "call_cost_usd",
+        "tool_used",
+        "tool_response_raw"
+      ]
+    },
+    "failure_taxonomy": [
+      "None",
+      "Coordination Failure",
+      "Communication Failure",
+      "Role Confusion",
+      "Hallucination Propagation",
+      "Tool Failure",
+      "Over-Collaboration"
+    ],
+    "tool_interface_schema": {
+      "tool_id": "string",
+      "tool_type": "string",
+      "description": "string",
+      "expected_behavior": "string",
+      "required_parameters": "object"
+    },
+    "runner_enforcements": {
+      "enforce_tool_requirement": true,
+      "record_real_api_costs": true,
+      "require_raw_output_capture": true
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "LR-00",
+      "category": "Length Reasoning",
+      "difficulty": "Easy",
+      "author": "Zhiqi",
+      "tool_requirement": "Prohibited",
+      "prompt": "Count the total number of characters in the following text:\n\nAI is useful.\n\nCount every letter, space, and punctuation mark as one character.",
+      "required_output_format": "Return only the final integer. Do not include explanations, labels, or punctuation.",
+      "evaluation_criteria": [
+        {
+          "id": "C1",
+          "criterion": "Returns the integer 13.",
+          "weight": 1
+        },
+        {
+          "id": "C2",
+          "criterion": "Counts letters, spaces, and the final period.",
+          "weight": 1
+        },
+        {
+          "id": "C3",
+          "criterion": "Outputs only one integer with no additional text.",
+          "weight": 1
+        }
+      ],
+      "required_evidence": "No external evidence or citation is required. The answer is determined directly from the provided text.",
+      "scoring_rubric": {
+        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied, 0 = absent or incorrect.",
+        "score_bands": {
+          "Excellent": "100%: returns exactly 13 with no extra text.",
+          "Good": "67-99%: correct counting logic but minor formatting issue.",
+          "Acceptable": "34-66%: partially correct count or format.",
+          "Poor": "1-33%: substantial counting error.",
+          "Fail": "0%: no usable answer or prohibited tool use."
+        },
+        "accuracy": "The correct character count is 13.",
+        "completeness": "The response must contain the final answer.",
+        "helpfulness": "The response must follow the requested minimal format.",
+        "grounding_and_evidence": "No citation is required.",
+        "hallucination_penalty": "Penalize any answer other than 13.",
+        "hard_fail_rules": [
+          "Fail if an external tool is used.",
+          "Fail if the final numeric answer is not 13."
+        ]
+      },
+      "expected_failure_risks": [
+        "Ignoring spaces when counting characters.",
+        "Ignoring the final period.",
+        "Adding an explanation despite the output restriction."
+      ],
+      "ground_truth": {
+        "task_type": "Length Reasoning",
+        "expected_answer": "13",
+        "must_have": [
+          "The integer 13 only."
+        ],
+        "must_not_have": [
+          "Explanations.",
+          "Labels.",
+          "Tool calls."
+        ],
+        "critical_fail_conditions": [
+          "Returning a number other than 13.",
+          "Using an external tool."
+        ]
+      }
+    },
+    {
+      "task_id": "MR-00",
+      "category": "Mathematical Reasoning",
+      "difficulty": "Easy",
+      "author": "Zhiqi",
+      "tool_requirement": "Prohibited",
+      "prompt": "Calculate the following expression using the standard order of operations:\n\n7 + 5 × 2",
+      "required_output_format": "Return only the final integer. Do not show work or include any additional text.",
+      "evaluation_criteria": [
+        {
+          "id": "C1",
+          "criterion": "Returns the integer 17.",
+          "weight": 1
+        },
+        {
+          "id": "C2",
+          "criterion": "Applies multiplication before addition.",
+          "weight": 1
+        },
+        {
+          "id": "C3",
+          "criterion": "Outputs only one integer with no additional text.",
+          "weight": 1
+        }
+      ],
+      "required_evidence": "No external evidence or citation is required. This is a basic arithmetic task.",
+      "scoring_rubric": {
+        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied, 0 = absent or incorrect.",
+        "score_bands": {
+          "Excellent": "100%: returns exactly 17 with no extra text.",
+          "Good": "67-99%: correct answer with a minor formatting issue.",
+          "Acceptable": "34-66%: demonstrates partial understanding but gives an incorrect or poorly formatted result.",
+          "Poor": "1-33%: substantial arithmetic error.",
+          "Fail": "0%: no usable answer or prohibited tool use."
+        },
+        "accuracy": "The correct result is 17.",
+        "completeness": "The response must contain the final answer.",
+        "helpfulness": "The response must follow the requested minimal format.",
+        "grounding_and_evidence": "No citation is required.",
+        "hallucination_penalty": "Penalize invented steps or any answer other than 17.",
+        "hard_fail_rules": [
+          "Fail if an external tool is used.",
+          "Fail if the final numeric answer is not 17."
+        ]
+      },
+      "expected_failure_risks": [
+        "Adding before multiplying and returning 24.",
+        "Including calculation steps despite the output restriction.",
+        "Using a calculator tool even though tools are prohibited."
+      ],
+      "ground_truth": {
+        "task_type": "Mathematical Reasoning",
+        "expected_answer": "17",
+        "must_have": [
+          "The integer 17 only."
+        ],
+        "must_not_have": [
+          "Calculation steps.",
+          "Labels.",
+          "Tool calls."
+        ],
+        "critical_fail_conditions": [
+          "Returning a number other than 17.",
+          "Using an external tool."
+        ]
+      }
+    },
+    {
+      "task_id": "EC-00",
+      "category": "Educational Content",
+      "difficulty": "Easy",
+      "author": "Zhiqi",
+      "tool_requirement": "Prohibited",
+      "prompt": "Explain what a variable is in computer programming to a complete beginner. Then give one very simple example using the variable name age.",
+      "required_output_format": "Use exactly two short sentences. The first sentence must define a variable. The second sentence must give an example using age.",
+      "evaluation_criteria": [
+        {
+          "id": "C1",
+          "criterion": "Defines a variable as a named place or container used to store a value.",
+          "weight": 1
+        },
+        {
+          "id": "C2",
+          "criterion": "Provides a simple example using the variable name age.",
+          "weight": 1
+        },
+        {
+          "id": "C3",
+          "criterion": "Uses exactly two sentences.",
+          "weight": 1
+        },
+        {
+          "id": "C4",
+          "criterion": "Uses beginner-friendly language without unnecessary jargon.",
+          "weight": 1
+        }
+      ],
+      "required_evidence": "No external evidence or citation is required. The task tests basic educational explanation and formatting.",
+      "scoring_rubric": {
+        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied, 0 = absent or incorrect.",
+        "score_bands": {
+          "Excellent": "90-100%: accurate, simple, and exactly two sentences.",
+          "Good": "75-89%: mostly correct with a minor wording or formatting issue.",
+          "Acceptable": "60-74%: understandable but missing one requested element.",
+          "Poor": "40-59%: unclear or substantially incomplete.",
+          "Fail": "Below 40%, or prohibited tool use."
+        },
+        "accuracy": "The definition and example must be conceptually correct.",
+        "completeness": "Must include both a definition and an age example.",
+        "helpfulness": "Must be understandable to a complete beginner.",
+        "grounding_and_evidence": "No citation is required.",
+        "hallucination_penalty": "Penalize technically incorrect definitions or examples.",
+        "hard_fail_rules": [
+          "Fail if an external tool is used.",
+          "Severe cap if no example using age is provided."
+        ]
+      },
+      "expected_failure_risks": [
+        "Using advanced terminology that a beginner may not understand.",
+        "Forgetting to use the variable name age.",
+        "Writing more or fewer than two sentences."
+      ],
+      "ground_truth": {
+        "task_type": "Educational Content",
+        "reference_answer": "A variable is a named container that stores a value in a program. For example, age = 10 stores the value 10 in a variable named age.",
+        "must_have": [
+          "A beginner-friendly definition of a variable.",
+          "A simple example using age.",
+          "Exactly two sentences."
+        ],
+        "must_not_have": [
+          "External citations.",
+          "Tool calls.",
+          "Unnecessary advanced jargon."
+        ],
+        "critical_fail_conditions": [
+          "Giving an incorrect definition of a variable.",
+          "Omitting the age example.",
+          "Using an external tool."
+        ]
+      }
+    }
+  ]
+}
