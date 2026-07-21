@@ -293,7 +293,6 @@ def _same_judge_scoring_condition(existing: Any, current: dict[str, Any]) -> boo
     if not isinstance(existing, dict):
         return False
     audit_only_keys = {
-        "failure_taxonomy",
         "uses_deterministic_voting_failure_audit",
         "uses_deterministic_log_failure_audit",
     }

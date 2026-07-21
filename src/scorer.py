@@ -278,6 +278,15 @@ def _build_failure_trace(run_log: dict[str, Any]) -> dict[str, Any]:
             "tool_execution": _tool_execution_summary(run_log),
         },
         "intermediate_messages": messages,
+        "valid_trace_refs": [
+            *(message["message_id"] for message in messages),
+            "final_output",
+            "run_metrics",
+            "termination_reason",
+            "run_errors",
+            "role_usage",
+            "tool_execution",
+        ],
     }
 
 
@@ -311,11 +320,12 @@ def _validated_failure_assessment(
     if len(raw_evidence) > 3:
         raise ValueError("Judge failure_evidence may contain at most three observable signals")
 
-    message_refs = {
-        str(message.get("message_id") or f"m{index:03d}")
+    message_records = {
+        str(message.get("message_id") or f"m{index:03d}"): message
         for index, message in enumerate(run_log.get("intermediate_messages") or [], start=1)
         if isinstance(message, dict)
     }
+    message_refs = set(message_records)
     valid_refs = {
         "final_output",
         "run_metrics",
@@ -353,11 +363,17 @@ def _validated_failure_assessment(
         raise ValueError("A non-None failure_type requires observable failure_evidence")
     if "final_output" not in referenced:
         raise ValueError("A collaboration failure must cite final_output to show material downstream impact")
+    referenced_messages = referenced.intersection(message_refs)
+    if raw_failure_type == "Coordination Failure" and len(referenced_messages) < 2:
+        raise ValueError("Coordination Failure must cite at least two recorded Agent messages")
     if raw_failure_type in {
         "Communication Failure",
+        "Role Confusion",
         "Hallucination Propagation",
-    } and not referenced.intersection(message_refs):
+    } and not referenced_messages:
         raise ValueError(f"{raw_failure_type} must cite at least one recorded intermediate message")
+    if raw_failure_type == "Premature Consensus" and len(referenced_messages) < 2:
+        raise ValueError("Premature Consensus must cite at least two recorded Agent messages")
     if raw_failure_type == "Tool Failure" and "tool_execution" not in referenced:
         raise ValueError("Tool Failure must cite tool_execution from the raw execution log")
     if raw_failure_type == "Over-Collaboration":
@@ -365,8 +381,30 @@ def _validated_failure_assessment(
             raise ValueError(
                 "Over-Collaboration must cite run_metrics in addition to repeated work and final impact"
             )
-        if len(referenced.intersection(message_refs)) < 2:
+        if len(referenced_messages) < 2:
             raise ValueError("Over-Collaboration must cite at least two repeated intermediate messages")
+    if raw_failure_type == "Manager Bottleneck":
+        if run_log.get("protocol_id") != "manager_worker":
+            raise ValueError("Manager Bottleneck is only valid for the manager_worker protocol")
+        manager_refs = {
+            ref
+            for ref, message in message_records.items()
+            if "manager" in str(message.get("sender") or "").lower()
+        }
+        if not referenced_messages.intersection(manager_refs):
+            raise ValueError("Manager Bottleneck must cite a recorded Manager message")
+        if not (referenced_messages - manager_refs):
+            raise ValueError("Manager Bottleneck must cite an affected downstream Agent message")
+    if raw_failure_type == "Noise Accumulation":
+        workspace_refs = {
+            ref
+            for ref, message in message_records.items()
+            if "blackboard" in str(message.get("channel") or "").lower()
+        }
+        if run_log.get("protocol_id") != "shared_blackboard":
+            raise ValueError("Noise Accumulation is only valid for the shared_blackboard protocol")
+        if len(referenced_messages.intersection(workspace_refs)) < 2:
+            raise ValueError("Noise Accumulation must cite at least two recorded blackboard messages")
     return raw_failure_type, evidence
 
 

@@ -72,13 +72,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dpi", type=int, default=200, help="PNG resolution.")
     return parser.parse_args()
 
-
 def main() -> int:
     args = parse_args()
     if args.dpi <= 0:
         raise SystemExit("--dpi must be positive")
 
-    results_dir = _project_path(args.results_dir)
+    results_dir = _resolve_results_dir(args.results_dir)
     scores_path = results_dir / "scores.csv"
     rows = _read_scores(scores_path)
     figure_dir = results_dir / "figures"
@@ -160,7 +159,7 @@ def _read_scores(path: Path) -> list[dict[str, Any]]:
                 row["failure_type"] = display_failure_type(raw.get("failure_type"))
             except ValueError as exc:
                 raise SystemExit(
-                    f"{path} contains a failure type outside the current seven-category taxonomy. "
+                    f"{path} contains a failure type outside the current failure taxonomy. "
                     "Rescore the logs with 'python3 scripts/score.py --overwrite'."
                 ) from exc
             rows.append(row)
@@ -310,7 +309,7 @@ def _plot_protocol_token_quality(
     if not available:
         return None
 
-    fig, ax = plt.subplots(figsize=(9.5, 6.2))
+    fig, ax = plt.subplots(figsize=(11.5, 6.2))
     for summary in available:
         protocol = summary["protocol"]
         mean_tokens = summary["mean_tokens"]
@@ -339,7 +338,14 @@ def _plot_protocol_token_quality(
     ax.set_xlabel("Mean Agent tokens (log scale)")
     ax.set_ylabel("Mean overall quality score")
     ax.set_title("Protocol Mean Token Cost vs Quality")
-    ax.legend(title="Protocol", loc="upper right", fontsize=8.5, frameon=True)
+    ax.legend(
+        title="Protocol",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0,
+        fontsize=8.5,
+        frameon=True,
+    )
     return _save(fig, figure_dir / "protocol_token_quality.png", dpi)
 
 
@@ -599,6 +605,28 @@ def _remove_legacy_figures(figure_dir: Path) -> list[Path]:
 def _project_path(raw: str | Path) -> Path:
     path = Path(raw)
     return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def _resolve_results_dir(raw: str | Path) -> Path:
+    path = Path(raw)
+    candidates: list[Path] = []
+    if path.is_absolute():
+        candidates.append(path)
+    else:
+        candidates.extend(
+            [
+                PROJECT_ROOT / path,
+                PROJECT_ROOT / "results" / path,
+            ]
+        )
+
+    for candidate in candidates:
+        if (candidate / "scores.csv").is_file():
+            return candidate
+
+    if path.is_absolute():
+        return path
+    return PROJECT_ROOT / "results" / path
 
 
 if __name__ == "__main__":

@@ -1,0 +1,231 @@
+{
+  "record_type": "agent_run",
+  "run_id": "se-02__single_agent__deepseek-v4-flash__run01",
+  "run_number": 1,
+  "task_id": "SE-02",
+  "category": "Software Engineering",
+  "difficulty": "Hard",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
+  },
+  "agent_provider": "deepseek",
+  "agent_model": "deepseek-v4-flash",
+  "temperature": 0.0,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-21T18:05:51+00:00",
+  "end_time": "2026-07-21T18:06:26+00:00",
+  "runtime_seconds": 34.533,
+  "input_tokens": 367,
+  "output_tokens": 3131,
+  "total_tokens": 3498,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 96502,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.035,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 4000,
+    "Single Agent": 4000,
+    "default": 1300
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 367,
+      "output_tokens": 3131,
+      "total_tokens": 3498,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.00092806,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "model_call_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly in the exact required format. Verify hard constraints and numerical claims, use permitted evidence when required, and return only the deliverable."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: SE-02\n\nCategory: Software Engineering\n\nDifficulty: Hard\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nDesign a high-level architecture for a multi-tenant AI support-ticket triage system.\n\nScenario: A SaaS company receives about 10,000 support tickets per day across 20 enterprise tenants. The system must classify each ticket by issue type and urgency, redact personal data before any third-party model call, route high-risk tickets to human review, preserve audit logs for compliance review, and allow each tenant to customize routing rules. The target p95 classification latency is 2 seconds per ticket during normal load. If the AI component is unavailable or uncertain, the system must fail safely rather than dropping tickets.\n\nProduce an architecture proposal that balances scalability, privacy, reliability, observability, implementation complexity, and cost. You do not need to write production code.\n\nDo not cite vendors, laws, exact costs, or model-performance numbers not provided in the scenario. Clearly label any assumption.\n\nRequired Output Format:\nUse the following format:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Privacy and compliance safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Testing and rollout plan\n9. Major risks and mitigations\n10. Final recommendation\n\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1.  **Assumptions and non-goals**\n    *   **Assumptions:**\n        *   The system processes 10,000 tickets/day across 20 tenants, which translates to an average throughput of ~0.12 tickets/second (10,000 / 86,400 seconds) and a peak throughput of ~0.5 tickets/second (assuming 4x peak factor). This is a low throughput, making scalability less of a challenge than latency and reliability.\n        *   \"High-risk\" tickets are defined by tenant-specific rules (e.g., keywords like \"legal\", \"security\", \"breach\", or sentiment analysis flags).\n        *   \"Personal data\" includes PII (Personally Identifiable Information) such as names, emails, phone numbers, and addresses.\n        *   The \"third-party model\" is an external AI service (e.g., an LLM API) used for classification.\n        *   \"Normal load\" means the system is operating within its designed capacity (e.g., no DDoS or massive ticket surge).\n        *   The system has a budget for cloud infrastructure and third-party AI API costs, but exact figures are not provided.\n    *   **Non-goals:**\n        *   Building a custom AI model from scratch. The system will use a pre-trained third-party model.\n        *   Real-time chat or voice support. This is for asynchronous ticket triage.\n        *   Full-text search or advanced analytics on historical tickets (beyond audit logs).\n        *   Multi-region active-active deployment for disaster recovery (a single-region, multi-AZ setup is sufficient for this scale).\n\n2.  **Component diagram described in text**\n    The system is composed of the following logical components, deployed in a cloud environment (e.g., AWS, GCP, Azure) using a microservices architecture.\n\n    *   **Ingestion Gateway:** A load-balanced API gateway (e.g., NGINX, Cloud Load Balancer) that receives tickets from tenants via REST API. It performs basic validation (e.g., tenant ID, ticket format) and publishes the ticket to a message queue.\n    *   **Message Queue (e.g., RabbitMQ, AWS SQS):** A durable, persistent queue that decouples ticket ingestion from processing. This provides buffering for traffic spikes and ensures no tickets are lost.\n    *   **Ticket Processor (Worker Service):** A horizontally scalable service that consumes tickets from the queue. It orchestrates the triage pipeline.\n    *   **PII Redaction Service:** A dedicated service that uses regex patterns and a lightweight NLP model (e.g., spaCy) to identify and redact PII (e.g., replace with `[REDACTED]`). It stores the original ticket in an encrypted audit log before redaction.\n    *   **AI Classification Service:** A service that calls the third-party AI model API. It sends the redacted ticket text and receives a classification (issue type, urgency). It includes a circuit breaker to handle API failures.\n    *   **Tenant Rules Engine:** A service that evaluates tenant-specific routing rules (e.g., \"If issue type is 'billing' and urgency is 'high', route to 'finance-team'\"). Rules are stored in a database.\n    *   **High-Risk Queue:** A separate message queue for tickets flagged as high-risk by the rules engine. These are routed to a human review dashboard.\n    *   **Human Review Dashboard:** A web UI for human agents to review, reclassify, and approve/reject high-risk tickets.\n    *   **Audit Log Database:** An append-only, encrypted database (e.g., AWS DynamoDB with TTL, or a time-series database) that stores the original ticket, redacted version, classification result, routing decision, and timestamps.\n    *   **Configuration Database:** A database (e.g., PostgreSQL) storing tenant-specific routing rules, PII patterns, and model configuration.\n    *   **Monitoring & Alerting:** A stack (e.g., Prometheus + Grafana + Alertmanager) to track latency, throughput, error rates, and queue depths.\n\n3.  **End-to-end data flow**\n    1.  **Ingestion:** A tenant sends a ticket via REST API to the Ingestion Gateway. The gateway validates the tenant ID and ticket structure.\n    2.  **Queueing:** The gateway publishes the validated ticket to the Message Queue.\n    3.  **Processing:** The Ticket Processor consumes the ticket from the queue.\n    4.  **PII Redaction:** The processor sends the ticket to the PII Redaction Service. The service returns the redacted ticket and stores the original in the Audit Log Database.\n    5.  **AI Classification:** The processor sends the redacted ticket to the AI Classification Service. The service calls the third-party model and returns a classification (e.g., `issue_type: \"billing\"`, `urgency: \"high\"`, `confidence: 0.95`).\n    6.  **Fallback (Uncertainty):** If the AI service returns a low-confidence score (e.g., < 0.7) or an error, the processor marks the ticket as \"uncertain\" and routes it to the High-Risk Queue for human review.\n    7.  **Rules Evaluation:** The processor sends the classification result to the Tenant Rules Engine. The engine evaluates tenant-specific rules and returns a routing decision (e.g., `route_to: \"support-team\"`, `is_high_risk: false`).\n    8.  **Routing:**\n        *   If `is_high_risk` is true, the ticket is published to the High-Risk Queue.\n        *   Otherwise, the ticket is published to a tenant-specific output queue (or directly to the tenant's support system via API).\n    9.  **Audit Logging:** The processor logs the entire pipeline result (original ticket, redacted version, classification, routing decision, timestamps) to the Audit Log Database.\n    10. **Human Review:** A human agent reviews tickets in the High-Risk Queue via the Dashboard, makes a final decision, and the ticket is then routed to the appropriate destination.\n\n4.  **Key services and responsibilities table**\n\n| Service | Responsibility | Key Metrics |\n| :--- | :--- | :--- |\n| **Ingestion Gateway** | Validate, authenticate, rate-limit incoming tickets. | Requests/sec, error rate |\n| **Message Queue** | Buffer tickets, decouple services, ensure durability. | Queue depth, message age |\n| **Ticket Processor** | Orchestrate the triage pipeline (PII, AI, Rules). | Processing time, throughput |\n| **PII Redaction Service** | Identify and redact PII; store original in audit log. | Redaction latency, false positive rate |\n| **AI Classification Service** | Call third-party model; handle failures (circuit breaker). | API latency, error rate, confidence score |\n| **Tenant Rules Engine** | Evaluate tenant-specific routing rules. | Rule evaluation latency |\n| **High-Risk Queue** | Hold tickets for human review. | Queue depth, time-to-review |\n| **Human Review Dashboard** | UI for agents to review and re-route tickets. | Agent throughput, resolution time |\n| **Audit Log Database** | Append-only, encrypted log of all actions. | Write latency, storage size |\n| **Configuration Database** | Store tenant rules, PII patterns, model config. | Read latency, consistency |\n| **Monitoring & Alerting** | Track system health, latency, errors, queue depths. | Alert response time |\n\n5.  **Privacy and compliance safeguards**\n    *   **PII Redaction at Ingest:** PII is redacted *before* any data leaves the system (e.g., before the third-party API call). The original ticket is stored encrypted in the audit log.\n    *   **Data Minimization:** Only the redacted ticket text is sent to the third-party model. No tenant ID, user ID, or metadata is included in the API call.\n    *   **Encryption at Rest and in Transit:** All data in databases and queues is encrypted at rest (e.g., AES-256). All inter-service communication uses TLS.\n    *   **Tenant Isolation:** Tenant IDs are used as partition keys in databases. The Tenant Rules Engine only accesses rules for the specific tenant being processed.\n    *   **Audit Trail:** Every action (ingestion, redaction, classification, routing) is logged with a timestamp and service ID in the append-only Audit Log Database. This log cannot be modified or deleted.\n    *   **Access Control:** The Human Review Dashboard requires multi-factor authentication. Agents can only see tickets for their assigned tenants. API keys for tenants are rotated regularly.\n\n6.  **Reliability and failure-handling plan**\n    *   **Fail-Safe for AI Unavailability:**\n        *   **Circuit Breaker:** The AI Classification Service uses a circuit breaker. If the third-party API fails 3 times in 1 minute, the circuit opens, and all subsequent tickets are immediately routed to the High-Risk Queue for human review.\n        *   **Fallback Logic:** If the AI service returns an error or a low-confidence score (< 0.7), the ticket is automatically routed to the High-Risk Queue. The system never drops a ticket.\n    *   **Queue Durability:** The Message Queue is configured for persistent storage. If a worker crashes, the message is re-delivered to another worker.\n    *   **Idempotency:** The Ticket Processor is idempotent. Each ticket has a unique ID. If a ticket is processed twice, the second attempt is ignored (e.g., by checking the Audit Log Database).\n    *   **Graceful Degradation:**\n        *   If the PII Redaction Service fails, the system can fall back to a simpler regex-only redaction.\n        *   If the Tenant Rules Engine is slow, the processor can use a cached copy of the rules.\n    *   **Health Checks:** All services expose health endpoints. The load balancer and orchestrator (e.g., Kubernetes) automatically restart unhealthy instances.\n\n7.  **Latency and throughput reasoning**\n    *   **Target:** p95 latency of 2 seconds per ticket.\n    *   **Throughput:** 10,000 tickets/day = ~0.12 tickets/second average. Peak might be 4x = ~0.5 tickets/second. This is very low.\n    *   **Latency Budget (per ticket):**\n        *   Queueing: < 50ms (in-memory queue)\n        *   PII Redaction: < 100ms (regex + lightweight NLP)\n        *   AI Classification: < 1500ms (third-party API call, including network)\n        *   Rules Evaluation: < 50ms (in-memory rule evaluation)\n        *   Audit Logging: < 100ms (async write to database)\n        *   Total: ~1800ms. This leaves a 200ms buffer for network and processing overhead.\n    *   **Scaling:** With such low throughput, a single instance of each service is sufficient. The system can scale horizontally by adding more Ticket Processor instances if throughput increases. The Message Queue acts as a buffer, preventing backpressure on the ingestion gateway.\n    *   **Bottleneck:** The third-party AI API call is the dominant latency contributor. To meet the p95 target, we must ensure the API has a p95 latency of < 1.5 seconds. If not, we can use a faster, smaller model or implement request batching (if the API supports it).\n\n8.  **Testing and rollout plan**\n    *   **Phase 1: Unit & Integration Tests**\n        *   Test each service in isolation (PII redaction, rules engine, AI service mock).\n        *   Test the end-to-end pipeline with synthetic tickets.\n    *   **Phase 2: Load & Latency Tests**\n        *   Simulate 10,000 tickets/day with a mix of tenants.\n        *   Measure p95 latency. If > 2 seconds, optimize the AI API call (e.g., use a faster model, increase timeout).\n    *   **Phase 3: Chaos Engineering**\n        *   Simulate failures: AI API down, database slow, queue full.\n        *   Verify that tickets are routed to the High-Risk Queue and no tickets are dropped.\n    *   **Phase 4: Canary Rollout**\n        *   Deploy the system for 1 tenant (e.g., a friendly beta tenant).\n        *   Monitor latency, error rates, and audit log completeness.\n    *   **Phase 5: Gradual Rollout**\n        *   Add 5 tenants per week.\n        *   Monitor tenant-specific metrics (e.g., routing accuracy, human review volume).\n    *   **Phase 6: Full Production**\n        *   All 20 tenants onboarded.\n        *   Continuous monitoring and alerting in place.\n\n9.  **Major risks and mitigations**\n\n| Risk | Impact | Mitigation |\n| :--- | :--- | :--- |\n| **Third-party AI API is slow or unavailable** | Latency spikes, tickets stuck | Circuit breaker, fallback to human review, SLA monitoring |\n| **PII redaction misses sensitive data** | Privacy breach | Regular redaction audits, allow tenants to add custom PII patterns |\n| **Tenant rules are misconfigured** | Tickets routed to wrong team | Validate rules on save, provide a dry-run mode for rule testing |\n| **Audit log database becomes a bottleneck** | Increased latency | Use an append-only, high-throughput database (e.g., DynamoDB, Cassandra) |\n| **Human review queue grows too large** | High-risk tickets are delayed | Auto-scale human reviewers, implement SLA alerts for queue depth |\n| **Cost of third-party AI API** | High operational cost | Negotiate volume discounts, consider using a smaller model for low-urgency tickets |\n\n10. **Final recommendation**\n    The proposed architecture is a scalable, privacy-first, and reliable solution for the given scenario. The key design decisions are:\n    *   **Queue-based decoupling** to handle traffic spikes and ensure no tickets are dropped.\n    *   **PII redaction before any external API call** to ensure privacy compliance.\n    *   **Fail-safe routing to human review** for AI failures or low-confidence results.\n    *   **Tenant-specific rules engine** to allow customization without code changes.\n    *   **Comprehensive audit logging** for compliance.\n\n    Given the low throughput (~0.12 tickets/sec), the system can be implemented with a small number of services and a modest cloud budget. The primary cost driver will be the third-party AI API calls. The p95 latency target of 2 seconds is achievable if the AI API has a p95 latency of < 1.5 seconds. The system is designed to be incrementally rolled out, starting with a single tenant, to validate performance and reliability before full deployment.",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "benchmark-B",
+    "benchmark_file": "benchmark/benchmark-B.json",
+    "protocol_id": "single_agent",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
+    },
+    "agent_provider": "deepseek",
+    "agent_model": "deepseek-v4-flash",
+    "agent_effective_config": {
+      "max_tokens": 4000,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 4000,
+        "Single Agent": 4000,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
+      "max_retries": 2,
+      "display_name": "DeepSeek V4 Flash",
+      "description": "Low-latency agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-flash",
+      "max_tokens_param": "max_tokens",
+      "timeout_seconds": 180,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.14,
+        "output": 0.28
+      },
+      "profile": "deepseek_v4_flash",
+      "request_options": {
+        "thinking": {
+          "type": "disabled"
+        },
+        "reasoning_effort": "high",
+        "temperature": 0.0
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "SE-02",
+    "agent_task": {
+      "task_id": "SE-02",
+      "category": "Software Engineering",
+      "difficulty": "Hard",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "Design a high-level architecture for a multi-tenant AI support-ticket triage system.\n\nScenario: A SaaS company receives about 10,000 support tickets per day across 20 enterprise tenants. The system must classify each ticket by issue type and urgency, redact personal data before any third-party model call, route high-risk tickets to human review, preserve audit logs for compliance review, and allow each tenant to customize routing rules. The target p95 classification latency is 2 seconds per ticket during normal load. If the AI component is unavailable or uncertain, the system must fail safely rather than dropping tickets.\n\nProduce an architecture proposal that balances scalability, privacy, reliability, observability, implementation complexity, and cost. You do not need to write production code.\n\nDo not cite vendors, laws, exact costs, or model-performance numbers not provided in the scenario. Clearly label any assumption.",
+      "required_output_format": "Use the following format:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Privacy and compliance safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Testing and rollout plan\n9. Major risks and mitigations\n10. Final recommendation\n"
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "benchmark-B",
+  "benchmark_file": "benchmark/benchmark-B.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}

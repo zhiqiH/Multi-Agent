@@ -1,0 +1,231 @@
+{
+  "record_type": "agent_run",
+  "run_id": "ta-02__single_agent__deepseek-v4-flash__run01",
+  "run_number": 1,
+  "task_id": "TA-02",
+  "category": "Technical Analysis",
+  "difficulty": "Easy",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
+  },
+  "agent_provider": "deepseek",
+  "agent_model": "deepseek-v4-flash",
+  "temperature": 0.0,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-21T18:06:42+00:00",
+  "end_time": "2026-07-21T18:06:53+00:00",
+  "runtime_seconds": 10.851,
+  "input_tokens": 247,
+  "output_tokens": 794,
+  "total_tokens": 1041,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 98959,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.0104,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 4000,
+    "Single Agent": 4000,
+    "default": 1300
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 247,
+      "output_tokens": 794,
+      "total_tokens": 1041,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.0002569,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "model_call_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly in the exact required format. Verify hard constraints and numerical claims, use permitted evidence when required, and return only the deliverable."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: TA-02\n\nCategory: Technical Analysis\n\nDifficulty: Easy\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nExplain the difference between BM25 keyword search and dense embedding semantic search for an internal FAQ search system.\n\nCompare them in terms of matching behavior, handling of synonyms, exact phrase or identifier lookup, data and infrastructure needs, latency, and common failure modes. Then recommend whether the FAQ system should use BM25, dense embeddings, or a hybrid approach for a small company with 500 FAQ documents.\n\nDo not use external sources or cite vendors. Do not invent measured performance numbers.\n\nRequired Output Format:\nUse the following format:\n1. Short definition of BM25 keyword search\n2. Short definition of dense embedding semantic search\n3. Comparison table\n4. Recommendation paragraph\n5. Two likely failure risks and mitigations\n\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1.  **Short definition of BM25 keyword search**\n    BM25 is a traditional keyword-based ranking function that scores documents based on the frequency of exact query terms within the document, adjusted for document length and term saturation. It relies on exact lexical matching between the query and the document text.\n\n2.  **Short definition of dense embedding semantic search**\n    Dense embedding semantic search uses neural network models to convert both queries and documents into high-dimensional vector representations (embeddings). Search is performed by finding documents whose vectors are closest to the query vector in the embedding space, enabling matching based on meaning and context rather than exact keywords.\n\n3.  **Comparison table**\n\n| Feature | BM25 Keyword Search | Dense Embedding Semantic Search |\n| :--- | :--- | :--- |\n| **Matching behavior** | Exact lexical matching of query terms against document terms. | Semantic matching based on the meaning and context of the entire query and document. |\n| **Handling of synonyms** | Fails to match synonyms unless they appear as exact terms in the query. | Naturally matches synonyms and related concepts because similar meanings have similar embeddings. |\n| **Exact phrase or identifier lookup** | Excellent for exact phrases, product codes, or identifiers (e.g., \"FAQ-101\", \"password reset\"). | Poor for exact identifiers; may retrieve conceptually similar but incorrect documents. |\n| **Data and infrastructure needs** | Minimal: requires only an inverted index built from the text. Can run on a single server or even in-memory. | Higher: requires a trained embedding model, a vector database or approximate nearest neighbor index, and more memory/GPU for inference. |\n| **Latency** | Very low latency, even on large corpora, due to efficient inverted index lookups. | Higher latency due to neural network inference and approximate nearest neighbor search, though optimizations exist. |\n| **Common failure modes** | Misses relevant documents that use different wording; zero results for queries with no exact term overlap. | Retrieves irrelevant documents that are semantically close but factually wrong; fails on rare terms or specific identifiers. |\n\n4.  **Recommendation paragraph**\n    For a small company with only 500 FAQ documents, I recommend a **hybrid approach** that combines BM25 and dense embeddings. The small corpus size means infrastructure costs for a vector index are manageable, and a hybrid system can leverage the strengths of both methods. BM25 will reliably handle exact phrase lookups, product codes, and specific identifiers common in FAQs (e.g., \"error code 500\", \"reset password\"), while dense embeddings will improve recall for users who describe their problem in different words (e.g., \"can't log in\" vs. \"authentication failure\"). A simple fusion strategy, such as taking the top results from each method and re-ranking them, can be implemented with minimal overhead and will provide the most robust search experience for the company's internal users.\n\n5.  **Two likely failure risks and mitigations**\n    - **Risk 1: Dense embeddings retrieve irrelevant but semantically similar documents.** For example, a query about \"billing for a new account\" might retrieve documents about \"closing an account\" because the embeddings are close. *Mitigation: Implement a re-ranking step that uses BM25 scores or a lightweight classifier to filter out clearly irrelevant results, and always display the exact FAQ title alongside the snippet so users can quickly judge relevance.*\n    - **Risk 2: BM25 fails on queries with no exact keyword overlap.** A user asking \"how do I get my money back?\" might get zero results if the FAQ uses the phrase \"refund policy\". *Mitigation: Use the hybrid approach so that the dense embedding component can retrieve the \"refund policy\" document based on semantic similarity. Additionally, log failed queries to identify gaps and add common synonyms or redirect terms to the FAQ titles.*",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "benchmark-B",
+    "benchmark_file": "benchmark/benchmark-B.json",
+    "protocol_id": "single_agent",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
+    },
+    "agent_provider": "deepseek",
+    "agent_model": "deepseek-v4-flash",
+    "agent_effective_config": {
+      "max_tokens": 4000,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 4000,
+        "Single Agent": 4000,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
+      "max_retries": 2,
+      "display_name": "DeepSeek V4 Flash",
+      "description": "Low-latency agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-flash",
+      "max_tokens_param": "max_tokens",
+      "timeout_seconds": 180,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.14,
+        "output": 0.28
+      },
+      "profile": "deepseek_v4_flash",
+      "request_options": {
+        "thinking": {
+          "type": "disabled"
+        },
+        "reasoning_effort": "high",
+        "temperature": 0.0
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "TA-02",
+    "agent_task": {
+      "task_id": "TA-02",
+      "category": "Technical Analysis",
+      "difficulty": "Easy",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "Explain the difference between BM25 keyword search and dense embedding semantic search for an internal FAQ search system.\n\nCompare them in terms of matching behavior, handling of synonyms, exact phrase or identifier lookup, data and infrastructure needs, latency, and common failure modes. Then recommend whether the FAQ system should use BM25, dense embeddings, or a hybrid approach for a small company with 500 FAQ documents.\n\nDo not use external sources or cite vendors. Do not invent measured performance numbers.",
+      "required_output_format": "Use the following format:\n1. Short definition of BM25 keyword search\n2. Short definition of dense embedding semantic search\n3. Comparison table\n4. Recommendation paragraph\n5. Two likely failure risks and mitigations\n"
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "benchmark-B",
+  "benchmark_file": "benchmark/benchmark-B.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}

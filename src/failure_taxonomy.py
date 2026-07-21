@@ -12,8 +12,11 @@ FAILURE_TYPES = (
     "Communication Failure",
     "Role Confusion",
     "Hallucination Propagation",
-    "Tool Failure",
+    "Premature Consensus",
     "Over-Collaboration",
+    "Manager Bottleneck",
+    "Noise Accumulation",
+    "Tool Failure",
 )
 
 FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
@@ -23,7 +26,7 @@ FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
             "ordinary factual errors, weak reasoning, or minor omissions."
         ),
         "observable_signals": (
-            "Use only when none of the six collaboration failures passes its evidence gate. "
+            "Use only when none of the nine failure types passes its evidence gate. "
             "Single-agent runs normally use None, but may use Tool Failure when the raw execution log "
             "objectively shows that a required or prohibited tool constraint failed."
         ),
@@ -70,15 +73,15 @@ FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
             "is an ordinary answer error, not propagation."
         ),
     },
-    "Tool Failure": {
+    "Premature Consensus": {
         "definition": (
-            "The run fails an explicit tool requirement or tool contract, so required evidence is not successfully "
-            "obtained, a prohibited tool is used, or the final answer depends on an invalid tool execution."
+            "Agents converge on a proposal before checking a critical fact, constraint, counterexample, or recorded "
+            "critique, and the unverified consensus materially shapes the final output."
         ),
         "observable_signals": (
-            "The raw log records tool_requirement_satisfied=false for a Required task, a tool call or output-contract "
-            "failure that makes execution invalid, an unauthorized tool call, or tool use on a Prohibited task. "
-            "A harmless failed optional call is insufficient."
+            "The trace shows an initial proposal or majority choice, explicit agreement or convergence by at least "
+            "one additional agent, and no intervening verification of a visible unresolved issue before finalization. "
+            "A high agreement rate or a unanimous vote by itself is insufficient."
         ),
     },
     "Over-Collaboration": {
@@ -89,6 +92,39 @@ FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
         "observable_signals": (
             "High communication or token use is accompanied by repeated message content and a final output that remains "
             "incomplete, noisy, or worse integrated. High cost or message count by itself is insufficient."
+        ),
+    },
+    "Manager Bottleneck": {
+        "definition": (
+            "In a hierarchical protocol, the manager becomes the proximal cause of failure by omitting or distorting "
+            "requirements, misassigning work, suppressing useful worker results, or blocking necessary collaboration."
+        ),
+        "observable_signals": (
+            "A recorded Manager message contains the omission, misassignment, lossy summary, rejected useful result, "
+            "or blocked handoff; at least one downstream worker message shows the consequence; and the same consequence "
+            "is visible in the final output. Ordinary worker error without a causal Manager action is insufficient."
+        ),
+    },
+    "Noise Accumulation": {
+        "definition": (
+            "A shared workspace accumulates irrelevant, redundant, contradictory, or misleading entries that agents "
+            "subsequently use or fail to resolve, materially degrading final integration."
+        ),
+        "observable_signals": (
+            "At least two recorded shared-workspace entries exhibit repeated, conflicting, or irrelevant content; a "
+            "later agent relies on or fails to clean up that content; and the resulting noise is visible in the final "
+            "output. Workspace size or message count alone is insufficient."
+        ),
+    },
+    "Tool Failure": {
+        "definition": (
+            "The run fails an explicit tool requirement or tool contract, so required evidence is not successfully "
+            "obtained, a prohibited tool is used, or the final answer depends on an invalid tool execution."
+        ),
+        "observable_signals": (
+            "The raw log records tool_requirement_satisfied=false for a Required task, a tool call or output-contract "
+            "failure that makes execution invalid, an unauthorized tool call, or tool use on a Prohibited task. "
+            "A harmless failed optional call is insufficient."
         ),
     },
 }
