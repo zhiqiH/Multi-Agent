@@ -311,8 +311,7 @@ def _plot_protocol_token_quality(
         return None
 
     fig, ax = plt.subplots(figsize=(9.5, 6.2))
-    label_offsets = ((7, 7), (7, -14), (-7, 8), (-7, -15))
-    for index, summary in enumerate(available):
+    for summary in available:
         protocol = summary["protocol"]
         mean_tokens = summary["mean_tokens"]
         mean_quality = summary["mean_quality"]
@@ -320,20 +319,9 @@ def _plot_protocol_token_quality(
             mean_tokens,
             mean_quality,
             color=colors[protocol],
-            edgecolor="black",
-            linewidth=0.65,
             s=90,
+            label=f"{protocol} (n={summary['count']})",
             zorder=3,
-        )
-        offset_x, offset_y = label_offsets[index % len(label_offsets)]
-        ax.annotate(
-            f"{protocol} (n={summary['count']})",
-            xy=(mean_tokens, mean_quality),
-            xytext=(offset_x, offset_y),
-            textcoords="offset points",
-            ha="left" if offset_x > 0 else "right",
-            va="bottom" if offset_y > 0 else "top",
-            fontsize=8.5,
         )
 
     token_values = [summary["mean_tokens"] for summary in available]
@@ -351,6 +339,7 @@ def _plot_protocol_token_quality(
     ax.set_xlabel("Mean Agent tokens (log scale)")
     ax.set_ylabel("Mean overall quality score")
     ax.set_title("Protocol Mean Token Cost vs Quality")
+    ax.legend(title="Protocol", loc="upper right", fontsize=8.5, frameon=True)
     return _save(fig, figure_dir / "protocol_token_quality.png", dpi)
 
 
