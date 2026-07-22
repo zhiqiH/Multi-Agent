@@ -179,6 +179,7 @@ class RunState:
         self.budget_skipped_call_count = 0
         self.last_budget_stop_reason = ""
         self.role_usage: dict[str, dict[str, int]] = {}
+        self.protocol_artifacts: dict[str, Any] = {}
 
     @property
     def max_interactions(self) -> int:
@@ -505,6 +506,9 @@ class RunState:
                     "recipients": recipients or ["shared"],
                     "round": round_number,
                     "channel": channel,
+                    "phase": channel,
+                    "message_kind": channel,
+                    "expected_action": instruction,
                     "content": response.content,
                     "input_tokens": interaction_input_tokens,
                     "output_tokens": interaction_output_tokens,
@@ -513,6 +517,13 @@ class RunState:
                     "response_model": response.response_model,
                 }
             )
+        else:
+            self.protocol_artifacts["final_call"] = {
+                "sender": role,
+                "phase": channel,
+                "expected_action": instruction,
+                "finish_reason": response.finish_reason,
+            }
         return response.content
 
     def _tool_guidance(self) -> str:
@@ -706,6 +717,7 @@ def run_protocol(
         ),
         "available_tools": list(tool_registry.names) if state.tools_enabled else [],
         "tool_expectations": tool_registry.tool_expectations if state.tools_enabled else {},
+        "protocol_artifacts": state.protocol_artifacts,
         "intermediate_messages": state.intermediate_messages,
         "tool_calls": state.tool_calls,
         "agent_visible_fields": list(agent_task),
@@ -815,6 +827,12 @@ def _run_single_agent(state: RunState) -> str:
     state.active_roles.add("Single Agent")
     state.rounds_completed = 1
     state.last_output = response.content
+    state.protocol_artifacts["final_call"] = {
+        "sender": "Single Agent",
+        "phase": "final",
+        "expected_action": "Complete the benchmark task directly in the exact required output format.",
+        "finish_reason": response.finish_reason,
+    }
     return response.content
 
 
@@ -1041,25 +1059,24 @@ def _run_debate(state: RunState) -> str:
 
 def _run_voting(state: RunState) -> str:
     proposals: list[tuple[str, str]] = []
-    for role in WORK_ROLES:
-        proposals.append(
-            (
-                role,
-                state.call_agent(
-                    role,
-                    "Independently produce a complete final-form answer. You cannot see other proposals.",
-                    round_number=1,
-                    channel="private_answer",
-                    recipients=["voting_controller"],
-                    max_tokens=_final_tokens(state),
-                    system_prompt_override=(
-                        "You are an independent proposal agent. Produce a complete, self-contained final deliverable "
-                        "in the task's exact required format. Do not return a plan, research agenda, verification list, "
-                        "role report, or promise of future work. Verify hard constraints and use only permitted evidence."
-                    ),
-                ),
-            )
+    for proposal_index, role in enumerate(WORK_ROLES, start=1):
+        proposal = state.call_agent(
+            role,
+            "Independently produce a complete final-form answer. You cannot see other proposals.",
+            round_number=1,
+            channel="private_answer",
+            recipients=["voting_controller"],
+            max_tokens=_final_tokens(state),
+            system_prompt_override=(
+                "You are an independent proposal agent. Produce a complete, self-contained final deliverable "
+                "in the task's exact required format. Do not return a plan, research agenda, verification list, "
+                "role report, or promise of future work. Verify hard constraints and use only permitted evidence."
+            ),
         )
+        state.intermediate_messages[-1].update(
+            {"message_kind": "proposal", "proposal_index": proposal_index}
+        )
+        proposals.append((role, proposal))
     anonymized = "\n\n".join(
         f"[Proposal {index + 1}]\n{text}" for index, (_, text) in enumerate(proposals)
     )
@@ -1082,12 +1099,30 @@ def _run_voting(state: RunState) -> str:
             ),
         )
         selected = _parse_ballot(ballot, len(proposals))
+        state.intermediate_messages[-1].update(
+            {
+                "message_kind": "ballot",
+                "parsed_proposal_index": selected,
+                "ballot_valid": selected is not None,
+            }
+        )
         if selected is not None:
             ballots.append(selected)
     counts = Counter(ballots)
     winner = min((index for index in range(1, len(proposals) + 1)), key=lambda index: (-counts[index], index))
     if ballots:
         state.agreement_rate = round(counts[winner] / len(ballots), 4)
+    state.protocol_artifacts["voting"] = {
+        "proposal_count": len(proposals),
+        "ballots_are_proposal_indices": True,
+        "valid_ballots": ballots,
+        "invalid_ballot_count": len(WORK_ROLES) - len(ballots),
+        "vote_counts_by_proposal_index": {
+            str(index): counts[index] for index in range(1, len(proposals) + 1)
+        },
+        "winning_proposal_index": winner,
+        "tie_break": "lowest_proposal_index",
+    }
     state.termination_reason = "vote_complete"
     return proposals[winner - 1][1]
 

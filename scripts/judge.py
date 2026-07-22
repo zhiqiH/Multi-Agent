@@ -18,7 +18,7 @@ from src.analysis import (  # noqa: E402
     write_scores_csv,
     write_summary_markdown,
 )
-from src.failure_taxonomy import FAILURE_TYPES  # noqa: E402
+from src.failure_taxonomy import FAILURE_TYPES, PROTOCOL_FAILURE_TYPES  # noqa: E402
 from src.io_utils import read_json, read_jsonl, slug_list, write_jsonl  # noqa: E402
 from src.llm_client import build_client  # noqa: E402
 from src.scorer import (  # noqa: E402
@@ -141,6 +141,11 @@ def main() -> int:
             "failure_analyzer_agent_content_scope": "intermediate_messages_and_final_output",
             "failure_analyzer_affects_quality_score": False,
             "failure_taxonomy": list(FAILURE_TYPES),
+            "failure_protocol_mapping": {
+                protocol_id: list(failure_types)
+                for protocol_id, failure_types in PROTOCOL_FAILURE_TYPES.items()
+            },
+            "failure_analyzer_decision_mode": "exhaustive_protocol_checks_multilabel",
             "failure_analyzer_uses_protocol_trace": True,
             "uses_deterministic_evidence_audit": True,
             "uses_deterministic_log_failure_audit": True,
@@ -261,12 +266,23 @@ def main() -> int:
     failure_analysis_errors = sum(
         score.get("failure_analysis_status") == "error" for score in audited_scores
     )
-    failure_counts = Counter(str(score.get("failure_type") or "None") for score in audited_scores)
+    failure_counts = Counter(
+        failure_type
+        for score in audited_scores
+        for failure_type in score.get("failure_types", ["None"])
+    )
+    multi_failure_runs = sum(
+        len([item for item in score.get("failure_types", []) if item != "None"]) > 1
+        for score in audited_scores
+    )
+    failure_assignments = sum(failure_counts.values())
     print(
         "Failure audit: "
         + ", ".join(
             f"{failure_type}={failure_counts[failure_type]}" for failure_type in FAILURE_TYPES
         )
+        + f"; runs={len(audited_scores)}, assignments={failure_assignments}, "
+        f"multi_failure_runs={multi_failure_runs}"
     )
 
     print(
@@ -407,6 +423,7 @@ def _format_score_result(
         f"SCORED task={task_id} protocol={run_log['protocol_id']} "
         f"agent={run_log['agent_model']} judge={judge_model} "
         f"quality={score['overall_quality_score']} tool={_tool_call_signal(score)} "
+        f"failures={','.join(score.get('failure_types') or ['None'])} "
         f"failure_analysis={score.get('failure_analysis_status', 'unknown')}"
     )
 

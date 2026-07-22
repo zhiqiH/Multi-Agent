@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 import os
 import statistics
@@ -21,7 +22,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.failure_taxonomy import (  # noqa: E402
     FAILURE_TYPES,
     NO_FAILURE_DISPLAY,
-    display_failure_type,
+    display_failure_types,
 )
 
 PROTOCOL_ORDER = (
@@ -134,15 +135,19 @@ def _read_scores(path: Path) -> list[dict[str, Any]]:
         )
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
-        required = {
-            "protocol",
-            "overall_quality_score",
-            "total_tokens",
-            "failure_type",
-        }
+        required = {"protocol", "overall_quality_score", "total_tokens"}
         missing = sorted(required - set(reader.fieldnames or []))
         if missing:
             raise SystemExit(f"{path} is missing required columns: {', '.join(missing)}")
+        failure_field = (
+            "failure_types"
+            if "failure_types" in (reader.fieldnames or [])
+            else "failure_type"
+            if "failure_type" in (reader.fieldnames or [])
+            else ""
+        )
+        if not failure_field:
+            raise SystemExit(f"{path} is missing required column: failure_types")
         rows: list[dict[str, Any]] = []
         for raw in reader:
             protocol = str(raw.get("protocol") or "").strip()
@@ -156,8 +161,11 @@ def _read_scores(path: Path) -> list[dict[str, Any]]:
             row["total_tokens"] = _as_float(raw.get("total_tokens"))
             row["runtime_seconds"] = _as_float(raw.get("runtime_seconds"))
             try:
-                row["failure_type"] = display_failure_type(raw.get("failure_type"))
-            except ValueError as exc:
+                stored_failures: Any = raw.get(failure_field)
+                if failure_field == "failure_types":
+                    stored_failures = json.loads(str(stored_failures or "[]"))
+                row["failure_types"] = display_failure_types(stored_failures)
+            except (ValueError, json.JSONDecodeError) as exc:
                 raise SystemExit(
                     f"{path} contains a failure type outside the current failure taxonomy. "
                     "Rescore the logs with 'python3 scripts/judge.py --overwrite'."
@@ -467,7 +475,11 @@ def _plot_failure_distribution(
 ) -> Path | None:
     del protocols, colors
     ordered = list(FAILURE_DISPLAY_ORDER)
-    counts = Counter(str(row["failure_type"]) for row in rows)
+    counts = Counter(
+        failure_type
+        for row in rows
+        for failure_type in row["failure_types"]
+    )
     fig, ax = plt.subplots(figsize=(9, max(4.5, 0.5 * len(ordered))))
     positions = list(range(len(ordered)))
     values = [counts[label] for label in ordered]
@@ -479,8 +491,12 @@ def _plot_failure_distribution(
     )
     ax.set_yticks(positions, labels=ordered)
     ax.invert_yaxis()
-    ax.set_xlabel("Scored run count")
-    ax.set_title(f"Log-Derived Failure Distribution (all scored runs; n={len(rows)})")
+    ax.set_xlabel("Runs exhibiting each failure type")
+    label_count = sum(values)
+    ax.set_title(
+        "Log-Derived Failure Distribution "
+        f"(runs={len(rows)}, label assignments={label_count})"
+    )
     maximum = max(values, default=0)
     ax.set_xlim(0, max(1, maximum * 1.12))
     for position, value in zip(positions, values):

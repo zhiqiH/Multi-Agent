@@ -7,6 +7,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
+from .failure_taxonomy import FAILURE_TYPES, NO_FAILURE, normalize_failure_types
 from .io_utils import ensure_dir, write_json
 
 
@@ -77,6 +78,7 @@ NUMERIC_FIELDS = [
     "scorer_total_tokens",
     "judge_estimated_cost",
     "total_estimated_cost",
+    "failure_count",
 ]
 
 SCORE_IDENTITY_FIELDS = [
@@ -158,11 +160,13 @@ SCORE_CSV_FIELDS = SCORE_IDENTITY_FIELDS + [
     "unaccessed_citation_count",
     "quality_token_ratio",
     "quality_api_cost_ratio",
-    "failure_type",
-    "failure_evidence",
+    "failure_types",
+    "failure_count",
+    "failure_assessments",
     "failure_classification_source",
-    "failure_analyzer_type",
-    "failure_analyzer_evidence",
+    "failure_analyzer_types",
+    "failure_analyzer_assessments",
+    "failure_analysis_warnings",
     "failure_analysis_status",
     "failure_analysis_error",
     "detected_failure_risks",
@@ -228,6 +232,19 @@ def aggregate_scores(scores: list[dict[str, Any]], *, group_by: str = "condition
         for field in NUMERIC_FIELDS:
             values = [_as_float(item[field]) for item in items if item.get(field) is not None]
             row[f"avg_{field}"] = round(mean(values), 6) if values else None
+        labels_by_run = [_score_failure_types(item) for item in items]
+        failure_counts_by_run = [
+            sum(failure_type != NO_FAILURE for failure_type in labels)
+            for labels in labels_by_run
+        ]
+        row["runs_with_any_failure"] = sum(count > 0 for count in failure_counts_by_run)
+        row["multi_failure_runs"] = sum(count > 1 for count in failure_counts_by_run)
+        row["avg_failure_count"] = round(mean(failure_counts_by_run), 6)
+        for failure_type in FAILURE_TYPES:
+            field_id = _failure_field_id(failure_type)
+            run_count = sum(failure_type in labels for labels in labels_by_run)
+            row[f"{field_id}_run_count"] = run_count
+            row[f"{field_id}_run_rate"] = round(run_count / len(items), 6)
         rows.append(row)
     return rows
 
@@ -323,7 +340,7 @@ def write_summary_markdown(
     for item in low:
         lines.append(
             f"- {_required_identity_value(item, 'run_id')}: score={item.get('overall_quality_score')}, "
-            f"failure_type={item.get('failure_type')}, notes={item.get('notes', '')}"
+            f"failure_types={_score_failure_types(item)}, notes={item.get('notes', '')}"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -345,10 +362,30 @@ def _required_identity_value(score: dict[str, Any], field: str) -> str:
 def _score_csv_value(score: dict[str, Any], field: str) -> Any:
     if field in SCORE_IDENTITY_FIELDS:
         return _required_identity_value(score, field)
+    if field == "failure_types":
+        return json.dumps(_score_failure_types(score), ensure_ascii=False)
+    if field == "failure_count" and score.get(field) is None:
+        return sum(
+            failure_type != NO_FAILURE
+            for failure_type in _score_failure_types(score)
+        )
     value = score.get(field, "")
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
     return value
+
+
+def _score_failure_types(score: dict[str, Any]) -> list[str]:
+    raw = score.get("failure_types")
+    if raw is None:
+        raw = score.get("failure_type")
+    return normalize_failure_types(raw)
+
+
+def _failure_field_id(failure_type: str) -> str:
+    if failure_type == NO_FAILURE:
+        return "no_failure"
+    return failure_type.lower().replace("-", "_").replace(" ", "_")
 
 
 def _as_float(value: Any) -> float:
