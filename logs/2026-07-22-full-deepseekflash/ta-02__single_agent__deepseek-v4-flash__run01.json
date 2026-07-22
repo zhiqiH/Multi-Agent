@@ -1,0 +1,240 @@
+{
+  "record_type": "agent_run",
+  "run_id": "ta-02__single_agent__deepseek-v4-flash__run01",
+  "run_number": 1,
+  "task_id": "TA-02",
+  "category": "Technical Analysis",
+  "difficulty": "Medium",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
+  },
+  "agent_provider": "deepseek",
+  "agent_model": "deepseek-v4-flash",
+  "temperature": 0.0,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-22T06:35:02+00:00",
+  "end_time": "2026-07-22T06:35:23+00:00",
+  "runtime_seconds": 21.061,
+  "input_tokens": 435,
+  "output_tokens": 1964,
+  "total_tokens": 2399,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 97601,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.024,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 4000,
+    "Single Agent": 4000,
+    "default": 1300
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 435,
+      "output_tokens": 1964,
+      "total_tokens": 2399,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.00061082,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "model_call_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "protocol_artifacts": {
+    "final_call": {
+      "sender": "Single Agent",
+      "phase": "final",
+      "expected_action": "Complete the benchmark task directly in the exact required output format.",
+      "finish_reason": "stop"
+    }
+  },
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly in the exact required format. Verify hard constraints and numerical claims, use permitted evidence when required, and return only the deliverable."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: TA-02\n\nCategory: Technical Analysis\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nExplain BM25 lexical retrieval, dense embedding retrieval, and a hybrid approach for an internal FAQ system containing 500 documents. Compare matching behavior, synonyms, exact terms and identifiers, exact-phrase handling, data/infrastructure needs, updates, latency, and common failure modes. Be precise that BM25 scoring itself is not the same as positional exact-phrase matching.\n\nAnalyze all eight fixed query cases and assign each a BM25-first, Dense-first, or Hybrid route with a brief rationale:\nQ1. ERR-1042 reset token expired\nQ2. I forgot my password and cannot get back into my account\nQ3. What does product code AX-17 mean?\nQ4. Please send my billing receipt again\nQ5. Disable two-factor authentication for a contractor\nQ6. I am not receiving notification emails\nQ7. Search for the exact phrase \"data export completed\"\nQ8. How can I move my workspace information to another account?\n\nThen design a lightweight routing/fusion policy for this corpus, provide at least three failure risks with mitigations, and propose a qualitative offline evaluation plan. Do not use external sources, vendors, or invented performance numbers.\n\nRequired Output Format:\nUse the following structure:\n1. BM25 definition\n2. Dense retrieval definition\n3. Technical comparison table\n4. Eight-query routing table with columns: Query ID, Important Signal, Preferred Route, Rationale, Failure Risk\n5. Lightweight hybrid routing/fusion policy\n6. Three or more failure risks and mitigations\n7. Qualitative offline evaluation plan\n8. Final recommendation for 500 FAQ documents\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1.  **BM25 definition**\nBM25 is a lexical (sparse) retrieval algorithm that ranks documents based on the exact overlap of query terms with document text. It uses a bag-of-words approach, scoring documents by term frequency (TF) and inverse document frequency (IDF), with saturation and length normalization. BM25 does not understand synonyms or semantics; it relies on exact keyword matching. Critically, BM25 scoring is a weighted sum of term matches and is not the same as positional exact-phrase matching. It does not inherently enforce that terms appear consecutively or in a specific order unless a separate phrase-query parser is used.\n\n2.  **Dense retrieval definition**\nDense retrieval uses neural embeddings to represent both queries and documents as dense vectors in a continuous semantic space. It retrieves documents by computing the cosine similarity (or other distance metric) between the query vector and document vectors. This approach captures semantic meaning, synonyms, and paraphrases, even when there is no exact lexical overlap. It requires a pre-trained or fine-tuned encoder model and an approximate nearest neighbor (ANN) index for efficient search.\n\n3.  **Technical comparison table**\n\n| Feature | BM25 (Lexical) | Dense Retrieval (Semantic) | Hybrid (Combined) |\n| :--- | :--- | :--- | :--- |\n| **Matching behavior** | Exact term overlap; bag-of-words | Semantic similarity; captures meaning | Both exact and semantic signals |\n| **Synonyms** | Fails unless synonym is in query | Handles synonyms well | Covers both cases |\n| **Exact terms & identifiers** | Excellent for codes, IDs, error numbers | Poor; may retrieve semantically similar but wrong IDs | Strong for IDs (BM25) + semantics (Dense) |\n| **Exact-phrase handling** | Requires separate phrase query (e.g., quotes); BM25 scoring alone does not enforce positional matching | Poor; phrase meaning may be captured, but exact word order is not guaranteed | Hybrid can use BM25 for phrase boost, Dense for context |\n| **Data/infrastructure needs** | Inverted index; minimal compute | Embedding model + ANN index; GPU for training | Both indexes; fusion logic |\n| **Updates** | Instant; add doc to index | Requires re-embedding and index refresh | Both update processes |\n| **Latency** | Very low (milliseconds) | Low to moderate (ANN search) | Slightly higher (two searches + fusion) |\n| **Common failure modes** | Vocabulary mismatch; fails on paraphrases | Fails on rare terms, IDs, out-of-domain queries; \"brittle\" to domain shift | Fusion complexity; tuning required |\n\n4.  **Eight-query routing table**\n\n| Query ID | Important Signal | Preferred Route | Rationale | Failure Risk |\n| :--- | :--- | :--- | :--- | :--- |\n| Q1. ERR-1042 reset token expired | Exact error code \"ERR-1042\" | BM25-first | The error code is a unique identifier; lexical match is essential. | Dense retrieval might retrieve documents about other \"reset token\" errors. |\n| Q2. I forgot my password and cannot get back into my account | Semantic meaning of password reset | Dense-first | Users may phrase this in many ways; synonyms like \"lost password\" or \"can't log in\" are common. | BM25 may miss documents using \"lost\" or \"recover\" instead of \"forgot\". |\n| Q3. What does product code AX-17 mean? | Exact product code \"AX-17\" | BM25-first | The product code is a specific identifier that must be matched exactly. | Dense retrieval could confuse AX-17 with similar codes (e.g., AX-18). |\n| Q4. Please send my billing receipt again | Semantic intent of re-sending a receipt | Dense-first | Users may say \"resend invoice\", \"get my receipt\", \"billing copy\". | BM25 may fail if the document uses \"invoice\" instead of \"receipt\". |\n| Q5. Disable two-factor authentication for a contractor | Semantic meaning of disabling 2FA for a specific user type | Dense-first | The core intent is \"disable 2FA\"; \"contractor\" is a modifier. | BM25 might retrieve documents about \"disable\" and \"authentication\" but miss the \"contractor\" context. |\n| Q6. I am not receiving notification emails | Semantic meaning of notification delivery failure | Dense-first | Users may say \"email not sending\", \"missing alerts\", \"notification not working\". | BM25 may fail on paraphrases like \"missing alerts\". |\n| Q7. Search for the exact phrase \"data export completed\" | Exact phrase match | BM25-first (with phrase parsing) | The query explicitly requests an exact phrase. BM25 with a phrase parser (e.g., using quotes) is required. | Dense retrieval cannot guarantee exact word order. |\n| Q8. How can I move my workspace information to another account? | Semantic meaning of transferring workspace data | Dense-first | Users may use \"transfer\", \"migrate\", \"move\", \"switch accounts\". | BM25 may miss documents using \"migrate\" instead of \"move\". |\n\n5.  **Lightweight hybrid routing/fusion policy**\n    *   **Routing Logic**: A simple rule-based router inspects the query for specific signals:\n        *   If the query contains an exact error code (e.g., `ERR-\\d+`), product code (e.g., `[A-Z]+-\\d+`), or is enclosed in quotes, route to **BM25-first**.\n        *   Otherwise, route to **Dense-first**.\n    *   **Fusion (for Hybrid route)**: When a query is ambiguous or the initial route's top result has a low confidence score (e.g., BM25 score below a threshold, or Dense similarity below 0.7), fall back to a hybrid approach using Reciprocal Rank Fusion (RRF) on the top 10 results from both systems. The RRF score for a document is `1 / (k + rank)`, where `k` is a constant (e.g., 60). The final ranking is by the sum of RRF scores from both lists.\n\n6.  **Three or more failure risks and mitigations**\n    *   **Risk 1: Out-of-vocabulary (OOV) terms in Dense retrieval.** New product codes or error messages not seen during training will have poor embeddings.\n        *   *Mitigation*: Always route queries with explicit codes/IDs to BM25-first. Periodically fine-tune the embedding model on new FAQ data.\n    *   **Risk 2: BM25 failure on paraphrased queries.** A user asking \"How to reset my password?\" may not match a document titled \"Password Recovery Steps\".\n        *   *Mitigation*: Use the Dense-first route for natural language queries. Add common synonyms to a query expansion list for BM25 as a fallback.\n    *   **Risk 3: Fusion complexity and latency.** Running both retrievers for every query doubles latency and requires tuning the fusion parameter `k`.\n        *   *Mitigation*: Use the rule-based router to avoid fusion for most queries. Only invoke fusion when the primary route's top result confidence is low. Set a timeout for the secondary retriever.\n\n7.  **Qualitative offline evaluation plan**\n    *   **Goal**: Assess retrieval quality without user feedback or A/B testing.\n    *   **Method**:\n        1.  **Create a test set**: Manually create 50-100 representative queries covering all eight query types from the task, plus edge cases (e.g., typos, very short queries, long queries).\n        2.  **Relevance judgments**: For each query, have two human annotators independently label the top 10 results from BM25, Dense, and Hybrid as \"Relevant\", \"Partially Relevant\", or \"Not Relevant\". Disagreements are resolved by a third annotator.\n        3.  **Metrics**: Compute **Precision@5** (proportion of relevant documents in top 5) and **Recall@10** (proportion of all relevant documents found in top 10) for each system.\n        4.  **Failure analysis**: For each query where the preferred route (from the routing table) fails to retrieve a relevant document in the top 5, document the failure mode (e.g., vocabulary mismatch, embedding error, phrase not matched).\n        5.  **Report**: Summarize the average Precision@5 and Recall@10 for each route. List the top 3 failure modes and their frequency.\n\n8.  **Final recommendation for 500 FAQ documents**\n    For a 500-document FAQ system, a **Hybrid approach with rule-based routing** is recommended. The small corpus size makes BM25 very fast and effective for exact matches (IDs, codes, phrases). Dense retrieval handles the majority of natural language paraphrases. The rule-based router ensures that queries with explicit identifiers are handled by BM25, while others use Dense retrieval, with a fallback to RRF fusion when confidence is low. This balances accuracy, latency, and infrastructure complexity. The embedding model can be a lightweight, pre-trained sentence transformer fine-tuned on the FAQ data, which is feasible for 500 documents.",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "communication-protocols-24",
+    "benchmark_file": "benchmark/benchmark-full.json",
+    "protocol_id": "single_agent",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
+    },
+    "agent_provider": "deepseek",
+    "agent_model": "deepseek-v4-flash",
+    "agent_effective_config": {
+      "max_tokens": 4000,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 4000,
+        "Single Agent": 4000,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
+      "failure_analysis_max_tokens": 3000,
+      "max_retries": 2,
+      "display_name": "DeepSeek V4 Flash",
+      "description": "Low-latency agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-flash",
+      "max_tokens_param": "max_tokens",
+      "timeout_seconds": 180,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.14,
+        "output": 0.28
+      },
+      "profile": "deepseek_v4_flash",
+      "request_options": {
+        "thinking": {
+          "type": "disabled"
+        },
+        "reasoning_effort": "high",
+        "temperature": 0.0
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "TA-02",
+    "agent_task": {
+      "task_id": "TA-02",
+      "category": "Technical Analysis",
+      "difficulty": "Medium",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "Explain BM25 lexical retrieval, dense embedding retrieval, and a hybrid approach for an internal FAQ system containing 500 documents. Compare matching behavior, synonyms, exact terms and identifiers, exact-phrase handling, data/infrastructure needs, updates, latency, and common failure modes. Be precise that BM25 scoring itself is not the same as positional exact-phrase matching.\n\nAnalyze all eight fixed query cases and assign each a BM25-first, Dense-first, or Hybrid route with a brief rationale:\nQ1. ERR-1042 reset token expired\nQ2. I forgot my password and cannot get back into my account\nQ3. What does product code AX-17 mean?\nQ4. Please send my billing receipt again\nQ5. Disable two-factor authentication for a contractor\nQ6. I am not receiving notification emails\nQ7. Search for the exact phrase \"data export completed\"\nQ8. How can I move my workspace information to another account?\n\nThen design a lightweight routing/fusion policy for this corpus, provide at least three failure risks with mitigations, and propose a qualitative offline evaluation plan. Do not use external sources, vendors, or invented performance numbers.",
+      "required_output_format": "Use the following structure:\n1. BM25 definition\n2. Dense retrieval definition\n3. Technical comparison table\n4. Eight-query routing table with columns: Query ID, Important Signal, Preferred Route, Rationale, Failure Risk\n5. Lightweight hybrid routing/fusion policy\n6. Three or more failure risks and mitigations\n7. Qualitative offline evaluation plan\n8. Final recommendation for 500 FAQ documents"
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "communication-protocols-24",
+  "benchmark_file": "benchmark/benchmark-full.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}
