@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Score agent-system logs and immediately aggregate all score results."
     )
-    parser.add_argument("--benchmark", default="benchmark/benchmark-C.json")
+    parser.add_argument("--benchmark", default="benchmark/benchmark-test.json")
     parser.add_argument("--model-config", default="configs/model_config.json")
     parser.add_argument("--logs-dir", default="logs/current")
     parser.add_argument(
@@ -263,9 +263,6 @@ def main() -> int:
     audited_scores = [
         score for score in scores if str(score.get("run_id") or "") in run_logs_by_id
     ]
-    failure_analysis_errors = sum(
-        score.get("failure_analysis_status") == "error" for score in audited_scores
-    )
     failure_counts = Counter(
         failure_type
         for score in audited_scores
@@ -290,8 +287,7 @@ def main() -> int:
         f"scored={scored}, skipped={skipped}, "
         f"unknown_task_skipped={skipped_unknown_task}, "
         f"malformed={malformed}, errors={len(scoring_errors)}, "
-        f"failure_logs_analyzed={failure_analyzed}, "
-        f"failure_analysis_errors={failure_analysis_errors}"
+        f"failure_logs_analyzed={failure_analyzed}"
     )
     print(f"Results: {results_dir}")
     return 0 if not scoring_errors else 2
@@ -423,8 +419,7 @@ def _format_score_result(
         f"SCORED task={task_id} protocol={run_log['protocol_id']} "
         f"agent={run_log['agent_model']} judge={judge_model} "
         f"quality={score['overall_quality_score']} tool={_tool_call_signal(score)} "
-        f"failures={','.join(score.get('failure_types') or ['None'])} "
-        f"failure_analysis={score.get('failure_analysis_status', 'unknown')}"
+        f"failures={','.join(score.get('failure_types') or ['None'])}"
     )
 
 

@@ -151,9 +151,9 @@ def score_run_log(
     failure_trace = _build_failure_trace(run_log)
     failure_response = None
     failure_parsed: dict[str, Any] = {}
-    failure_analysis_error: str | None = None
+    failure_analysis_complete = True
     failure_analyzer_assessments: list[dict[str, Any]] = []
-    failure_analysis_warnings: list[str] = []
+    failure_analysis_normalizations: list[str] = []
     try:
         failure_response, failure_parsed = _request_json_response(
             client,
@@ -175,14 +175,18 @@ def score_run_log(
             },
             label="Failure analyzer",
         )
-        failure_analyzer_assessments, failure_analysis_warnings = _validated_failure_assessment(
-            failure_parsed, run_log
+        (
+            failure_analyzer_assessments,
+            failure_analysis_normalizations,
+        ) = _normalized_failure_assessment(failure_parsed, run_log)
+    except Exception:  # Keep quality and deterministic raw-log findings.
+        failure_analysis_complete = False
+        failure_analysis_normalizations.append(
+            "Failure Analyzer response was unavailable; deterministic raw-log findings were retained."
         )
-    except Exception as exc:  # Keep an already-computed blind quality score.
-        failure_analysis_error = str(exc)
     failure_analyzer_types = (
         _assessment_types(failure_analyzer_assessments)
-        if failure_analysis_error is None
+        if failure_analysis_complete
         else []
     )
     failure_types, failure_assessments, failure_classification_source = (
@@ -194,9 +198,6 @@ def score_run_log(
             response_audit,
         )
     )
-    if failure_analysis_error and failure_classification_source == "failure_analyzer":
-        failure_classification_source = "failure_analyzer_error_fallback"
-
     judge_model = client.model
     quality_judge_estimated_cost = _estimate_judge_cost(
         client, quality_response.input_tokens, quality_response.output_tokens
@@ -310,9 +311,8 @@ def score_run_log(
         "failure_classification_source": failure_classification_source,
         "failure_analyzer_types": failure_analyzer_types,
         "failure_analyzer_assessments": failure_analyzer_assessments,
-        "failure_analysis_warnings": failure_analysis_warnings,
-        "failure_analysis_status": "error" if failure_analysis_error else "success",
-        "failure_analysis_error": failure_analysis_error,
+        "failure_analysis_complete": failure_analysis_complete,
+        "failure_analysis_normalizations": failure_analysis_normalizations,
         "detected_failure_risks": parsed.get("detected_failure_risks") or [],
         "judge_evidence_assessment": evidence_assessment,
         "evidence_audit": compact_evidence_audit(evidence_audit),
@@ -520,42 +520,19 @@ def _tool_execution_summary(run_log: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _validated_failure_assessment(
+def _normalized_failure_assessment(
     parsed: dict[str, Any], run_log: dict[str, Any]
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Validate exhaustive per-category checks and derive positive assessments.
+    """Collect every detected failure without rejecting the whole analysis.
 
-    The analyzer never chooses No Failure. It must check every collaboration
-    category permitted for this protocol, after which this function derives all
-    positive labels and applies the residual-only rule for Other Failure.
+    Output-shape differences are normalized per item. Protocol eligibility and
+    the residual-only meaning of Other Failure remain semantic constraints, but
+    missing fields, extra trace references, and incomplete evidence pointers
+    never discard another detected failure.
     """
 
     protocol_id = run_log.get("protocol_id")
-    required_types = allowed_collaboration_failure_types(protocol_id)
-    raw_checks = parsed.get("failure_checks")
-    if not isinstance(raw_checks, list):
-        raise ValueError("Failure analyzer output must include failure_checks as a list")
-    returned_types: list[str] = []
-    for check in raw_checks:
-        if not isinstance(check, dict):
-            raise ValueError("Each failure_checks item must be an object")
-        try:
-            returned_types.append(normalize_failure_type(check.get("failure_type")))
-        except ValueError as exc:
-            raise ValueError(
-                f"Failure analyzer returned an unknown failure check: {check.get('failure_type')!r}"
-            ) from exc
-    if (
-        len(returned_types) != len(required_types)
-        or len(set(returned_types)) != len(returned_types)
-        or set(returned_types) != set(required_types)
-    ):
-        raise ValueError(
-            "Failure analyzer must check every protocol-allowed collaboration type exactly once "
-            f"Expected {list(required_types)}, got {returned_types}."
-        )
-    checks_by_type = dict(zip(returned_types, raw_checks))
-
+    allowed_collaboration = set(allowed_collaboration_failure_types(protocol_id))
     message_records = {
         str(message.get("message_id") or f"m{index:03d}"): message
         for index, message in enumerate(run_log.get("intermediate_messages") or [], start=1)
@@ -572,111 +549,152 @@ def _validated_failure_assessment(
         "tool_execution",
     }
     valid_refs.update(message_refs)
-    assessments: list[dict[str, Any]] = []
-    warnings: list[str] = []
-    for failure_type in required_types:
-        check = checks_by_type[failure_type]
-        detected = _strict_bool(check.get("detected"), f"{failure_type}.detected")
-        reason = str(check.get("reason") or "").strip()
-        if not reason:
-            raise ValueError(f"{failure_type} requires a concise reason for its yes/no decision")
-        signal = str(check.get("signal") or "").strip()
-        raw_refs = check.get("trace_refs")
-        recovered = _strict_bool(check.get("recovered"), f"{failure_type}.recovered")
-        final_output_impacted = _strict_bool(
-            check.get("final_output_impacted"),
-            f"{failure_type}.final_output_impacted",
-        )
-        if not detected:
-            if signal or raw_refs or recovered or final_output_impacted:
-                warnings.append(
-                    f"Ignored evidence/impact fields from detected=false check: {failure_type}"
-                )
-            continue
-        refs = _validated_trace_refs(
-            raw_refs,
-            valid_refs,
-            label=failure_type,
-            maximum=5,
-        )
-        if not signal:
-            raise ValueError(f"{failure_type} detected=true requires a non-empty signal")
-        _reject_self_negating_positive_signal(signal, failure_type)
-        if final_output_impacted and "final_output" not in refs:
-            raise ValueError(
-                f"{failure_type} claims final_output_impacted=true but does not cite final_output"
-            )
-        _validate_failure_evidence_gate(
-            failure_type,
-            refs,
-            message_records,
-            run_log,
-        )
-        assessments.append(
-            {
-                "failure_type": failure_type,
-                "reason": reason,
-                "failure_evidence": [{"signal": signal, "trace_refs": refs}],
-                "recovered": recovered,
-                "final_output_impacted": final_output_impacted,
-                "source": "failure_analyzer",
-            }
-        )
+    normalizations: list[str] = []
+    raw_checks = parsed.get("failure_checks")
+    if isinstance(raw_checks, dict):
+        raw_checks = list(raw_checks.values())
+        normalizations.append("Converted failure_checks object to a list.")
+    if not isinstance(raw_checks, list):
+        raw_checks = []
+    raw_types = parsed.get("failure_types", parsed.get("failure_type"))
+    if not raw_checks and raw_types is not None:
+        values = raw_types if isinstance(raw_types, list) else [raw_types]
+        raw_checks = [
+            {"failure_type": value, "detected": True}
+            for value in values
+        ]
+        normalizations.append("Converted direct failure type output to per-type checks.")
 
+    by_type: dict[str, dict[str, Any]] = {}
+    raw_other_from_checks: dict[str, Any] | None = None
+    for index, raw_check in enumerate(raw_checks, start=1):
+        check = raw_check if isinstance(raw_check, dict) else {
+            "failure_type": raw_check,
+            "detected": True,
+        }
+        try:
+            failure_type = normalize_failure_type(check.get("failure_type"))
+        except ValueError:
+            normalizations.append(f"Ignored unknown failure check at position {index}.")
+            continue
+        if failure_type == NO_FAILURE or not _coerce_bool(
+            check.get("detected", check.get("observed", check.get("present", True)))
+        ):
+            continue
+        if failure_type == OTHER_FAILURE:
+            raw_other_from_checks = check
+            continue
+        if failure_type not in allowed_collaboration:
+            normalizations.append(
+                f"Ignored {failure_type} because it is not available for protocol {protocol_id}."
+            )
+            continue
+        reason = str(check.get("reason") or "").strip()
+        signal = str(check.get("signal") or reason).strip()
+        if _is_self_negating_positive_signal(signal):
+            normalizations.append(
+                f"Ignored self-negating positive check for {failure_type}."
+            )
+            continue
+        if not signal:
+            signal = f"Failure Analyzer detected {failure_type}."
+        final_output_impacted = _coerce_bool(check.get("final_output_impacted"))
+        refs = _normalized_trace_refs(
+            check.get("trace_refs", check.get("failure_evidence")),
+            valid_refs,
+            text=f"{reason} {signal}",
+            label=failure_type,
+            normalizations=normalizations,
+        )
+        if final_output_impacted and "final_output" not in refs:
+            refs.append("final_output")
+            normalizations.append(
+                f"Added final_output reference for impacted {failure_type}."
+            )
+        if failure_type == "Over-Collaboration" and "run_metrics" not in refs:
+            refs.append("run_metrics")
+            normalizations.append(
+                "Added run_metrics reference for detected Over-Collaboration."
+            )
+        assessment = {
+            "failure_type": failure_type,
+            "reason": reason,
+            "failure_evidence": [{"signal": signal, "trace_refs": refs}],
+            "recovered": _coerce_bool(check.get("recovered")),
+            "final_output_impacted": final_output_impacted,
+            "source": "failure_analyzer",
+        }
+        _merge_same_source_assessment(by_type, assessment)
+
+    collaboration_assessments = [
+        by_type[failure_type]
+        for failure_type in COLLABORATION_FAILURE_TYPES
+        if failure_type in by_type
+    ]
     raw_other = parsed.get("other_failure")
     if not isinstance(raw_other, dict):
-        raise ValueError("Failure analyzer output must include other_failure as an object")
-    other_detected = _strict_bool(raw_other.get("detected"), "other_failure.detected")
-    other_reason = str(raw_other.get("reason") or "").strip()
-    if not other_reason:
-        raise ValueError("other_failure requires a concise reason for its yes/no decision")
-    if assessments:
-        if other_detected:
-            warnings.append(
-                "Suppressed Other Failure because at least one collaboration failure was detected"
-            )
-        return assessments, warnings
-    if not other_detected:
-        if raw_other.get("subtype") or raw_other.get("signal") or raw_other.get("trace_refs"):
-            warnings.append("Ignored residual fields from other_failure.detected=false")
-        return [], warnings
-
-    subtype = str(raw_other.get("subtype") or "").strip()
-    if subtype not in OTHER_FAILURE_SUBTYPES:
-        raise ValueError(
-            f"Other Failure subtype must be one of {OTHER_FAILURE_SUBTYPES}; got {subtype!r}"
-        )
-    signal = str(raw_other.get("signal") or "").strip()
-    if not signal:
-        raise ValueError("Other Failure detected=true requires a non-empty signal")
-    _reject_self_negating_positive_signal(signal, OTHER_FAILURE)
-    refs = _validated_trace_refs(
-        raw_other.get("trace_refs"),
-        valid_refs,
-        label=OTHER_FAILURE,
-        maximum=5,
+        raw_other = raw_other_from_checks or {}
+    other_detected = _coerce_bool(
+        raw_other.get("detected", raw_other.get("observed", raw_other.get("present", False)))
     )
-    _validate_other_failure_gate(subtype, refs, run_log)
+    if collaboration_assessments:
+        if other_detected:
+            normalizations.append(
+                "Suppressed Other Failure because collaboration failures were detected."
+            )
+        return collaboration_assessments, normalizations
+    if not other_detected:
+        return [], normalizations
+
+    other_reason = str(raw_other.get("reason") or "").strip()
+    other_signal = str(raw_other.get("signal") or other_reason).strip()
+    if _is_self_negating_positive_signal(other_signal):
+        normalizations.append("Ignored self-negating positive Other Failure check.")
+        return [], normalizations
+    if not other_signal:
+        other_signal = "Failure Analyzer detected a residual non-collaboration failure."
+    subtype = _normalized_other_subtype(raw_other.get("subtype"), run_log)
+    refs = _normalized_trace_refs(
+        raw_other.get("trace_refs", raw_other.get("failure_evidence")),
+        valid_refs,
+        text=f"{other_reason} {other_signal}",
+        label=OTHER_FAILURE,
+        normalizations=normalizations,
+    )
+    required_ref = {
+        "tool_failure": "tool_execution",
+        "runtime_error": "run_errors",
+        "malformed_output": "final_output",
+        "single_agent_answer_error": "final_output",
+        "unmapped_non_collaboration_failure": "final_output",
+    }[subtype]
+    if required_ref not in refs:
+        refs.append(required_ref)
+        normalizations.append(
+            f"Added {required_ref} reference for Other Failure subtype {subtype}."
+        )
     return [
         {
             "failure_type": OTHER_FAILURE,
             "other_subtype": subtype,
             "reason": other_reason,
-            "failure_evidence": [{"signal": signal, "trace_refs": refs}],
-            "recovered": False,
+            "failure_evidence": [{"signal": other_signal, "trace_refs": refs}],
+            "recovered": _coerce_bool(raw_other.get("recovered")),
             "final_output_impacted": "final_output" in refs,
             "source": "failure_analyzer",
         }
-    ], warnings
+    ], normalizations
 
 
-def _strict_bool(value: Any, label: str) -> bool:
-    if not isinstance(value, bool):
-        raise ValueError(f"Failure analyzer {label} must be a boolean")
-    return value
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value or "").strip().lower() in {"true", "yes", "1", "present", "detected"}
 
 
-def _reject_self_negating_positive_signal(signal: str, failure_type: str) -> None:
+def _is_self_negating_positive_signal(signal: str) -> bool:
     normalized = " ".join(signal.lower().split())
     self_negating_patterns = (
         r"\bno (?:observable |dominant |collaboration |protocol-level )?failures?\b",
@@ -684,106 +702,76 @@ def _reject_self_negating_positive_signal(signal: str, failure_type: str) -> Non
         r"\bfailures? (?:was |were )?not (?:observed|detected|found)\b",
         r"\bdoes not (?:show|exhibit|constitute) (?:a )?failures?\b",
     )
-    if any(re.search(pattern, normalized) for pattern in self_negating_patterns):
-        raise ValueError(
-            f"{failure_type} detected=true has a self-negating signal: {signal!r}"
-        )
+    return any(re.search(pattern, normalized) for pattern in self_negating_patterns)
 
 
-def _validated_trace_refs(
+def _normalized_trace_refs(
     raw_refs: Any,
     valid_refs: set[str],
     *,
+    text: str,
     label: str,
-    maximum: int,
+    normalizations: list[str],
 ) -> list[str]:
-    if not isinstance(raw_refs, list) or not raw_refs or not all(
-        isinstance(ref, str) for ref in raw_refs
-    ):
-        raise ValueError(f"{label} requires a non-empty trace_refs list")
-    refs = list(dict.fromkeys(ref.strip() for ref in raw_refs if ref.strip()))
-    if len(refs) > maximum:
-        raise ValueError(f"{label} may cite at most {maximum} trace references")
-    unknown_refs = sorted(set(refs) - valid_refs)
+    if isinstance(raw_refs, dict):
+        raw_refs = [raw_refs]
+    if isinstance(raw_refs, str):
+        raw_refs = [raw_refs]
+    if not isinstance(raw_refs, list):
+        raw_refs = []
+    candidates: list[str] = []
+    for item in raw_refs:
+        if isinstance(item, dict):
+            nested = item.get("trace_refs") or []
+            if isinstance(nested, str):
+                nested = [nested]
+            if isinstance(nested, list):
+                candidates.extend(str(ref).strip() for ref in nested if str(ref).strip())
+        elif str(item).strip():
+            candidates.append(str(item).strip())
+    candidates.extend(re.findall(r"\bm\d{3}\b", text))
+    for special_ref in sorted(valid_refs - {ref for ref in valid_refs if ref.startswith("m")}):
+        if special_ref in text:
+            candidates.append(special_ref)
+    refs = list(dict.fromkeys(ref for ref in candidates if ref in valid_refs))
+    unknown_refs = sorted(set(candidates) - valid_refs)
     if unknown_refs:
-        raise ValueError(f"Failure analyzer contains unknown trace_refs: {unknown_refs}")
+        normalizations.append(
+            f"Ignored unknown trace references for {label}: {unknown_refs}."
+        )
     return refs
 
 
-def _validate_failure_evidence_gate(
-    failure_type: str,
-    refs: list[str],
-    message_records: dict[str, dict[str, Any]],
-    run_log: dict[str, Any],
-) -> None:
-    message_refs = set(message_records)
-    referenced_messages = set(refs).intersection(message_refs)
-    if failure_type == "Coordination Failure":
-        if not referenced_messages or len(refs) < 2:
-            raise ValueError(
-                "Coordination Failure must cite a recorded assignment/dependency and its consequence"
-            )
-    elif failure_type == "Communication Failure":
-        if not referenced_messages or len(refs) < 2:
-            raise ValueError(
-                "Communication Failure must cite upstream information and a downstream loss or distortion"
-            )
-    elif failure_type == "Role Confusion":
-        final_role_mismatch = {
-            "protocol_artifacts",
-            "final_output",
-        }.issubset(refs)
-        if not referenced_messages and not final_role_mismatch:
-            raise ValueError(
-                "Role Confusion must cite an Agent message or the recorded final-call expectation and final output"
-            )
-    elif failure_type in {"Hallucination Propagation", "Premature Consensus"}:
-        if len(referenced_messages) < 2:
-            raise ValueError(f"{failure_type} must cite at least two recorded Agent messages")
-    elif failure_type == "Over-Collaboration":
-        if "run_metrics" not in refs or len(referenced_messages) < 2:
-            raise ValueError(
-                "Over-Collaboration must cite run_metrics and at least two redundant messages"
-            )
-    elif failure_type == "Manager Bottleneck":
-        if run_log.get("protocol_id") != "manager_worker":
-            raise ValueError("Manager Bottleneck is only valid for manager_worker")
-        manager_refs = {
-            ref
-            for ref, message in message_records.items()
-            if "manager" in str(message.get("sender") or "").lower()
-        }
-        if not referenced_messages.intersection(manager_refs):
-            raise ValueError("Manager Bottleneck must cite a recorded Manager message")
-        if not (referenced_messages - manager_refs):
-            raise ValueError("Manager Bottleneck must cite an affected downstream Agent message")
-    elif failure_type == "Noise Accumulation" and len(referenced_messages) < 2:
-        raise ValueError(
-            "Noise Accumulation must cite at least two context-visible Agent messages"
-        )
+def _normalized_other_subtype(value: Any, run_log: dict[str, Any]) -> str:
+    subtype = str(value or "").strip()
+    if subtype in OTHER_FAILURE_SUBTYPES:
+        if subtype == "single_agent_answer_error" and run_log.get("protocol_id") != "single_agent":
+            return "unmapped_non_collaboration_failure"
+        return subtype
+    if run_log.get("protocol_id") == "single_agent":
+        return "single_agent_answer_error"
+    if run_log.get("errors"):
+        return "runtime_error"
+    if not str(run_log.get("final_output") or "").strip():
+        return "malformed_output"
+    return "unmapped_non_collaboration_failure"
 
 
-def _validate_other_failure_gate(
-    subtype: str, refs: list[str], run_log: dict[str, Any]
+def _merge_same_source_assessment(
+    by_type: dict[str, dict[str, Any]], incoming: dict[str, Any]
 ) -> None:
-    required_refs = {
-        "tool_failure": {"tool_execution"},
-        "runtime_error": {"run_errors", "termination_reason"},
-        "malformed_output": {"final_output"},
-        "single_agent_answer_error": {"final_output"},
-        "unmapped_non_collaboration_failure": {
-            "final_output",
-            "run_errors",
-            "termination_reason",
-        },
-    }
-    if subtype == "single_agent_answer_error" and run_log.get("protocol_id") != "single_agent":
-        raise ValueError("single_agent_answer_error is only valid for single_agent")
-    expected = required_refs.get(subtype)
-    if expected and not set(refs).intersection(expected):
-        raise ValueError(
-            f"Other Failure subtype {subtype} must cite one of {sorted(expected)}"
-        )
+    failure_type = str(incoming["failure_type"])
+    existing = by_type.get(failure_type)
+    if existing is None:
+        by_type[failure_type] = incoming
+        return
+    existing_evidence = list(existing.get("failure_evidence") or [])
+    existing_evidence.extend(incoming.get("failure_evidence") or [])
+    existing["failure_evidence"] = existing_evidence
+    existing["recovered"] = bool(existing.get("recovered") and incoming.get("recovered"))
+    existing["final_output_impacted"] = bool(
+        existing.get("final_output_impacted") or incoming.get("final_output_impacted")
+    )
 
 
 def _assessment_types(assessments: list[dict[str, Any]]) -> list[str]:
@@ -898,7 +886,17 @@ def apply_log_failure_analysis(
         run_log = run_logs_by_id.get(str(score.get("run_id") or ""))
         if run_log is None:
             continue
-        analyzer_assessments = score.get("failure_analyzer_assessments")
+        raw_failure_evaluation = score.get("raw_failure_evaluation")
+        if isinstance(raw_failure_evaluation, dict) and raw_failure_evaluation:
+            analyzer_assessments, normalizations = _normalized_failure_assessment(
+                raw_failure_evaluation, run_log
+            )
+            score["failure_analyzer_assessments"] = analyzer_assessments
+            score["failure_analyzer_types"] = _assessment_types(analyzer_assessments)
+            score["failure_analysis_complete"] = True
+            score["failure_analysis_normalizations"] = normalizations
+        else:
+            analyzer_assessments = score.get("failure_analyzer_assessments")
         if not isinstance(analyzer_assessments, list):
             analyzer_assessments = _legacy_analyzer_assessments(score)
         failure_types, failure_assessments, source = _apply_log_failure_rules(
@@ -908,12 +906,6 @@ def apply_log_failure_analysis(
             score,
             {},
         )
-        if (
-            score.get("failure_analysis_status") == "error"
-            and source == "failure_analyzer"
-        ):
-            source = "failure_analyzer_error_fallback"
-
         score.update(
             {
                 "failure_types": failure_types,
@@ -931,6 +923,9 @@ def apply_log_failure_analysis(
             "failure_analyzer_evidence",
             "judge_failure_type",
             "judge_failure_evidence",
+            "failure_analysis_warnings",
+            "failure_analysis_status",
+            "failure_analysis_error",
         ):
             score.pop(legacy_field, None)
         analyzed += 1
