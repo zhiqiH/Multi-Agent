@@ -379,18 +379,10 @@ def _plot_protocol_parallel_coordinates(
 
     token_values = [summary["mean_tokens"] for summary in available]
     runtime_values = [summary["mean_runtime"] for summary in available]
-    token_bounds = _log_bounds(token_values, expected=(100.0, 100_000.0))
-    runtime_bounds = _log_bounds(runtime_values, expected=(5.0, 100.0))
-    protocol_positions = {
-        summary["protocol"]: (
-            0.5
-            if len(available) == 1
-            else 1 - index / (len(available) - 1)
-        )
-        for index, summary in enumerate(available)
-    }
+    token_bounds = _log_bounds(token_values, padding=0, positive_floor=1.0)
+    runtime_bounds = _linear_bounds(runtime_values)
 
-    x_positions = (0, 1, 2, 3)
+    x_positions = (0, 1, 2)
     fig, ax = plt.subplots(figsize=(11.5, max(6.2, 0.68 * len(available))))
     for x_position in x_positions:
         ax.axvline(x_position, color="#c7c7c7", linewidth=1.0, zorder=0)
@@ -398,10 +390,9 @@ def _plot_protocol_parallel_coordinates(
     for summary in available:
         protocol = summary["protocol"]
         y_values = (
-            protocol_positions[protocol],
-            _log_normalize(summary["mean_tokens"], token_bounds),
-            _log_normalize(summary["mean_runtime"], runtime_bounds),
+            1 - _linear_normalize(summary["mean_runtime"], runtime_bounds),
             min(1.0, max(0.0, summary["mean_quality"])),
+            1 - _log_normalize(summary["mean_tokens"], token_bounds),
         )
         ax.plot(
             x_positions,
@@ -412,35 +403,35 @@ def _plot_protocol_parallel_coordinates(
             linewidth=2.0,
             alpha=0.82,
             zorder=2,
-        )
-        ax.text(
-            -0.04,
-            y_values[0],
-            protocol,
-            ha="right",
-            va="center",
-            fontsize=8.5,
+            label=protocol,
         )
 
-    for x_position, bounds, formatter in (
-        (1, token_bounds, _format_tokens),
-        (2, runtime_bounds, _format_seconds),
-    ):
-        lower, upper = bounds
-        middle = math.sqrt(lower * upper)
-        for value in (lower, middle, upper):
-            ax.text(
-                x_position + 0.035,
-                _log_normalize(value, bounds),
-                formatter(value),
-                ha="left",
-                va="center",
-                fontsize=8,
-                color="#555555",
-            )
+    runtime_lower, runtime_upper = runtime_bounds
+    for value in (runtime_lower, (runtime_lower + runtime_upper) / 2, runtime_upper):
+        ax.text(
+            -0.035,
+            1 - _linear_normalize(value, runtime_bounds),
+            _format_seconds(value),
+            ha="right",
+            va="center",
+            fontsize=8,
+            color="#555555",
+        )
+
+    token_lower, token_upper = token_bounds
+    for value in (token_lower, math.sqrt(token_lower * token_upper), token_upper):
+        ax.text(
+            2.035,
+            1 - _log_normalize(value, token_bounds),
+            _format_tokens(value),
+            ha="left",
+            va="center",
+            fontsize=8,
+            color="#555555",
+        )
     for value in (0.0, 0.5, 1.0):
         ax.text(
-            3.035,
+            1.035,
             value,
             f"{value:.1f}",
             ha="left",
@@ -449,11 +440,11 @@ def _plot_protocol_parallel_coordinates(
             color="#555555",
         )
 
-    ax.set_xlim(-0.65, 3.3)
+    ax.set_xlim(-0.28, 2.28)
     ax.set_ylim(-0.04, 1.04)
     ax.set_xticks(
         x_positions,
-        labels=("Protocol", "Mean tokens (log)", "Mean time (log)", "Mean quality"),
+        labels=("Mean time", "Mean quality", "Mean tokens (log)"),
     )
     ax.xaxis.tick_top()
     ax.tick_params(axis="x", length=0, pad=9)
@@ -462,6 +453,14 @@ def _plot_protocol_parallel_coordinates(
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.set_title("Protocol Resource–Quality Profiles", pad=28)
+    ax.legend(
+        title="Protocol",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0,
+        fontsize=8.5,
+        frameon=True,
+    )
     return _save(fig, figure_dir / "protocol_parallel_coordinates.png", dpi)
 
 
@@ -547,10 +546,10 @@ def _protocol_metric_means(
 
 
 def _log_bounds(
-    values: list[float], *, expected: tuple[float, float]
+    values: list[float], *, padding: float, positive_floor: float
 ) -> tuple[float, float]:
-    lower = min(expected[0], min(values))
-    upper = max(expected[1], max(values))
+    lower = max(positive_floor, min(values) - padding)
+    upper = max(values) + padding
     if math.isclose(lower, upper):
         return lower / 10, upper * 10
     return lower, upper
@@ -561,6 +560,20 @@ def _log_normalize(value: float, bounds: tuple[float, float]) -> float:
     return (math.log10(value) - math.log10(lower)) / (
         math.log10(upper) - math.log10(lower)
     )
+
+
+def _linear_bounds(values: list[float]) -> tuple[float, float]:
+    lower = min(values)
+    upper = max(values)
+    if math.isclose(lower, upper):
+        padding = max(0.5, abs(lower) * 0.05)
+        return max(0.0, lower - padding), upper + padding
+    return lower, upper
+
+
+def _linear_normalize(value: float, bounds: tuple[float, float]) -> float:
+    lower, upper = bounds
+    return (value - lower) / (upper - lower)
 
 
 def _format_tokens(value: float) -> str:
