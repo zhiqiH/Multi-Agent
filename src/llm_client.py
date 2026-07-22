@@ -38,6 +38,7 @@ _EFFECTIVE_CONFIG_KEYS = {
     "request_options",
     "role_max_output_tokens",
     "judge_max_tokens",
+    "failure_analysis_max_tokens",
     "pricing_per_1m_tokens",
 }
 
@@ -154,7 +155,7 @@ def resolve_profile(
         raise ValueError(f"Profile '{selected_name}' has no api_key_env")
     if not max_tokens_param or any(character.isspace() for character in max_tokens_param):
         raise ValueError(f"Profile '{selected_name}' has an invalid max_tokens_param")
-    for token_field in ("max_tokens", "judge_max_tokens"):
+    for token_field in ("max_tokens", "judge_max_tokens", "failure_analysis_max_tokens"):
         try:
             token_value = int(resolved.get(token_field, 0))
         except (TypeError, ValueError) as exc:

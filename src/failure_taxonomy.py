@@ -16,19 +16,31 @@ FAILURE_TYPES = (
     "Over-Collaboration",
     "Manager Bottleneck",
     "Noise Accumulation",
-    "Tool Failure",
+    "Other Failure",
+)
+
+LEGACY_FAILURE_ALIASES = {
+    "Tool Failure": "Other Failure",
+}
+
+MINIMAL_FAILURE_PROMPT = (
+    "Classify failure independently of score. Use the protocol log to prove one of the eight "
+    "collaboration failures; use Other Failure only for a concrete logged non-collaboration "
+    "failure such as a tool, single-agent execution/output, or objectively verifiable final-answer "
+    "failure. Use None when no category has observable evidence. A high score may still have a "
+    "failure; a low score alone is never evidence."
 )
 
 FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
     NO_FAILURE: {
         "definition": (
-            "No dominant multi-agent collaboration failure is observable. The answer may still contain "
-            "ordinary factual errors, weak reasoning, or minor omissions."
+            "None of the nine failure types has sufficient observable log evidence. The answer may still "
+            "receive a low quality score because of ordinary factual errors, weak reasoning, or omissions."
         ),
         "observable_signals": (
-            "Use only when none of the nine failure types passes its evidence gate. "
-            "Single-agent runs normally use None, but may use Tool Failure when the raw execution log "
-            "objectively shows that a required or prohibited tool constraint failed."
+            "Use when all failure evidence gates remain unmet, regardless of answer score. Single-agent "
+            "runs normally use None, but may use Other Failure when a concrete execution, tool, or output "
+            "failure is visible in the trusted log."
         ),
     },
     "Coordination Failure": {
@@ -68,9 +80,9 @@ FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
             "or expands it without verification, allowing the same claim to enter the final output."
         ),
         "observable_signals": (
-            "The same identifiable unsupported claim appears in an upstream message and the final output, with an "
-            "observable downstream acceptance or missed correction. A hallucination appearing only in the final output "
-            "is an ordinary answer error, not propagation."
+            "The same identifiable unsupported claim appears in an upstream message, at least one downstream message "
+            "that accepts, repeats, or expands it, and the final output. A hallucination appearing only in the final "
+            "output is an answer error, not propagation."
         ),
     },
     "Premature Consensus": {
@@ -116,26 +128,30 @@ FAILURE_DEFINITIONS: dict[str, dict[str, str]] = {
             "output. Workspace size or message count alone is insufficient."
         ),
     },
-    "Tool Failure": {
+    "Other Failure": {
         "definition": (
-            "The run fails an explicit tool requirement or tool contract, so required evidence is not successfully "
-            "obtained, a prohibited tool is used, or the final answer depends on an invalid tool execution."
+            "A concrete non-collaboration failure materially affects task completion or the final output and cannot "
+            "be classified as any of the eight collaboration failures. This includes objective tool-policy or tool-"
+            "execution failures, observable single-agent execution or output failures, and an objectively wrong or "
+            "unusable final answer when no collaboration-process cause is traceable."
         ),
         "observable_signals": (
-            "The raw log records tool_requirement_satisfied=false for a Required task, a tool call or output-contract "
-            "failure that makes execution invalid, an unauthorized tool call, or tool use on a Prohibited task. "
-            "A harmless failed optional call is insufficient."
+            "The trusted log shows a required tool condition or output contract failing, prohibited or unauthorized "
+            "tool use, an execution error, an empty, truncated, or malformed output, or a specific material answer "
+            "error directly verifiable against the task and ground truth. Use this residual category only when no "
+            "collaboration category fits. A low score by itself is insufficient."
         ),
     },
 }
 
 
-def display_failure_type(value: Any) -> str:
-    """Normalize a stored failure value and return its figure label."""
+def normalize_failure_type(value: Any) -> str:
+    """Normalize current and legacy stored failure values."""
 
     normalized = str(value or "").strip()
     if normalized.lower().replace(" ", "") in {"", "none", "nofailure"}:
-        return NO_FAILURE_DISPLAY
+        return NO_FAILURE
+    normalized = LEGACY_FAILURE_ALIASES.get(normalized, normalized)
     if normalized not in FAILURE_TYPES:
         raise ValueError(
             f"Unknown failure_type={normalized!r}; expected one of: {', '.join(FAILURE_TYPES)}"
@@ -143,10 +159,17 @@ def display_failure_type(value: Any) -> str:
     return normalized
 
 
+def display_failure_type(value: Any) -> str:
+    """Normalize a stored failure value and return its figure label."""
+
+    normalized = normalize_failure_type(value)
+    return NO_FAILURE_DISPLAY if normalized == NO_FAILURE else normalized
+
+
 def failure_prompt_text() -> str:
     """Render the single authoritative taxonomy for the Judge prompt."""
 
-    sections: list[str] = []
+    sections: list[str] = [MINIMAL_FAILURE_PROMPT]
     for failure_type in FAILURE_TYPES:
         details = FAILURE_DEFINITIONS[failure_type]
         sections.append(

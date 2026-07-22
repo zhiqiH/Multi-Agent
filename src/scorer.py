@@ -3,13 +3,12 @@ from __future__ import annotations
 import json
 import re
 from difflib import SequenceMatcher
-from statistics import mean
 from typing import Any
 
 from .evidence import build_evidence_audit, compact_evidence_audit
-from .failure_taxonomy import FAILURE_TYPES, NO_FAILURE
+from .failure_taxonomy import FAILURE_TYPES, NO_FAILURE, normalize_failure_type
 from .llm_client import LLMClient
-from .prompts import scoring_prompt
+from .prompts import failure_analysis_prompt, scoring_prompt
 from .response_audit import apply_criterion_caps, build_response_audit
 
 
@@ -27,52 +26,65 @@ def build_score_id(run_log: dict[str, Any], client: LLMClient) -> str:
     return f"{build_result_run_id(run_log)}__judge-{_slug_component(client.model)}"
 
 
+def _request_json_response(
+    client: LLMClient,
+    messages: list[dict[str, Any]],
+    *,
+    max_tokens: int,
+    label: str,
+) -> tuple[Any, dict[str, Any]]:
+    response = client.chat(
+        messages,
+        response_format={"type": "json_object"},
+        max_tokens=max_tokens,
+    )
+    if not response.content.strip():
+        detail = (
+            f"finish_reason={response.finish_reason or 'unknown'}, "
+            f"output_tokens={response.output_tokens}"
+        )
+        raise RuntimeError(f"{label} returned no visible JSON content ({detail}).")
+    if response.finish_reason == "length":
+        raise RuntimeError(f"{label} reached its token limit before returning complete JSON.")
+    return response, _parse_json_object(response.content)
+
+
+def _reject_cross_scope_fields(
+    payload: dict[str, Any], *, forbidden: set[str], label: str
+) -> None:
+    unexpected = sorted(forbidden.intersection(payload))
+    if unexpected:
+        raise ValueError(f"{label} returned fields outside its isolated scope: {unexpected}")
+
+
 def score_run_log(
     run_log: dict[str, Any],
     task: dict[str, Any],
     client: LLMClient,
 ) -> dict[str, Any]:
-    evidence_audit = build_evidence_audit(run_log, task, run_log["final_output"])
-    response_audit = build_response_audit(task, run_log["final_output"], evidence_audit)
-    failure_trace = _build_failure_trace(run_log)
-    messages = scoring_prompt(
-        task,
-        run_log["final_output"],
-        evidence_audit,
-        response_audit,
-        failure_trace,
-    )
     effective_config = dict(getattr(client, "effective_config", {}) or {})
     judge_max_tokens = int(effective_config["judge_max_tokens"])
-    response = client.chat(messages, response_format={"type": "json_object"}, max_tokens=judge_max_tokens)
-    if not response.content.strip():
-        detail = f"finish_reason={response.finish_reason or 'unknown'}, output_tokens={response.output_tokens}"
-        raise RuntimeError(
-            "Judge returned no visible JSON content "
-            f"({detail}). Increase judge_max_tokens or reduce reasoning effort."
-        )
-    if response.finish_reason == "length":
-        raise RuntimeError(
-            "Judge response reached its token limit before a complete score was guaranteed. "
-            "Increase judge_max_tokens or reduce reasoning effort."
-        )
-    parsed = _parse_json_object(response.content)
-    evidence_assessment = _validated_evidence_assessment(parsed.get("evidence_assessment"))
-    judge_failure_type, failure_evidence = _validated_failure_assessment(parsed, run_log)
-    judge_failure_evidence = list(failure_evidence)
-    failure_type, failure_evidence, failure_classification_source = (
-        _apply_log_failure_rules(
-            judge_failure_type,
-            failure_evidence,
-            run_log,
-            task,
-            evidence_audit,
-            response_audit,
-        )
+    failure_analysis_max_tokens = int(effective_config["failure_analysis_max_tokens"])
+
+    # This request is constructed and completed before any protocol trace is built.
+    quality_response, parsed = _request_json_response(
+        client,
+        scoring_prompt(task, run_log["final_output"]),
+        max_tokens=judge_max_tokens,
+        label="Quality Judge",
     )
+    _reject_cross_scope_fields(
+        parsed,
+        forbidden={"failure_type", "failure_evidence"},
+        label="Quality Judge",
+    )
+    evidence_assessment = _validated_evidence_assessment(parsed.get("evidence_assessment"))
     judge_criterion_scores = _validated_criterion_scores(
         task.get("evaluation_criteria", []), parsed.get("criterion_scores")
     )
+
+    evidence_audit = build_evidence_audit(run_log, task, run_log["final_output"])
+    response_audit = build_response_audit(task, run_log["final_output"], evidence_audit)
     criterion_scores = apply_criterion_caps(judge_criterion_scores, response_audit)
 
     accuracy_raw = _clamp_int(parsed.get("accuracy_raw", 3), 1, 5)
@@ -120,8 +132,67 @@ def score_run_log(
     agent_tokens = max(1, int(run_log.get("total_tokens", 0)))
     quality_token_ratio = round(overall_quality_score / agent_tokens, 8)
 
+    # Failure analysis starts only after every quality component and cap is fixed.
+    failure_trace = _build_failure_trace(run_log)
+    failure_response = None
+    failure_parsed: dict[str, Any] = {}
+    failure_analysis_error: str | None = None
+    failure_analyzer_type = NO_FAILURE
+    failure_evidence: list[dict[str, Any]] = []
+    try:
+        failure_response, failure_parsed = _request_json_response(
+            client,
+            failure_analysis_prompt(task, run_log["final_output"], failure_trace),
+            max_tokens=failure_analysis_max_tokens,
+            label="Failure analyzer",
+        )
+        _reject_cross_scope_fields(
+            failure_parsed,
+            forbidden={
+                "criterion_scores",
+                "evidence_assessment",
+                "overall_score_cap",
+                "cap_reasons",
+                "accuracy_raw",
+                "completeness_norm",
+                "helpfulness_raw",
+                "hallucination_rate",
+            },
+            label="Failure analyzer",
+        )
+        failure_analyzer_type, failure_evidence = _validated_failure_assessment(
+            failure_parsed, run_log
+        )
+    except Exception as exc:  # Keep an already-computed blind quality score.
+        failure_analysis_error = str(exc)
+    failure_analyzer_evidence = list(failure_evidence)
+    failure_type, failure_evidence, failure_classification_source = (
+        _apply_log_failure_rules(
+            failure_analyzer_type,
+            failure_evidence,
+            run_log,
+            task,
+            evidence_audit,
+            response_audit,
+        )
+    )
+    if failure_analysis_error and failure_classification_source == "failure_analyzer":
+        failure_classification_source = "failure_analyzer_error_fallback"
+
     judge_model = client.model
-    judge_estimated_cost = _estimate_judge_cost(client, response.input_tokens, response.output_tokens)
+    quality_judge_estimated_cost = _estimate_judge_cost(
+        client, quality_response.input_tokens, quality_response.output_tokens
+    )
+    failure_analyzer_estimated_cost = (
+        _estimate_judge_cost(
+            client, failure_response.input_tokens, failure_response.output_tokens
+        )
+        if failure_response is not None
+        else 0.0
+    )
+    judge_estimated_cost = round(
+        quality_judge_estimated_cost + failure_analyzer_estimated_cost, 8
+    )
     agent_cost = float(run_log.get("estimated_cost", 0.0) or 0.0)
     total_estimated_cost = round(agent_cost + judge_estimated_cost, 8)
 
@@ -216,19 +287,42 @@ def score_run_log(
         "failure_type": failure_type,
         "failure_evidence": failure_evidence,
         "failure_classification_source": failure_classification_source,
-        "judge_failure_type": judge_failure_type,
-        "judge_failure_evidence": judge_failure_evidence,
+        "failure_analyzer_type": failure_analyzer_type,
+        "failure_analyzer_evidence": failure_analyzer_evidence,
+        "failure_analysis_status": "error" if failure_analysis_error else "success",
+        "failure_analysis_error": failure_analysis_error,
         "detected_failure_risks": parsed.get("detected_failure_risks") or [],
         "judge_evidence_assessment": evidence_assessment,
         "evidence_audit": compact_evidence_audit(evidence_audit),
         "notes": parsed.get("notes", ""),
-        "scorer_input_tokens": response.input_tokens,
-        "scorer_output_tokens": response.output_tokens,
-        "scorer_total_tokens": response.total_tokens,
-        "judge_finish_reason": response.finish_reason,
+        "quality_judge_input_tokens": quality_response.input_tokens,
+        "quality_judge_output_tokens": quality_response.output_tokens,
+        "quality_judge_total_tokens": quality_response.total_tokens,
+        "quality_judge_finish_reason": quality_response.finish_reason,
+        "quality_judge_estimated_cost": quality_judge_estimated_cost,
+        "failure_analyzer_input_tokens": (
+            failure_response.input_tokens if failure_response is not None else 0
+        ),
+        "failure_analyzer_output_tokens": (
+            failure_response.output_tokens if failure_response is not None else 0
+        ),
+        "failure_analyzer_total_tokens": (
+            failure_response.total_tokens if failure_response is not None else 0
+        ),
+        "failure_analyzer_finish_reason": (
+            failure_response.finish_reason if failure_response is not None else "error"
+        ),
+        "failure_analyzer_estimated_cost": failure_analyzer_estimated_cost,
+        "scorer_input_tokens": quality_response.input_tokens
+        + (failure_response.input_tokens if failure_response is not None else 0),
+        "scorer_output_tokens": quality_response.output_tokens
+        + (failure_response.output_tokens if failure_response is not None else 0),
+        "scorer_total_tokens": quality_response.total_tokens
+        + (failure_response.total_tokens if failure_response is not None else 0),
         "judge_estimated_cost": judge_estimated_cost,
         "total_estimated_cost": total_estimated_cost,
-        "raw_evaluation": parsed,
+        "raw_quality_evaluation": parsed,
+        "raw_failure_evaluation": failure_parsed,
     }
 
 
@@ -309,16 +403,18 @@ def _tool_execution_summary(run_log: dict[str, Any]) -> dict[str, Any]:
 def _validated_failure_assessment(
     parsed: dict[str, Any], run_log: dict[str, Any]
 ) -> tuple[str, list[dict[str, Any]]]:
-    raw_failure_type = str(parsed.get("failure_type") or NO_FAILURE).strip()
-    if raw_failure_type not in FAILURE_TYPES:
+    try:
+        raw_failure_type = normalize_failure_type(parsed.get("failure_type"))
+    except ValueError as exc:
         raise ValueError(
-            f"Judge failure_type must be one of {FAILURE_TYPES}; got {raw_failure_type!r}"
-        )
+            f"Failure analyzer failure_type must be one of {FAILURE_TYPES}; "
+            f"got {parsed.get('failure_type')!r}"
+        ) from exc
     raw_evidence = parsed.get("failure_evidence")
     if not isinstance(raw_evidence, list):
-        raise ValueError("Judge output must include failure_evidence as a list")
+        raise ValueError("Failure analyzer output must include failure_evidence as a list")
     if len(raw_evidence) > 3:
-        raise ValueError("Judge failure_evidence may contain at most three observable signals")
+        raise ValueError("Failure analyzer may return at most three observable signals")
 
     message_records = {
         str(message.get("message_id") or f"m{index:03d}"): message
@@ -349,7 +445,9 @@ def _validated_failure_assessment(
         normalized_refs = list(dict.fromkeys(ref.strip() for ref in refs if ref.strip()))
         unknown_refs = sorted(set(normalized_refs) - valid_refs)
         if unknown_refs:
-            raise ValueError(f"Judge failure_evidence contains unknown trace_refs: {unknown_refs}")
+            raise ValueError(
+                f"Failure analyzer contains unknown trace_refs: {unknown_refs}"
+            )
         referenced.update(normalized_refs)
         evidence.append({"signal": signal.strip(), "trace_refs": normalized_refs})
 
@@ -357,25 +455,26 @@ def _validated_failure_assessment(
         if evidence:
             raise ValueError("failure_evidence must be empty when failure_type is None")
         return raw_failure_type, []
-    if run_log.get("protocol_id") == "single_agent" and raw_failure_type != "Tool Failure":
-        raise ValueError("Single-agent runs may only be assigned Tool Failure or None")
+    if run_log.get("protocol_id") == "single_agent" and raw_failure_type != "Other Failure":
+        raise ValueError("Single-agent runs may only be assigned Other Failure or None")
     if not evidence:
         raise ValueError("A non-None failure_type requires observable failure_evidence")
     if "final_output" not in referenced:
-        raise ValueError("A collaboration failure must cite final_output to show material downstream impact")
+        raise ValueError("A non-None failure must cite final_output to show material downstream impact")
     referenced_messages = referenced.intersection(message_refs)
     if raw_failure_type == "Coordination Failure" and len(referenced_messages) < 2:
         raise ValueError("Coordination Failure must cite at least two recorded Agent messages")
     if raw_failure_type in {
         "Communication Failure",
         "Role Confusion",
-        "Hallucination Propagation",
     } and not referenced_messages:
         raise ValueError(f"{raw_failure_type} must cite at least one recorded intermediate message")
+    if raw_failure_type == "Hallucination Propagation" and len(referenced_messages) < 2:
+        raise ValueError(
+            "Hallucination Propagation must cite an upstream and a downstream intermediate message"
+        )
     if raw_failure_type == "Premature Consensus" and len(referenced_messages) < 2:
         raise ValueError("Premature Consensus must cite at least two recorded Agent messages")
-    if raw_failure_type == "Tool Failure" and "tool_execution" not in referenced:
-        raise ValueError("Tool Failure must cite tool_execution from the raw execution log")
     if raw_failure_type == "Over-Collaboration":
         if "run_metrics" not in referenced:
             raise ValueError(
@@ -421,67 +520,39 @@ def _apply_log_failure_rules(
     del task, response_audit
     tool_failure = _tool_failure_from_log(run_log, evidence_audit)
     if tool_failure is not None:
-        return "Tool Failure", tool_failure, "deterministic_log_audit"
+        return "Other Failure", tool_failure, "deterministic_log_audit"
 
     over_collaboration = _budget_over_collaboration_from_log(run_log)
     if over_collaboration is not None:
         return "Over-Collaboration", over_collaboration, "deterministic_log_audit"
 
-    if run_log.get("protocol_id") == "single_agent" and failure_type != "Tool Failure":
+    if run_log.get("protocol_id") == "single_agent" and failure_type != "Other Failure":
         return NO_FAILURE, [], "deterministic_log_audit"
-    return failure_type, failure_evidence, "judge"
+    return failure_type, failure_evidence, "failure_analyzer"
 
 
 def apply_log_failure_analysis(
     scores: list[dict[str, Any]],
     run_logs_by_id: dict[str, dict[str, Any]],
-    *,
-    relative_drop_threshold: float = 0.15,
 ) -> int:
-    """Re-audit every score from its raw log and a matching Single Agent baseline."""
-
-    baseline_groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
-    for score in scores:
-        if score.get("protocol") != "Single Agent":
-            continue
-        baseline_log = run_logs_by_id.get(str(score.get("run_id") or ""))
-        if baseline_log is None or _tool_failure_from_log(baseline_log, score) is not None:
-            continue
-        baseline_groups.setdefault(_baseline_key(score), []).append(score)
+    """Re-audit every classification from its raw log, independently of quality scores."""
 
     analyzed = 0
     for score in scores:
         run_log = run_logs_by_id.get(str(score.get("run_id") or ""))
         if run_log is None:
             continue
-        baselines = baseline_groups.get(_baseline_key(score), [])
-        baseline_score = (
-            mean(float(item.get("overall_quality_score") or 0.0) for item in baselines)
-            if baselines
-            else None
-        )
-        baseline_tokens = (
-            mean(float(item.get("total_tokens") or 0.0) for item in baselines)
-            if baselines
-            else None
-        )
-        quality = float(score.get("overall_quality_score") or 0.0)
-        relative_drop = (
-            max(0.0, (baseline_score - quality) / baseline_score)
-            if baseline_score is not None and baseline_score > 0
-            else None
-        )
-        suspected = bool(
-            run_log.get("protocol_id") != "single_agent"
-            and relative_drop is not None
-            and relative_drop > relative_drop_threshold
-        )
-
-        judge_type = str(score.get("judge_failure_type") or NO_FAILURE)
-        if judge_type not in FAILURE_TYPES:
+        try:
+            judge_type = normalize_failure_type(
+                score.get("failure_analyzer_type", score.get("judge_failure_type"))
+            )
+        except ValueError:
             judge_type = NO_FAILURE
         judge_evidence = (
-            score.get("judge_failure_evidence", score.get("failure_evidence"))
+            score.get(
+                "failure_analyzer_evidence",
+                score.get("judge_failure_evidence", score.get("failure_evidence")),
+            )
             if judge_type != NO_FAILURE
             else []
         )
@@ -495,48 +566,21 @@ def apply_log_failure_analysis(
             score,
             {},
         )
-
-        if failure_type == NO_FAILURE and suspected:
-            relative_over_collaboration = _relative_over_collaboration_from_log(
-                run_log,
-                baseline_tokens=baseline_tokens,
-                relative_drop=relative_drop,
-            )
-            if relative_over_collaboration is not None:
-                failure_type = "Over-Collaboration"
-                failure_evidence = relative_over_collaboration
-                source = "relative_log_audit"
+        if (
+            score.get("failure_analysis_status") == "error"
+            and source == "failure_analyzer"
+        ):
+            source = "failure_analyzer_error_fallback"
 
         score.update(
             {
                 "failure_type": failure_type,
                 "failure_evidence": failure_evidence,
                 "failure_classification_source": source,
-                "single_agent_baseline_score": (
-                    round(baseline_score, 4) if baseline_score is not None else None
-                ),
-                "relative_score_drop": (
-                    round(relative_drop, 4) if relative_drop is not None else None
-                ),
-                "relative_failure_suspected": suspected,
-                "failure_analysis_condition": {
-                    "source": "raw_log",
-                    "relative_single_agent_drop_threshold": relative_drop_threshold,
-                },
             }
         )
         analyzed += 1
     return analyzed
-
-
-def _baseline_key(score: dict[str, Any]) -> tuple[str, str, str, str]:
-    return (
-        str(score.get("benchmark_id") or ""),
-        str(score.get("task_id") or ""),
-        str(score.get("agent_model") or ""),
-        str(score.get("judge_model") or ""),
-    )
-
 
 def _tool_failure_from_log(
     run_log: dict[str, Any], evidence_audit: dict[str, Any]
@@ -615,32 +659,6 @@ def _budget_over_collaboration_from_log(
                 "termination_reason",
                 "final_output",
             ],
-        }
-    ]
-
-
-def _relative_over_collaboration_from_log(
-    run_log: dict[str, Any], *, baseline_tokens: float | None, relative_drop: float
-) -> list[dict[str, Any]] | None:
-    repeated_pair = _most_repeated_message_pair(run_log)
-    total_tokens = float(run_log.get("total_tokens") or 0.0)
-    if (
-        baseline_tokens is None
-        or baseline_tokens <= 0
-        or total_tokens < 1.5 * baseline_tokens
-        or repeated_pair is None
-    ):
-        return None
-    first_ref, second_ref, similarity = repeated_pair
-    signal = (
-        f"Quality was {relative_drop:.1%} below the matching Single Agent baseline while the run used "
-        f"{total_tokens / baseline_tokens:.1f}x its tokens and repeated highly similar work in "
-        f"{first_ref} and {second_ref} (similarity={similarity:.2f})."
-    )
-    return [
-        {
-            "signal": signal,
-            "trace_refs": [first_ref, second_ref, "run_metrics", "final_output"],
         }
     ]
 

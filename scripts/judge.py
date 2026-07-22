@@ -68,24 +68,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Only score logs produced by these Agent model IDs.",
     )
-    parser.add_argument(
-        "--relative-failure-drop",
-        type=float,
-        default=0.15,
-        help=(
-            "Flag a multi-agent run when its quality is more than this fraction below "
-            "the matching Single Agent baseline; a failure type is assigned only when "
-            "the raw log also supplies the required signal (default: 0.15)."
-        ),
-    )
-
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    if not 0.0 <= args.relative_failure_drop <= 1.0:
-        raise SystemExit("--relative-failure-drop must be between 0 and 1")
     model_config = read_json(_project_path(args.model_config))
     if args.list_models:
         _print_model_profiles(model_config)
@@ -127,7 +114,7 @@ def main() -> int:
 
     print(f"Benchmark: {benchmark_path}")
     print(f"Logs: {logs_dir} (current directory only)")
-    print(f"Judge-visible fields: {', '.join(judge_fields)}")
+    print(f"Quality-Judge-visible benchmark fields: {', '.join(judge_fields)}")
 
     scored = 0
     skipped = 0
@@ -147,13 +134,20 @@ def main() -> int:
             "judge_profile": client.profile,
             "judge_model": client.model,
             "judge_effective_config": effective_config,
-            "judge_visible_fields": list(judge_fields),
-            "uses_run_evidence_audit": True,
+            "quality_judge_visible_benchmark_fields": list(judge_fields),
+            "quality_judge_agent_content_scope": "final_output_only",
+            "quality_judge_uses_run_evidence_audit": False,
+            "quality_judge_uses_protocol_trace": False,
+            "failure_analyzer_agent_content_scope": "intermediate_messages_and_final_output",
+            "failure_analyzer_affects_quality_score": False,
             "failure_taxonomy": list(FAILURE_TYPES),
-            "uses_protocol_failure_trace": True,
+            "failure_analyzer_uses_protocol_trace": True,
+            "uses_deterministic_evidence_audit": True,
             "uses_deterministic_log_failure_audit": True,
         }
         print(f"Judge model: {client.model}")
+        print("Quality Judge Agent content: final output only")
+        print("Failure analyzer Agent content: protocol log and final output; cannot affect quality")
 
         for path in log_paths:
             run_log = read_json(path)
@@ -246,11 +240,7 @@ def main() -> int:
             print(_format_score_result(task_id, run_log, score, client.model))
             scored += 1
 
-    failure_analyzed = apply_log_failure_analysis(
-        scores,
-        run_logs_by_id,
-        relative_drop_threshold=args.relative_failure_drop,
-    )
+    failure_analyzed = apply_log_failure_analysis(scores, run_logs_by_id)
     write_jsonl(scores_path, scores)
     scores_csv_path = results_dir / "scores.csv"
     errors_path = results_dir / "scoring_errors.jsonl"
@@ -268,6 +258,9 @@ def main() -> int:
     audited_scores = [
         score for score in scores if str(score.get("run_id") or "") in run_logs_by_id
     ]
+    failure_analysis_errors = sum(
+        score.get("failure_analysis_status") == "error" for score in audited_scores
+    )
     failure_counts = Counter(str(score.get("failure_type") or "None") for score in audited_scores)
     print(
         "Failure audit: "
@@ -281,7 +274,8 @@ def main() -> int:
         f"scored={scored}, skipped={skipped}, "
         f"unknown_task_skipped={skipped_unknown_task}, "
         f"malformed={malformed}, errors={len(scoring_errors)}, "
-        f"failure_logs_analyzed={failure_analyzed}"
+        f"failure_logs_analyzed={failure_analyzed}, "
+        f"failure_analysis_errors={failure_analysis_errors}"
     )
     print(f"Results: {results_dir}")
     return 0 if not scoring_errors else 2
@@ -412,7 +406,8 @@ def _format_score_result(
     return (
         f"SCORED task={task_id} protocol={run_log['protocol_id']} "
         f"agent={run_log['agent_model']} judge={judge_model} "
-        f"quality={score['overall_quality_score']} tool={_tool_call_signal(score)}"
+        f"quality={score['overall_quality_score']} tool={_tool_call_signal(score)} "
+        f"failure_analysis={score.get('failure_analysis_status', 'unknown')}"
     )
 
 

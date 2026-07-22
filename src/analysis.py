@@ -64,14 +64,19 @@ NUMERIC_FIELDS = [
     "judge_score_cap",
     "evidence_score_cap",
     "overall_score_cap",
+    "quality_judge_input_tokens",
+    "quality_judge_output_tokens",
+    "quality_judge_total_tokens",
+    "quality_judge_estimated_cost",
+    "failure_analyzer_input_tokens",
+    "failure_analyzer_output_tokens",
+    "failure_analyzer_total_tokens",
+    "failure_analyzer_estimated_cost",
     "scorer_input_tokens",
     "scorer_output_tokens",
     "scorer_total_tokens",
     "judge_estimated_cost",
     "total_estimated_cost",
-    "single_agent_baseline_score",
-    "relative_score_drop",
-    "relative_failure_suspected",
 ]
 
 SCORE_IDENTITY_FIELDS = [
@@ -156,26 +161,34 @@ SCORE_CSV_FIELDS = SCORE_IDENTITY_FIELDS + [
     "failure_type",
     "failure_evidence",
     "failure_classification_source",
-    "judge_failure_type",
-    "judge_failure_evidence",
-    "single_agent_baseline_score",
-    "relative_score_drop",
-    "relative_failure_suspected",
-    "failure_analysis_condition",
+    "failure_analyzer_type",
+    "failure_analyzer_evidence",
+    "failure_analysis_status",
+    "failure_analysis_error",
     "detected_failure_risks",
     "judge_evidence_assessment",
     "evidence_audit",
     "notes",
+    "quality_judge_input_tokens",
+    "quality_judge_output_tokens",
+    "quality_judge_total_tokens",
+    "quality_judge_finish_reason",
+    "quality_judge_estimated_cost",
+    "failure_analyzer_input_tokens",
+    "failure_analyzer_output_tokens",
+    "failure_analyzer_total_tokens",
+    "failure_analyzer_finish_reason",
+    "failure_analyzer_estimated_cost",
     "scorer_input_tokens",
     "scorer_output_tokens",
     "scorer_total_tokens",
-    "judge_finish_reason",
     "judge_estimated_cost",
     "total_estimated_cost",
     "benchmark_id",
     "benchmark_file",
     "run_validity_warnings",
-    "raw_evaluation",
+    "raw_quality_evaluation",
+    "raw_failure_evaluation",
 ]
 
 CONDITION_GROUP_FIELDS = [
@@ -303,7 +316,7 @@ def write_summary_markdown(
                 )
             )
 
-    lines.extend(["", "## Low-Scoring / Failure Runs", ""])
+    lines.extend(["", "## Lowest-Scoring Runs", ""])
     low = sorted(scores, key=lambda item: _as_float(item.get("overall_quality_score")))[
         : max(1, min(5, len(scores)))
     ]
