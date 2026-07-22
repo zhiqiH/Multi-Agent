@@ -1,0 +1,357 @@
+{
+  "record_type": "agent_run",
+  "run_id": "ec-03__sequential_handoff__gpt-5-nano__run01",
+  "run_number": 1,
+  "task_id": "EC-03",
+  "category": "Educational Content",
+  "difficulty": "Medium",
+  "protocol": "Sequential Handoff",
+  "protocol_id": "sequential_handoff",
+  "protocol_definition": {
+    "condition": "Condition 1",
+    "name": "Sequential Handoff",
+    "active_agents": 4,
+    "message_flow": "Planner -> Researcher -> Analyst -> Writer.",
+    "visibility": "Each agent sees the task and upstream outputs only; no backward messages.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 4,
+    "termination": "Stop after one forward pass and Writer output."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 4,
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 20000,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
+  },
+  "agent_provider": "openai",
+  "agent_model": "gpt-5-nano",
+  "temperature": null,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-22T10:39:20+00:00",
+  "end_time": "2026-07-22T10:39:51+00:00",
+  "runtime_seconds": 30.381,
+  "input_tokens": 4532,
+  "output_tokens": 4253,
+  "total_tokens": 8785,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 20000,
+  "budget_remaining_tokens": 91215,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.0878,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 4000,
+    "Single Agent": 4000,
+    "default": 1300
+  },
+  "role_usage": {
+    "Planner": {
+      "input_tokens": 275,
+      "output_tokens": 900,
+      "total_tokens": 1175,
+      "model_calls": 1,
+      "interactions": 1
+    },
+    "Researcher": {
+      "input_tokens": 282,
+      "output_tokens": 1154,
+      "total_tokens": 1436,
+      "model_calls": 1,
+      "interactions": 1
+    },
+    "Analyst": {
+      "input_tokens": 1417,
+      "output_tokens": 1099,
+      "total_tokens": 2516,
+      "model_calls": 1,
+      "interactions": 1
+    },
+    "Writer": {
+      "input_tokens": 2558,
+      "output_tokens": 1100,
+      "total_tokens": 3658,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.0019278,
+  "active_agent_count": 4,
+  "interaction_count": 4,
+  "model_call_count": 4,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 3,
+  "communication_density": 0.75,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "protocol_artifacts": {
+    "final_call": {
+      "sender": "Writer",
+      "phase": "final",
+      "expected_action": "Write a self-contained final deliverable using verified upstream work. Recheck every hard constraint and required section; omit meta-commentary and do not add unsupported claims.",
+      "finish_reason": "stop"
+    }
+  },
+  "intermediate_messages": [
+    {
+      "message_id": "m001",
+      "sender": "Planner",
+      "recipients": [
+        "Researcher"
+      ],
+      "round": 1,
+      "channel": "handoff",
+      "phase": "handoff",
+      "message_kind": "handoff",
+      "expected_action": "Create a concise execution plan and deliverable structure.",
+      "content": "",
+      "input_tokens": 275,
+      "output_tokens": 900,
+      "total_tokens": 1175,
+      "finish_reason": "length",
+      "response_model": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "message_id": "m002",
+      "sender": "Researcher",
+      "recipients": [
+        "Analyst"
+      ],
+      "round": 1,
+      "channel": "handoff",
+      "phase": "handoff",
+      "message_kind": "handoff",
+      "expected_action": "Use the plan and permitted information to collect evidence, constraints, and missing-evidence warnings.",
+      "content": "1. Clear Definitions of RAG and Fine-Tuning\n\n- Retrieval-Augmented Generation (RAG)\n  - What it is: A combined approach where a generative language model is augmented with a separate retrieval component. At inference time, the system fetches relevant documents from a knowledge source (e.g., internal wiki, documents) and conditions the model’s generation on those retrieved passages.\n  - How it works: Given a user query, a retriever (often a dense or sparse vector index) pulls top-k relevant documents. A generator then crafts a response using both the query and retrieved content, potentially in a re-ranker/fusion step.\n  - Typical benefits: Freshness and specificity can be improved without re-training the base model; avoids storing all knowledge in parameters; can adapt to new information by updating the external retrieval corpus.\n\n- Model Fine-Tuning\n  - What it is: A process where the weights of a pre-trained language model are updated on a task-specific dataset to improve performance on that task.\n  - How it works: The model learns task-relevant patterns (e.g., answering HR policy questions) by gradient updates on labeled examples. After fine-tuning, the model can generate answers without an external retrieval step.\n  - Typical benefits: Strong, stable performance on domain-specific tasks; faster inference since no live retrieval step is required; reduces hallucinations for the trained domain if the data quality is high.\n\n2. Comparison Matrix\n\n- Approach: RAG vs Fine-Tuning\n- Data Freshness: How up-to-date the system’s knowledge is at inference time.\n- Compute Cost: Resources needed for deployment, including latency and hardware.\n- Hallucination Mitigation: Effectiveness at avoiding unsupported or fabricated information.\n\n| Approach | Data Freshness | Compute Cost | Hallucination Mitigation |\n|---------|-----------------|--------------|--------------------------|\n| RAG | High (can incorporate最新 documents by updating the retrieval corpus) | Moderate to High (retrieval step plus generation; may need vector index maintenance and document preprocessing) | Stronger when retrieval sources are high-quality and well-structured; can reduce hallucinations by grounding in retrieved passages, but depends on retrieval quality and fusion strategy |\n| Fine-Tuning | Lower (knowledge is limited to what was in the training data; updates require re-training) | Moderate to High (training on large datasets; inference may be fast but model size matters) | Moderate to strong if the training data is comprehensive and aligned with desired outputs; may still hallucinate if training data lacks coverage or the model overfits |\n\n3. Scenario Application and Recommendation\n\nScenario: A company needs to build an internal knowledge bot that answers questions about daily-updated HR policies. The policies change frequently (e.g., leave rules, benefits, onboarding steps), and employees expect quick, accurate responses. The bot should remain current without requiring constant re-training and should provide sources for verification when possible.\n\nRecommendation: Use a Retrieval-Augmented Generation (RAG) approach with a robust, versioned HR policy corpus as the external knowledge source. Reasons:\n- Data Freshness: HR policies can change weekly or monthly. By updating the external retrieval corpus (documents, policy PDFs, wikis), the bot reflects current policies without re-training the base model.\n- Compute Trade-offs: While there is a retrieval component, the generative model can be smaller or kept constant, and updates to policies only require corpus curation, not model updates.\n- Hallucination Mitigation: Grounding responses in retrieved policy passages improves reliability. Implement a fusion strategy that cites sources and, where appropriate, whether the retrieved content fully supports the answer.\n- Practicality: HR teams can maintain policy documents in a centralized, versioned store. The retrieval index can be refreshed on a schedule (e.g., nightly builds) to ensure up-to-date answers.\n\nImplementation tips:\n- Use a two-step: retriever (dense or hybrid) to fetch top-k policy passages, followed by a generator that conditions on both the user query and retrieved context.\n- Include source citations in every answer and provide a short justification where applicable.\n- Implement guardrails: if confidence is low or no relevant documents are found, gracefully prompt for human review or direct the user to a policy portal.\n- Version control the knowledge corpus and maintain an audit trail of changes for compliance.\n\n4. Knowledge Check\n\nQuestion 1: What is the primary mechanism behind Retrieval-Augmented Generation (RAG)?\nA) Fine-tuning a model on a large labeled dataset\nB) Generating text without any external information\nC) Retrieving relevant documents from an external source to condition generation\nD) Compressing the model to reduce inference time\n\nAnswer: C\nExplanation: RAG combines a retriever to fetch documents with a generator that uses those documents to produce grounded responses.\n\nQuestion 2: Which approach typically requires re-training the model to update its knowledge?\nA) Retrieval-Augmented Generation\nB) Model Fine-Tuning\nC) Both A and B\nD) Neither A nor B\n\nAnswer: B\nExplanation: Fine-tuning updates model weights to reflect new knowledge, whereas RAG updates the external corpus instead of the model.\n\nQuestion 3: In the HR knowledge bot scenario, which benefit is most directly associated with RAG?\nA) Inference speed without any retrieval\nB) The ability to incorporate the latest policies by updating the retrieval corpus\nC) Eliminating the need for any policy documents\nD) Unlimited training data without human supervision\n\nAnswer: B\nExplanation: RAG supports freshness by updating the external knowledge source, allowing the bot to reflect latest HR policies without retraining the base model.",
+      "input_tokens": 282,
+      "output_tokens": 1154,
+      "total_tokens": 1436,
+      "finish_reason": "stop",
+      "response_model": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "message_id": "m003",
+      "sender": "Analyst",
+      "recipients": [
+        "Writer"
+      ],
+      "round": 1,
+      "channel": "handoff",
+      "phase": "handoff",
+      "message_kind": "handoff",
+      "expected_action": "Synthesize upstream work into conclusions tied to the task requirements.",
+      "content": "1. Clear Definitions of RAG and Fine-Tuning\n\n- Retrieval-Augmented Generation (RAG)\n  - What it is: A hybrid approach that pairs a generative language model with an external retrieval component. When a user asks a question, the system fetches relevant documents from a knowledge source (internal wiki, policy PDFs, etc.) and conditions the model’s response on both the query and the retrieved passages.\n  - How it works: A retriever (dense or sparse index) returns top-k documents; a generator composes the answer using the query and retrieved content, often with a fusion or re-ranking step. The base model weights remain unchanged; knowledge is grounded in the external corpus.\n  - Typical benefits: Freshness and specificity without re-training the base model; knowledge can be updated by refreshing the retrieval corpus; reduced need to store all policies in model parameters.\n\n- Model Fine-Tuning\n  - What it is: Updating the weights of a pre-trained language model on task-specific data to improve performance on that task.\n  - How it works: The model learns patterns from labeled examples (e.g., HR questions and answers). After fine-tuning, the model can respond without an external retrieval step and often with faster inference.\n  - Typical benefits: Strong, stable performance in a defined domain; lower latency during inference since there’s no live retrieval step; reduced hallucinations for the trained domain if the data is high quality and representative.\n\n2. Comparison Matrix\n\n- Approach: RAG vs Fine-Tuning\n- Data Freshness: How up-to-date the system’s knowledge is at inference time.\n- Compute Cost: Resources needed for deployment, including latency, storage, and hardware.\n- Hallucination Mitigation: Effectiveness at avoiding fabrications and unsupported statements.\n\n| Approach | Data Freshness | Compute Cost | Hallucination Mitigation |\n|---------|-----------------|--------------|--------------------------|\n| RAG | High (can incorporate latest documents by updating the retrieval corpus) | Moderate to High (retrieval step plus generation; requires maintaining a vector index and document preprocessing) | Stronger when the retrieval sources are high-quality and well-structured; grounding in retrieved passages reduces hallucinations, but relies on retrieval quality and fusion strategy |\n| Fine-Tuning | Lower (knowledge limited to training data; updates require re-training) | Moderate to High (training on sizable datasets; inference can be fast, but model size matters) | Moderate to strong if training data is comprehensive and aligned; may still hallucinate if data is biased or incomprehensive |\n\n3. Scenario Application and Recommendation\n\nScenario: A company needs an internal knowledge bot to answer questions about daily-updated HR policies. Policies change frequently (leave rules, benefits, onboarding steps), and employees expect quick, accurate responses with sources for verification. The bot should stay current without constant re-training.\n\nRecommendation: Use a Retrieval-Augmented Generation (RAG) approach with a robust, versioned HR policy corpus as the external knowledge source.\n\nWhy RAG fits this scenario:\n- Data Freshness: HR policies evolve regularly. Updating the external retrieval corpus (policies, FAQs, wikis) keeps answers current without touching the base model.\n- Compute Trade-offs: Grounding relies on a retrieval step plus generation; the core model can be kept stable, reducing ongoing retraining costs.\n- Hallucination Mitigation: Grounding the answer in retrieved policy passages improves reliability. Implement citation of sources and a confidence signal to surface when the retrieved evidence is weak.\n- Practicality: Centralized, version-controlled policy documents allow the HR team to manage changes with an audit trail. A nightly or near-real-time index refresh ensures freshness.\n\nImplementation tips:\n- Use a two-step pipeline: a retriever (dense or hybrid) to fetch top-k policy passages, followed by a generator that conditions on the user query and retrieved context.\n- Always return source citations and, when applicable, a brief justification.\n- Add guardrails: if confidence is low or no relevant documents are found, escalate to human review or direct users to the policy portal.\n- Version control the knowledge corpus and track changes for compliance.\n\n4. Knowledge Check\n\nQuestion 1: What is the primary mechanism behind Retrieval-Augmented Generation (RAG)?\nA) Fine-tuning a model on a large labeled dataset\nB) Generating text without any external information\nC) Retrieving relevant documents from an external source to condition generation\nD) Compressing the model to reduce inference time\n\nAnswer: C\nExplanation: RAG combines a retriever with a generator, grounding responses in retrieved external content.\n\nQuestion 2: Which approach typically requires re-training the model to update its knowledge?\nA) Retrieval-Augmented Generation\nB) Model Fine-Tuning\nC) Both A and B\nD) Neither A nor B\n\nAnswer: B\nExplanation: Fine-tuning updates model weights; RAG updates come from changing the external corpus, not the base model.\n\nQuestion 3: In the HR knowledge bot scenario, which benefit is most directly associated with RAG?\nA) Inference speed without any retrieval\nB) The ability to incorporate the latest policies by updating the retrieval corpus\nC) Eliminating the need for any policy documents\nD) Unlimited training data without human supervision\n\nAnswer: B\nExplanation: RAG enables freshness by refreshing the external knowledge source without retraining the base model.",
+      "input_tokens": 1417,
+      "output_tokens": 1099,
+      "total_tokens": 2516,
+      "finish_reason": "stop",
+      "response_model": "gpt-5-nano-2025-08-07"
+    }
+  ],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Planner",
+      "round": 1,
+      "channel": "handoff",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Planner. Decompose the task into concrete deliverables, hard constraints, factual checks, and a concise execution plan. Do not invent schedules, future work, or external evidence."
+        },
+        {
+          "role": "user",
+          "content": "You are acting as role: Planner.\n\nTask ID: EC-03\n\nCategory: Educational Content\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nDesign a brief tutorial (approx. 500–700 words) for junior software engineers explaining the differences between Retrieval-Augmented Generation (RAG) and Model Fine-Tuning. Provide a short, practical scenario where a company needs to build an internal knowledge bot based on daily-updated HR policies, and recommend which approach is better.\n\nRequired Output Format:\nUse the following format:\n\n1. Clear Definitions of RAG and Fine-Tuning.\n2. Comparison Matrix (must include exact columns: Approach, Data Freshness, Compute Cost, and Hallucination Mitigation).\n3. Scenario Application and Recommendation paragraph.\n4. Knowledge Check (a 3-question multiple-choice quiz with an answer key and brief explanations).\n\nVisible prior context:\nNo prior agent output is visible.\n\nInstruction:\nCreate a concise execution plan and deliverable structure.\n\nReturn only the content for your role. Do not include hidden chain-of-thought. Use concise reasoning summaries where useful.\n"
+        }
+      ]
+    },
+    {
+      "agent_role": "Researcher",
+      "round": 1,
+      "channel": "handoff",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Researcher. Gather and organize evidence available through the permitted tools and prompt. Reject irrelevant results, preserve exact source identifiers, distinguish verified facts from assumptions, and respect the task tool requirement."
+        },
+        {
+          "role": "user",
+          "content": "You are acting as role: Researcher.\n\nTask ID: EC-03\n\nCategory: Educational Content\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nDesign a brief tutorial (approx. 500–700 words) for junior software engineers explaining the differences between Retrieval-Augmented Generation (RAG) and Model Fine-Tuning. Provide a short, practical scenario where a company needs to build an internal knowledge bot based on daily-updated HR policies, and recommend which approach is better.\n\nRequired Output Format:\nUse the following format:\n\n1. Clear Definitions of RAG and Fine-Tuning.\n2. Comparison Matrix (must include exact columns: Approach, Data Freshness, Compute Cost, and Hallucination Mitigation).\n3. Scenario Application and Recommendation paragraph.\n4. Knowledge Check (a 3-question multiple-choice quiz with an answer key and brief explanations).\n\nVisible prior context:\n[Planner]\n\nInstruction:\nUse the plan and permitted information to collect evidence, constraints, and missing-evidence warnings.\n\nReturn only the content for your role. Do not include hidden chain-of-thought. Use concise reasoning summaries where useful.\n"
+        }
+      ]
+    },
+    {
+      "agent_role": "Analyst",
+      "round": 1,
+      "channel": "handoff",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Analyst. Compare options and produce grounded conclusions tied to every visible constraint. Recalculate numerical claims, test recommendations against hard limits, and flag unsupported facts."
+        },
+        {
+          "role": "user",
+          "content": "You are acting as role: Analyst.\n\nTask ID: EC-03\n\nCategory: Educational Content\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nDesign a brief tutorial (approx. 500–700 words) for junior software engineers explaining the differences between Retrieval-Augmented Generation (RAG) and Model Fine-Tuning. Provide a short, practical scenario where a company needs to build an internal knowledge bot based on daily-updated HR policies, and recommend which approach is better.\n\nRequired Output Format:\nUse the following format:\n\n1. Clear Definitions of RAG and Fine-Tuning.\n2. Comparison Matrix (must include exact columns: Approach, Data Freshness, Compute Cost, and Hallucination Mitigation).\n3. Scenario Application and Recommendation paragraph.\n4. Knowledge Check (a 3-question multiple-choice quiz with an answer key and brief explanations).\n\nVisible prior context:\n[Planner]\n\n\n[Researcher]\n1. Clear Definitions of RAG and Fine-Tuning\n\n- Retrieval-Augmented Generation (RAG)\n  - What it is: A combined approach where a generative language model is augmented with a separate retrieval component. At inference time, the system fetches relevant documents from a knowledge source (e.g., internal wiki, documents) and conditions the model’s generation on those retrieved passages.\n  - How it works: Given a user query, a retriever (often a dense or sparse vector index) pulls top-k relevant documents. A generator then crafts a response using both the query and retrieved content, potentially in a re-ranker/fusion step.\n  - Typical benefits: Freshness and specificity can be improved without re-training the base model; avoids storing all knowledge in parameters; can adapt to new information by updating the external retrieval corpus.\n\n- Model Fine-Tuning\n  - What it is: A process where the weights of a pre-trained language model are updated on a task-specific dataset to improve performance on that task.\n  - How it works: The model learns task-relevant patterns (e.g., answering HR policy questions) by gradient updates on labeled examples. After fine-tuning, the model can generate answers without an external retrieval step.\n  - Typical benefits: Strong, stable performance on domain-specific tasks; faster inference since no live retrieval step is required; reduces hallucinations for the trained domain if the data quality is high.\n\n2. Comparison Matrix\n\n- Approach: RAG vs Fine-Tuning\n- Data Freshness: How up-to-date the system’s knowledge is at inference time.\n- Compute Cost: Resources needed for deployment, including latency and hardware.\n- Hallucination Mitigation: Effectiveness at avoiding unsupported or fabricated information.\n\n| Approach | Data Freshness | Compute Cost | Hallucination Mitigation |\n|---------|-----------------|--------------|--------------------------|\n| RAG | High (can incorporate最新 documents by updating the retrieval corpus) | Moderate to High (retrieval step plus generation; may need vector index maintenance and document preprocessing) | Stronger when retrieval sources are high-quality and well-structured; can reduce hallucinations by grounding in retrieved passages, but depends on retrieval quality and fusion strategy |\n| Fine-Tuning | Lower (knowledge is limited to what was in the training data; updates require re-training) | Moderate to High (training on large datasets; inference may be fast but model size matters) | Moderate to strong if the training data is comprehensive and aligned with desired outputs; may still hallucinate if training data lacks coverage or the model overfits |\n\n3. Scenario Application and Recommendation\n\nScenario: A company needs to build an internal knowledge bot that answers questions about daily-updated HR policies. The policies change frequently (e.g., leave rules, benefits, onboarding steps), and employees expect quick, accurate responses. The bot should remain current without requiring constant re-training and should provide sources for verification when possible.\n\nRecommendation: Use a Retrieval-Augmented Generation (RAG) approach with a robust, versioned HR policy corpus as the external knowledge source. Reasons:\n- Data Freshness: HR policies can change weekly or monthly. By updating the external retrieval corpus (documents, policy PDFs, wikis), the bot reflects current policies without re-training the base model.\n- Compute Trade-offs: While there is a retrieval component, the generative model can be smaller or kept constant, and updates to policies only require corpus curation, not model updates.\n- Hallucination Mitigation: Grounding responses in retrieved policy passages improves reliability. Implement a fusion strategy that cites sources and, where appropriate, whether the retrieved content fully supports the answer.\n- Practicality: HR teams can maintain policy documents in a centralized, versioned store. The retrieval index can be refreshed on a schedule (e.g., nightly builds) to ensure up-to-date answers.\n\nImplementation tips:\n- Use a two-step: retriever (dense or hybrid) to fetch top-k policy passages, followed by a generator that conditions on both the user query and retrieved context.\n- Include source citations in every answer and provide a short justification where applicable.\n- Implement guardrails: if confidence is low or no relevant documents are found, gracefully prompt for human review or direct the user to a policy portal.\n- Version control the knowledge corpus and maintain an audit trail of changes for compliance.\n\n4. Knowledge Check\n\nQuestion 1: What is the primary mechanism behind Retrieval-Augmented Generation (RAG)?\nA) Fine-tuning a model on a large labeled dataset\nB) Generating text without any external information\nC) Retrieving relevant documents from an external source to condition generation\nD) Compressing the model to reduce inference time\n\nAnswer: C\nExplanation: RAG combines a retriever to fetch documents with a generator that uses those documents to produce grounded responses.\n\nQuestion 2: Which approach typically requires re-training the model to update its knowledge?\nA) Retrieval-Augmented Generation\nB) Model Fine-Tuning\nC) Both A and B\nD) Neither A nor B\n\nAnswer: B\nExplanation: Fine-tuning updates model weights to reflect new knowledge, whereas RAG updates the external corpus instead of the model.\n\nQuestion 3: In the HR knowledge bot scenario, which benefit is most directly associated with RAG?\nA) Inference speed without any retrieval\nB) The ability to incorporate the latest policies by updating the retrieval corpus\nC) Eliminating the need for any policy documents\nD) Unlimited training data without human supervision\n\nAnswer: B\nExplanation: RAG supports freshness by updating the external knowledge source, allowing the bot to reflect latest HR policies without retraining the base model.\n\nInstruction:\nSynthesize upstream work into conclusions tied to the task requirements.\n\nReturn only the content for your role. Do not include hidden chain-of-thought. Use concise reasoning summaries where useful.\n"
+        }
+      ]
+    },
+    {
+      "agent_role": "Writer",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Writer. Produce a self-contained final deliverable in the exact required format. Return only the deliverable: never emit role labels, transcript summaries, plans, feedback, apologies, or promises of future work. Resolve conflicts by checking the task constraints, and do not repeat unsupported consensus claims."
+        },
+        {
+          "role": "user",
+          "content": "You are acting as role: Writer.\n\nTask ID: EC-03\n\nCategory: Educational Content\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nDesign a brief tutorial (approx. 500–700 words) for junior software engineers explaining the differences between Retrieval-Augmented Generation (RAG) and Model Fine-Tuning. Provide a short, practical scenario where a company needs to build an internal knowledge bot based on daily-updated HR policies, and recommend which approach is better.\n\nRequired Output Format:\nUse the following format:\n\n1. Clear Definitions of RAG and Fine-Tuning.\n2. Comparison Matrix (must include exact columns: Approach, Data Freshness, Compute Cost, and Hallucination Mitigation).\n3. Scenario Application and Recommendation paragraph.\n4. Knowledge Check (a 3-question multiple-choice quiz with an answer key and brief explanations).\n\nVisible prior context:\n[Planner]\n\n\n[Researcher]\n1. Clear Definitions of RAG and Fine-Tuning\n\n- Retrieval-Augmented Generation (RAG)\n  - What it is: A combined approach where a generative language model is augmented with a separate retrieval component. At inference time, the system fetches relevant documents from a knowledge source (e.g., internal wiki, documents) and conditions the model’s generation on those retrieved passages.\n  - How it works: Given a user query, a retriever (often a dense or sparse vector index) pulls top-k relevant documents. A generator then crafts a response using both the query and retrieved content, potentially in a re-ranker/fusion step.\n  - Typical benefits: Freshness and specificity can be improved without re-training the base model; avoids storing all knowledge in parameters; can adapt to new information by updating the external retrieval corpus.\n\n- Model Fine-Tuning\n  - What it is: A process where the weights of a pre-trained language model are updated on a task-specific dataset to improve performance on that task.\n  - How it works: The model learns task-relevant patterns (e.g., answering HR policy questions) by gradient updates on labeled examples. After fine-tuning, the model can generate answers without an external retrieval step.\n  - Typical benefits: Strong, stable performance on domain-specific tasks; faster inference since no live retrieval step is required; reduces hallucinations for the trained domain if the data quality is high.\n\n2. Comparison Matrix\n\n- Approach: RAG vs Fine-Tuning\n- Data Freshness: How up-to-date the system’s knowledge is at inference time.\n- Compute Cost: Resources needed for deployment, including latency and hardware.\n- Hallucination Mitigation: Effectiveness at avoiding unsupported or fabricated information.\n\n| Approach | Data Freshness | Compute Cost | Hallucination Mitigation |\n|---------|-----------------|--------------|--------------------------|\n| RAG | High (can incorporate最新 documents by updating the retrieval corpus) | Moderate to High (retrieval step plus generation; may need vector index maintenance and document preprocessing) | Stronger when retrieval sources are high-quality and well-structured; can reduce hallucinations by grounding in retrieved passages, but depends on retrieval quality and fusion strategy |\n| Fine-Tuning | Lower (knowledge is limited to what was in the training data; updates require re-training) | Moderate to High (training on large datasets; inference may be fast but model size matters) | Moderate to strong if the training data is comprehensive and aligned with desired outputs; may still hallucinate if training data lacks coverage or the model overfits |\n\n3. Scenario Application and Recommendation\n\nScenario: A company needs to build an internal knowledge bot that answers questions about daily-updated HR policies. The policies change frequently (e.g., leave rules, benefits, onboarding steps), and employees expect quick, accurate responses. The bot should remain current without requiring constant re-training and should provide sources for verification when possible.\n\nRecommendation: Use a Retrieval-Augmented Generation (RAG) approach with a robust, versioned HR policy corpus as the external knowledge source. Reasons:\n- Data Freshness: HR policies can change weekly or monthly. By updating the external retrieval corpus (documents, policy PDFs, wikis), the bot reflects current policies without re-training the base model.\n- Compute Trade-offs: While there is a retrieval component, the generative model can be smaller or kept constant, and updates to policies only require corpus curation, not model updates.\n- Hallucination Mitigation: Grounding responses in retrieved policy passages improves reliability. Implement a fusion strategy that cites sources and, where appropriate, whether the retrieved content fully supports the answer.\n- Practicality: HR teams can maintain policy documents in a centralized, versioned store. The retrieval index can be refreshed on a schedule (e.g., nightly builds) to ensure up-to-date answers.\n\nImplementation tips:\n- Use a two-step: retriever (dense or hybrid) to fetch top-k policy passages, followed by a generator that conditions on both the user query and retrieved context.\n- Include source citations in every answer and provide a short justification where applicable.\n- Implement guardrails: if confidence is low or no relevant documents are found, gracefully prompt for human review or direct the user to a policy portal.\n- Version control the knowledge corpus and maintain an audit trail of changes for compliance.\n\n4. Knowledge Check\n\nQuestion 1: What is the primary mechanism behind Retrieval-Augmented Generation (RAG)?\nA) Fine-tuning a model on a large labeled dataset\nB) Generating text without any external information\nC) Retrieving relevant documents from an external source to condition generation\nD) Compressing the model to reduce inference time\n\nAnswer: C\nExplanation: RAG combines a retriever to fetch documents with a generator that uses those documents to produce grounded responses.\n\nQuestion 2: Which approach typically requires re-training the model to update its knowledge?\nA) Retrieval-Augmented Generation\nB) Model Fine-Tuning\nC) Both A and B\nD) Neither A nor B\n\nAnswer: B\nExplanation: Fine-tuning updates model weights to reflect new knowledge, whereas RAG updates the external corpus instead of the model.\n\nQuestion 3: In the HR knowledge bot scenario, which benefit is most directly associated with RAG?\nA) Inference speed without any retrieval\nB) The ability to incorporate the latest policies by updating the retrieval corpus\nC) Eliminating the need for any policy documents\nD) Unlimited training data without human supervision\n\nAnswer: B\nExplanation: RAG supports freshness by updating the external knowledge source, allowing the bot to reflect latest HR policies without retraining the base model.\n\n[Analyst]\n1. Clear Definitions of RAG and Fine-Tuning\n\n- Retrieval-Augmented Generation (RAG)\n  - What it is: A hybrid approach that pairs a generative language model with an external retrieval component. When a user asks a question, the system fetches relevant documents from a knowledge source (internal wiki, policy PDFs, etc.) and conditions the model’s response on both the query and the retrieved passages.\n  - How it works: A retriever (dense or sparse index) returns top-k documents; a generator composes the answer using the query and retrieved content, often with a fusion or re-ranking step. The base model weights remain unchanged; knowledge is grounded in the external corpus.\n  - Typical benefits: Freshness and specificity without re-training the base model; knowledge can be updated by refreshing the retrieval corpus; reduced need to store all policies in model parameters.\n\n- Model Fine-Tuning\n  - What it is: Updating the weights of a pre-trained language model on task-specific data to improve performance on that task.\n  - How it works: The model learns patterns from labeled examples (e.g., HR questions and answers). After fine-tuning, the model can respond without an external retrieval step and often with faster inference.\n  - Typical benefits: Strong, stable performance in a defined domain; lower latency during inference since there’s no live retrieval step; reduced hallucinations for the trained domain if the data is high quality and representative.\n\n2. Comparison Matrix\n\n- Approach: RAG vs Fine-Tuning\n- Data Freshness: How up-to-date the system’s knowledge is at inference time.\n- Compute Cost: Resources needed for deployment, including latency, storage, and hardware.\n- Hallucination Mitigation: Effectiveness at avoiding fabrications and unsupported statements.\n\n| Approach | Data Freshness | Compute Cost | Hallucination Mitigation |\n|---------|-----------------|--------------|--------------------------|\n| RAG | High (can incorporate latest documents by updating the retrieval corpus) | Moderate to High (retrieval step plus generation; requires maintaining a vector index and document preprocessing) | Stronger when the retrieval sources are high-quality and well-structured; grounding in retrieved passages reduces hallucinations, but relies on retrieval quality and fusion strategy |\n| Fine-Tuning | Lower (knowledge limited to training data; updates require re-training) | Moderate to High (training on sizable datasets; inference can be fast, but model size matters) | Moderate to strong if training data is comprehensive and aligned; may still hallucinate if data is biased or incomprehensive |\n\n3. Scenario Application and Recommendation\n\nScenario: A company needs an internal knowledge bot to answer questions about daily-updated HR policies. Policies change frequently (leave rules, benefits, onboarding steps), and employees expect quick, accurate responses with sources for verification. The bot should stay current without constant re-training.\n\nRecommendation: Use a Retrieval-Augmented Generation (RAG) approach with a robust, versioned HR policy corpus as the external knowledge source.\n\nWhy RAG fits this scenario:\n- Data Freshness: HR policies evolve regularly. Updating the external retrieval corpus (policies, FAQs, wikis) keeps answers current without touching the base model.\n- Compute Trade-offs: Grounding relies on a retrieval step plus generation; the core model can be kept stable, reducing ongoing retraining costs.\n- Hallucination Mitigation: Grounding the answer in retrieved policy passages improves reliability. Implement citation of sources and a confidence signal to surface when the retrieved evidence is weak.\n- Practicality: Centralized, version-controlled policy documents allow the HR team to manage changes with an audit trail. A nightly or near-real-time index refresh ensures freshness.\n\nImplementation tips:\n- Use a two-step pipeline: a retriever (dense or hybrid) to fetch top-k policy passages, followed by a generator that conditions on the user query and retrieved context.\n- Always return source citations and, when applicable, a brief justification.\n- Add guardrails: if confidence is low or no relevant documents are found, escalate to human review or direct users to the policy portal.\n- Version control the knowledge corpus and track changes for compliance.\n\n4. Knowledge Check\n\nQuestion 1: What is the primary mechanism behind Retrieval-Augmented Generation (RAG)?\nA) Fine-tuning a model on a large labeled dataset\nB) Generating text without any external information\nC) Retrieving relevant documents from an external source to condition generation\nD) Compressing the model to reduce inference time\n\nAnswer: C\nExplanation: RAG combines a retriever with a generator, grounding responses in retrieved external content.\n\nQuestion 2: Which approach typically requires re-training the model to update its knowledge?\nA) Retrieval-Augmented Generation\nB) Model Fine-Tuning\nC) Both A and B\nD) Neither A nor B\n\nAnswer: B\nExplanation: Fine-tuning updates model weights; RAG updates come from changing the external corpus, not the base model.\n\nQuestion 3: In the HR knowledge bot scenario, which benefit is most directly associated with RAG?\nA) Inference speed without any retrieval\nB) The ability to incorporate the latest policies by updating the retrieval corpus\nC) Eliminating the need for any policy documents\nD) Unlimited training data without human supervision\n\nAnswer: B\nExplanation: RAG enables freshness by refreshing the external knowledge source without retraining the base model.\n\nInstruction:\nWrite a self-contained final deliverable using verified upstream work. Recheck every hard constraint and required section; omit meta-commentary and do not add unsupported claims.\n\nReturn only the content for your role. Do not include hidden chain-of-thought. Use concise reasoning summaries where useful.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1. Clear Definitions of RAG and Fine-Tuning\n\n- Retrieval-Augmented Generation (RAG)\n  - What it is: A hybrid approach that pairs a generative language model with an external retrieval component. When a user asks a question, the system fetches relevant documents from a knowledge source (internal wiki, policy PDFs, etc.) and conditions the model’s response on both the query and the retrieved passages.\n  - How it works: A retriever (dense or sparse index) returns top-k documents; a generator composes the answer using the query and retrieved content, often with a fusion or re-ranking step. The base model weights remain unchanged; knowledge is grounded in the external corpus.\n  - Typical benefits: Freshness and specificity without re-training the base model; knowledge can be updated by refreshing the retrieval corpus; reduced need to store all policies in model parameters.\n\n- Model Fine-Tuning\n  - What it is: Updating the weights of a pre-trained language model on task-specific data to improve performance on that task.\n  - How it works: The model learns patterns from labeled examples (e.g., HR questions and answers). After fine-tuning, the model can respond without an external retrieval step and often with faster inference.\n  - Typical benefits: Strong, stable performance in a defined domain; lower latency during inference since there’s no live retrieval step; reduced hallucinations for the trained domain if the data is high quality and representative.\n\n2. Comparison Matrix\n\n- Approach: RAG vs Fine-Tuning\n- Data Freshness: How up-to-date the system’s knowledge is at inference time.\n- Compute Cost: Resources needed for deployment, including latency, storage, and hardware.\n- Hallucination Mitigation: Effectiveness at avoiding fabrications and unsupported statements.\n\n| Approach | Data Freshness | Compute Cost | Hallucination Mitigation |\n|---------|-----------------|--------------|--------------------------|\n| RAG | High (can incorporate latest documents by updating the retrieval corpus) | Moderate to High (retrieval step plus generation; requires maintaining a vector index and document preprocessing) | Stronger when the retrieval sources are high-quality and well-structured; grounding in retrieved passages reduces hallucinations, but relies on retrieval quality and fusion strategy |\n| Fine-Tuning | Lower (knowledge is limited to training data; updates require re-training) | Moderate to High (training on sizable datasets; inference can be fast, but model size matters) | Moderate to strong if training data is comprehensive and aligned; may still hallucinate if data is biased or incomprehensive |\n\n3. Scenario Application and Recommendation\n\nScenario: A company needs an internal knowledge bot to answer questions about daily-updated HR policies. Policies change frequently (leave rules, benefits, onboarding steps), and employees expect quick, accurate responses with sources for verification. The bot should stay current without constant re-training.\n\nRecommendation: Use a Retrieval-Augmented Generation (RAG) approach with a robust, versioned HR policy corpus as the external knowledge source.\n\nWhy RAG fits this scenario:\n- Data Freshness: HR policies evolve regularly. Updating the external retrieval corpus (policies, FAQs, wikis) keeps answers current without touching the base model.\n- Compute Trade-offs: Grounding relies on a retrieval step plus generation; the core model can be kept stable, reducing ongoing retraining costs.\n- Hallucination Mitigation: Grounding the answer in retrieved policy passages improves reliability. Implement citation of sources and a confidence signal to surface when the retrieved evidence is weak.\n- Practicality: Centralized, version-controlled policy documents allow the HR team to manage changes with an audit trail. A nightly or near-real-time index refresh ensures freshness.\n\nImplementation tips:\n- Use a two-step pipeline: a retriever (dense or hybrid) to fetch top-k policy passages, followed by a generator that conditions on the user query and retrieved context.\n- Always return source citations and, when applicable, a brief justification.\n- Add guardrails: if confidence is low or no relevant documents are found, escalate to human review or direct users to the policy portal.\n- Version control the knowledge corpus and track changes for compliance.\n\n4. Knowledge Check\n\nQuestion 1: What is the primary mechanism behind Retrieval-Augmented Generation (RAG)?\nA) Fine-tuning a model on a large labeled dataset\nB) Generating text without any external information\nC) Retrieving relevant documents from an external source to condition generation\nD) Compressing the model to reduce inference time\n\nAnswer: C\nExplanation: RAG combines a retriever with a generator, grounding responses in retrieved external content.\n\nQuestion 2: Which approach typically requires re-training the model to update its knowledge?\nA) Retrieval-Augmented Generation\nB) Model Fine-Tuning\nC) Both A and B\nD) Neither A nor B\n\nAnswer: B\nExplanation: Fine-tuning updates model weights; RAG updates come from changing the external corpus, not the base model.\n\nQuestion 3: In the HR knowledge bot scenario, which benefit is most directly associated with RAG?\nA) Inference speed without any retrieval\nB) The ability to incorporate the latest policies by updating the retrieval corpus\nC) Eliminating the need for any policy documents\nD) Unlimited training data without human supervision\n\nAnswer: B\nExplanation: RAG enables freshness by updating the external knowledge source without retraining the base model.",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "communication-protocols-24",
+    "benchmark_file": "benchmark/benchmark-full.json",
+    "protocol_id": "sequential_handoff",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 4,
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 20000,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
+    },
+    "agent_provider": "openai",
+    "agent_model": "gpt-5-nano",
+    "agent_effective_config": {
+      "max_tokens": 4000,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 4000,
+        "Single Agent": 4000,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
+      "failure_analysis_max_tokens": 3000,
+      "max_retries": 2,
+      "display_name": "GPT-5 Nano",
+      "description": "Low-latency OpenAI agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-5-nano",
+      "max_tokens_param": "max_completion_tokens",
+      "timeout_seconds": 120,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.05,
+        "output": 0.4
+      },
+      "profile": "gpt_5_nano",
+      "request_options": {
+        "reasoning_effort": "minimal"
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "EC-03",
+    "agent_task": {
+      "task_id": "EC-03",
+      "category": "Educational Content",
+      "difficulty": "Medium",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "Design a brief tutorial (approx. 500–700 words) for junior software engineers explaining the differences between Retrieval-Augmented Generation (RAG) and Model Fine-Tuning. Provide a short, practical scenario where a company needs to build an internal knowledge bot based on daily-updated HR policies, and recommend which approach is better.",
+      "required_output_format": "Use the following format:\n\n1. Clear Definitions of RAG and Fine-Tuning.\n2. Comparison Matrix (must include exact columns: Approach, Data Freshness, Compute Cost, and Hallucination Mitigation).\n3. Scenario Application and Recommendation paragraph.\n4. Knowledge Check (a 3-question multiple-choice quiz with an answer key and brief explanations)."
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "communication-protocols-24",
+  "benchmark_file": "benchmark/benchmark-full.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}

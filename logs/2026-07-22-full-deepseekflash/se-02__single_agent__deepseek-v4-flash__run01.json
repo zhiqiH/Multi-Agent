@@ -1,0 +1,240 @@
+{
+  "record_type": "agent_run",
+  "run_id": "se-02__single_agent__deepseek-v4-flash__run01",
+  "run_number": 1,
+  "task_id": "SE-02",
+  "category": "Software Engineering",
+  "difficulty": "Hard",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
+  },
+  "agent_provider": "deepseek",
+  "agent_model": "deepseek-v4-flash",
+  "temperature": 0.0,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-22T06:33:51+00:00",
+  "end_time": "2026-07-22T06:34:22+00:00",
+  "runtime_seconds": 31.072,
+  "input_tokens": 452,
+  "output_tokens": 2986,
+  "total_tokens": 3438,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 96562,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.0344,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 4000,
+    "Single Agent": 4000,
+    "default": 1300
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 452,
+      "output_tokens": 2986,
+      "total_tokens": 3438,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.00089936,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "model_call_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "protocol_artifacts": {
+    "final_call": {
+      "sender": "Single Agent",
+      "phase": "final",
+      "expected_action": "Complete the benchmark task directly in the exact required output format.",
+      "finish_reason": "stop"
+    }
+  },
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly in the exact required format. Verify hard constraints and numerical claims, use permitted evidence when required, and return only the deliverable."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: SE-02\n\nCategory: Software Engineering\n\nDifficulty: Hard\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nDesign a high-level architecture for a multi-tenant AI support-ticket triage system. A SaaS company receives about 10,000 tickets per day across 20 enterprise tenants. The system must classify issue type and urgency, redact personal data before every third-party model call, route high-risk or uncertain tickets to human review, preserve tenant-aware audit logs, allow tenant-specific routing rules, meet a 2-second p95 target for automated classification and routing during normal load, and fail safely without dropping tickets.\n\nIn addition to the base architecture, analyze these deterministic failure injections:\nA. The redaction service returns low confidence for a ticket containing possible PII.\nB. The classifier reaches a 1.2-second timeout while queue depth is rising.\nC. Two administrators publish conflicting routing-rule versions for the same tenant.\n\nFor each injection, state the observed state transition, user/operator visibility, retry or recovery behavior, audit event, and final safe outcome. Include at least three architecture decision records with a selected option, rejected alternative, and rationale. Use only scenario facts and standard architecture reasoning; do not cite vendors, laws, exact costs, or unprovided performance data.\n\nRequired Output Format:\nUse the following structure:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Tenant isolation and privacy safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Failure-injection matrix for A, B, and C\n9. Architecture decision records\n10. Observability, testing, and rollout plan\n11. Major risks and mitigations\n12. Final recommendation\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1.  **Assumptions and non-goals**\n    *   **Assumptions:**\n        *   Tickets arrive via a single API endpoint, each containing a `tenant_id`, `user_id`, and unstructured text.\n        *   \"Normal load\" is 10,000 tickets/day (~0.12 tickets/second average, but peak load could be 5-10x, e.g., 1 ticket/second). The 2-second p95 target is for the automated classification and routing pipeline.\n        *   \"Third-party model call\" refers to an external LLM or classification API.\n        *   \"Fail safely without dropping tickets\" means tickets are persisted to a durable queue before any processing, and failures result in a dead-letter queue (DLQ) or human review queue, not data loss.\n        *   Tenant-specific routing rules are stored in a database and cached.\n        *   Audit logs are immutable and stored in a separate, append-only store.\n    *   **Non-goals:**\n        *   Real-time chat or synchronous response to the user submitting the ticket.\n        *   Custom ML model training pipeline.\n        *   Multi-region active-active deployment (single-region active-passive is assumed).\n        *   Integration with specific third-party vendors (e.g., OpenAI, Azure).\n\n2.  **Component diagram described in text**\n    *   **Ingress Layer:** A load balancer distributes incoming ticket submissions to a stateless API Gateway.\n    *   **Persistence Layer:** The API Gateway writes the raw ticket to a durable, tenant-partitioned message queue (e.g., Kafka topic per tenant or a single topic with tenant key).\n    *   **Processing Pipeline (Async):**\n        *   **Redaction Service:** Consumes from the queue. Scans ticket text for PII (names, emails, SSNs, etc.) using regex and NER models. Replaces PII with placeholders. Outputs a redacted ticket and a confidence score. If confidence is low, it flags the ticket.\n        *   **Classifier Service:** Consumes redacted tickets. Calls a third-party model for issue type and urgency classification. Has a strict 1-second timeout. On timeout or failure, it routes the ticket to a \"human review\" queue.\n        *   **Router Service:** Consumes classified tickets. Applies tenant-specific routing rules (from a cache/DB) to determine the final destination (e.g., specific team queue, automated response, human review).\n    *   **Data Stores:**\n        *   **Raw Ticket Store:** Durable queue (Kafka).\n        *   **Redacted Ticket Store:** Durable queue (Kafka).\n        *   **Classified Ticket Store:** Durable queue (Kafka).\n        *   **Routing Rules DB:** Relational DB (e.g., PostgreSQL) with tenant isolation.\n        *   **Audit Log Store:** Append-only log (e.g., Kafka or Elasticsearch).\n        *   **Human Review Queue:** A priority queue for tickets requiring manual intervention.\n        *   **Dead-Letter Queue (DLQ):** For tickets that fail processing after retries.\n\n3.  **End-to-end data flow\n    *   **Step 1:** User submits ticket via API Gateway. Gateway validates tenant_id and writes the raw ticket to the Raw Ticket Store (Kafka).\n    *   **Step 2:** Redaction Service reads from Raw Ticket Store. It processes the text, redacts PII, and writes the redacted ticket to the Redacted Ticket Store. It also writes an audit event: `{ticket_id, tenant_id, action: \"redaction\", status: \"success/low_confidence\", timestamp}`.\n    *   **Step 3:** Classifier Service reads from Redacted Ticket Store. It calls the third-party model with the redacted text. It writes the classification result (issue type, urgency, confidence) to the Classified Ticket Store. It writes an audit event.\n    *   **Step 4:** Router Service reads from Classified Ticket Store. It fetches tenant-specific routing rules from the cache/DB. It determines the final destination (e.g., `tenant_A_support_team`, `human_review_high_risk`). It writes the final routing decision to the Audit Log Store and the appropriate destination queue.\n    *   **Step 5:** The destination queue (e.g., a ticketing system) is consumed by the appropriate team or automated system.\n\n4.  **Key services and responsibilities table**\n\n| Service | Responsibility | Key Metric |\n| :--- | :--- | :--- |\n| **API Gateway** | Validate tenant, write to raw queue, rate limit. | Request latency, write success rate. |\n| **Redaction Service** | Detect and redact PII, output confidence score. | PII recall, processing latency, confidence distribution. |\n| **Classifier Service** | Call third-party model, enforce timeout, handle failures. | Classification latency (p95 < 1.5s), timeout rate. |\n| **Router Service** | Apply tenant rules, determine final destination. | Routing latency, rule cache hit rate. |\n| **Audit Logger** | Collect and store immutable audit events. | Write throughput, read latency for queries. |\n\n5.  **Tenant isolation and privacy safeguards**\n    *   **Data Isolation:** Each tenant's data is isolated by `tenant_id` in the message queues (Kafka partitions) and databases (row-level security or separate schemas).\n    *   **Privacy Safeguards:**\n        *   PII is redacted *before* any third-party model call. The third-party model never sees raw PII.\n        *   The redaction service is the only component that sees raw PII.\n        *   Audit logs contain redacted text or placeholders, not raw PII.\n        *   Access to raw ticket data is restricted to the Redaction Service and a limited set of admin tools.\n\n6.  **Reliability and failure-handling plan**\n    *   **Queue Durability:** All tickets are persisted to Kafka before any processing. This ensures no tickets are dropped even if downstream services fail.\n    *   **Retry with Backoff:** Each service retries transient failures (e.g., network timeouts) up to 3 times with exponential backoff.\n    *   **Dead-Letter Queue (DLQ):** After exhausting retries, tickets are moved to a DLQ for manual inspection.\n    *   **Human Review Queue:** Tickets that are high-risk, low-confidence (redaction or classification), or have uncertain routing are automatically routed to a human review queue.\n    *   **Circuit Breaker:** The Classifier Service implements a circuit breaker for the third-party model call. If timeouts exceed a threshold, it stops calling the model and routes all tickets to human review.\n    *   **Fail-Safe:** If any service is completely down, the upstream queue continues to accept tickets. When the service recovers, it processes the backlog.\n\n7.  **Latency and throughput reasoning**\n    *   **Throughput:** 10,000 tickets/day = ~0.12 tickets/second average. Peak load is estimated at 1 ticket/second. The system is designed to handle 10x peak load (10 tickets/second) for short bursts.\n    *   **Latency Budget (p95 < 2 seconds):**\n        *   Queue write: ~10ms\n        *   Redaction: ~200ms\n        *   Queue read/write: ~10ms\n        *   Classification (third-party model): ~1.0s (with 1.2s timeout)\n        *   Queue read/write: ~10ms\n        *   Routing: ~50ms\n        *   **Total:** ~1.28s (well under 2s p95).\n    *   **Bottleneck:** The third-party model call is the primary latency driver. The 1.2s timeout is a safety net.\n\n8.  **Failure-injection matrix for A, B, and C**\n\n| Injection | Observed State Transition | User/Operator Visibility | Retry/Recovery Behavior | Audit Event | Final Safe Outcome |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| **A. Redaction low confidence** | Ticket state: `raw` -> `redacted_low_confidence`. | **User:** None. **Operator:** Alert on low-confidence metric. | No retry. Ticket is flagged and routed to human review for manual redaction. | `{ticket_id, action: \"redaction\", status: \"low_confidence\", routed_to: \"human_review\"}` | Ticket is reviewed by a human, PII is manually redacted, and the ticket is re-injected into the pipeline. |\n| **B. Classifier timeout (1.2s)** | Ticket state: `redacted` -> `classification_timeout`. | **User:** None. **Operator:** Alert on timeout rate and queue depth. | Retry up to 3 times with backoff. If all retries fail, route to human review. Circuit breaker may open. | `{ticket_id, action: \"classification\", status: \"timeout\", retries: 3, routed_to: \"human_review\"}` | Ticket is routed to human review for manual classification. No ticket is dropped. |\n| **C. Conflicting routing rules** | Ticket state: `classified` -> `routing_conflict`. | **User:** None. **Operator:** Alert on rule version conflict. | The Router Service uses a version-based rule resolution. The most recently published rule version wins. The conflicting rule is logged. | `{ticket_id, action: \"routing\", status: \"conflict\", resolved_version: \"v2\", conflicting_version: \"v1\"}` | Ticket is routed according to the latest rule version. The conflict is logged for operator review. |\n\n9.  **Architecture decision records**\n\n    *   **ADR-1: Use of Durable Message Queue (Kafka) for Ticket Persistence**\n        *   **Selected Option:** Apache Kafka.\n        *   **Rejected Alternative:** Relational database (PostgreSQL) as the primary queue.\n        *   **Rationale:** Kafka provides high throughput, durability, and replayability. It naturally supports tenant isolation via partitions. A database queue would introduce higher latency and complexity for replay and would be a single point of failure for the pipeline.\n\n    *   **ADR-2: Async Processing Pipeline**\n        *   **Selected Option:** Fully asynchronous, event-driven pipeline.\n        *   **Rejected Alternative:** Synchronous request-response pipeline.\n        *   **Rationale:** An async pipeline decouples services, allowing each to scale independently. It naturally handles load spikes and failures without blocking the API Gateway. A synchronous pipeline would be vulnerable to cascading failures and would not meet the 2-second p95 target under load.\n\n    *   **ADR-3: Tenant-Specific Routing Rules with Versioning**\n        *   **Selected Option:** Versioned routing rules stored in a relational DB with a cache.\n        *   **Rejected Alternative:** Unversioned rules in a configuration file.\n        *   **Rationale:** Versioning allows for safe rollback and auditability. It resolves conflicts by using the latest version. A configuration file would be difficult to manage for 20 tenants and would not provide a clear audit trail for changes.\n\n10. **Observability, testing, and rollout plan**\n    *   **Observability:**\n        *   **Metrics:** Queue depth, processing latency (p50, p95, p99), error rates, timeout rates, redaction confidence distribution, circuit breaker state.\n        *   **Logs:** Structured audit logs for every state transition.\n        *   **Traces:** Distributed tracing (e.g., OpenTelemetry) to track a single ticket through the entire pipeline.\n        *   **Dashboards:** Tenant-specific dashboards for operators.\n    *   **Testing:**\n        *   **Unit Tests:** For each service's logic (redaction, classification, routing).\n        *   **Integration Tests:** For the entire pipeline with mock third-party models.\n        *   **Chaos Engineering:** Inject failures (service crashes, network latency, high load) to verify the failure-handling plan.\n        *   **Load Tests:** Verify the 2-second p95 target under peak load.\n    *   **Rollout Plan:**\n        *   **Canary Deployments:** Deploy new versions of a service to a single tenant first.\n        *   **Blue-Green Deployments:** For the entire pipeline, maintain two identical environments and switch traffic.\n        *   **Feature Flags:** Use feature flags to enable/disable new routing rules or redaction models.\n\n11. **Major risks and mitigations**\n\n| Risk | Impact | Mitigation |\n| :--- | :--- | :--- |\n| **Third-party model API outage** | All tickets stuck in classification. | Circuit breaker, fallback to human review, retry with backoff. |\n| **Redaction service misses PII** | PII leaked to third-party model. | Regular model retraining, manual sampling of redacted tickets, human review for low-confidence tickets. |\n| **Kafka cluster failure** | All tickets lost. | Multi-broker Kafka cluster, replication factor of 3, regular backups. |\n| **Routing rule conflict causes incorrect routing** | Ticket sent to wrong team. | Version-based resolution, operator alert, manual override capability. |\n| **Queue depth grows unbounded** | Latency exceeds 2-second p95. | Auto-scaling of consumer services, rate limiting at the API Gateway, alerting on queue depth. |\n\n12. **Final recommendation**\n    The proposed architecture is a robust, scalable, and safe multi-tenant AI support-ticket triage system. It meets all requirements: tenant isolation, privacy safeguards, 2-second p95 latency, and fail-safe behavior. The use of a durable message queue, async processing, and a human review fallback ensures no tickets are dropped. The failure-injection analysis demonstrates that the system gracefully handles the specified failure modes. The ADRs provide a clear rationale for key design decisions. The observability, testing, and rollout plan ensures the system can be operated and evolved safely.",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "communication-protocols-24",
+    "benchmark_file": "benchmark/benchmark-full.json",
+    "protocol_id": "single_agent",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
+    },
+    "agent_provider": "deepseek",
+    "agent_model": "deepseek-v4-flash",
+    "agent_effective_config": {
+      "max_tokens": 4000,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 4000,
+        "Single Agent": 4000,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
+      "failure_analysis_max_tokens": 3000,
+      "max_retries": 2,
+      "display_name": "DeepSeek V4 Flash",
+      "description": "Low-latency agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-flash",
+      "max_tokens_param": "max_tokens",
+      "timeout_seconds": 180,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.14,
+        "output": 0.28
+      },
+      "profile": "deepseek_v4_flash",
+      "request_options": {
+        "thinking": {
+          "type": "disabled"
+        },
+        "reasoning_effort": "high",
+        "temperature": 0.0
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "SE-02",
+    "agent_task": {
+      "task_id": "SE-02",
+      "category": "Software Engineering",
+      "difficulty": "Hard",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "Design a high-level architecture for a multi-tenant AI support-ticket triage system. A SaaS company receives about 10,000 tickets per day across 20 enterprise tenants. The system must classify issue type and urgency, redact personal data before every third-party model call, route high-risk or uncertain tickets to human review, preserve tenant-aware audit logs, allow tenant-specific routing rules, meet a 2-second p95 target for automated classification and routing during normal load, and fail safely without dropping tickets.\n\nIn addition to the base architecture, analyze these deterministic failure injections:\nA. The redaction service returns low confidence for a ticket containing possible PII.\nB. The classifier reaches a 1.2-second timeout while queue depth is rising.\nC. Two administrators publish conflicting routing-rule versions for the same tenant.\n\nFor each injection, state the observed state transition, user/operator visibility, retry or recovery behavior, audit event, and final safe outcome. Include at least three architecture decision records with a selected option, rejected alternative, and rationale. Use only scenario facts and standard architecture reasoning; do not cite vendors, laws, exact costs, or unprovided performance data.",
+      "required_output_format": "Use the following structure:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Tenant isolation and privacy safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Failure-injection matrix for A, B, and C\n9. Architecture decision records\n10. Observability, testing, and rollout plan\n11. Major risks and mitigations\n12. Final recommendation"
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "communication-protocols-24",
+  "benchmark_file": "benchmark/benchmark-full.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}

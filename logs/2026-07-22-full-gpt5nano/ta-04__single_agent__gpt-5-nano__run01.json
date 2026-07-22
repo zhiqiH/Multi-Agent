@@ -1,0 +1,236 @@
+{
+  "record_type": "agent_run",
+  "run_id": "ta-04__single_agent__gpt-5-nano__run01",
+  "run_number": 1,
+  "task_id": "TA-04",
+  "category": "Technical Analysis",
+  "difficulty": "Medium",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
+  },
+  "agent_provider": "openai",
+  "agent_model": "gpt-5-nano",
+  "temperature": null,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-22T09:52:52+00:00",
+  "end_time": "2026-07-22T09:53:05+00:00",
+  "runtime_seconds": 12.694,
+  "input_tokens": 357,
+  "output_tokens": 1716,
+  "total_tokens": 2073,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 97927,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.0207,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 4000,
+    "Single Agent": 4000,
+    "default": 1300
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 357,
+      "output_tokens": 1716,
+      "total_tokens": 2073,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.00070425,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "model_call_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "protocol_artifacts": {
+    "final_call": {
+      "sender": "Single Agent",
+      "phase": "final",
+      "expected_action": "Complete the benchmark task directly in the exact required output format.",
+      "finish_reason": "stop"
+    }
+  },
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly in the exact required format. Verify hard constraints and numerical claims, use permitted evidence when required, and return only the deliverable."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: TA-04\n\nCategory: Technical Analysis\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nA system must answer questions based on a collection of long technical documents. The documents may exceed the language model's context-window limit.\n\nAnalyze and compare the following three technical approaches:\n\n1. Full-context prompting: place as much document content as possible directly into the model prompt.\n2. Retrieval-augmented generation: divide documents into chunks, retrieve relevant chunks for each question, and provide them to the model.\n3. Hierarchical summarization: summarize document sections first, combine the section summaries into higher-level summaries, and use the summaries to answer questions.\n\nCompare the three approaches in terms of:\n- Information coverage\n- Answer accuracy and grounding\n- Context-window usage\n- Computational cost\n- Implementation complexity\n- Main failure risks\n\nThen recommend the most suitable approach for a system that must answer detailed questions about a large collection of technical manuals. Justify the recommendation and identify one situation in which the recommended approach may perform poorly.\n\nUse qualitative technical reasoning. Do not invent numerical performance results.\n\nRequired Output Format:\nUse the following markdown structure:\n1. Full-Context Prompting\n2. Retrieval-Augmented Generation\n3. Hierarchical Summarization\n4. Comparison Table\n5. Final Recommendation\n6. Limitation of the Recommended Approach\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1. Full-Context Prompting\n- Information coverage: Maximizes coverage when the entire document set fits within the model input. In practice, for large collections, coverage is limited by prompt size; only a subset of sources can be included, risking omissions of relevant details outside the prompt window.\n- Answer accuracy and grounding: Potentially high for included content due to direct access to source text. However, accuracy relies on the model’s ability to reason over long passages in a single prompt and to avoid hallucinations when confronted with dense technical material.\n- Context-window usage: Uses the model’s input context to its fullest extent for the included content. No explicit retrieval step; relies on prior curation to keep content within limits.\n- Computational cost: Typically lower latency per query when all content fits, since no separate retrieval step is needed. Costs scale with prompt size due to token usage; larger prompts increase inference time and memory.\n- Implementation complexity: Smallest among the three approaches. Requires a mechanism to collect and stitch content into a single prompt, but no external index or retriever logic is necessary.\n- Main failure risks: Severe sensitivity to prompt length limits; risk of missing critical but excluded documents; overlong prompts can lead to truncation of important sections; difficulty maintaining up-to-date content across a large collection; indistinguishable source attribution if content is embedded without citations.\n- Additional notes: Best suited for relatively small corpora or highly curated sub-collections where essential documents can be compactly represented within the model’s context window.\n\n2. Retrieval-Augmented Generation\n- Information coverage: High potential coverage since the collection is partitioned into chunks and relevant chunks are retrieved per question. Coverage depends on the effectiveness of the retrieval system and chunking strategy.\n- Answer accuracy and grounding: Strong grounding capability because responses can reference specific retrieved chunks. The quality hinges on the retrieval quality and the model’s ability to reason with retrieved snippets and to avoid hallucinating beyond provided sources.\n- Context-window usage: Efficiently uses the model’s context by feeding only relevant chunks per question. This avoids overwhelming prompts and maintains access to large document sets.\n- Computational cost: Moderate to high. Involves indexing and retrieval steps (which may be optimized with vector similarity searches). Per-question cost includes multiple chunk fetches and possible reranking; latency grows with the number of retrieved chunks and re-scoring operations.\n- Implementation complexity: Moderate to high. Requires building or integrating a document store, chunking strategy, and a retrieval pipeline (embedding generation, indexing, search). Also needs alignment between retrievals and answer generation, plus provenance handling.\n- Main failure risks: Retrieval gaps (missing relevant chunks), poor chunking leading to fragmented or inconsistent context, and challenges with complex cross-document reasoning. Potential attribution issues if sources are not clearly cited; risk of over-reliance on retrieved snippets without synthesis.\n- Additional notes: Well-suited for very large corpora and dynamic collections where content updates frequently; scalable and adaptable to varying question types.\n\n3. Hierarchical Summarization\n- Information coverage: Moderate to high for structured, document-rich material, but coverage degrades for niche details not preserved in higher-level summaries. The approach favors preserving core themes and conclusions at multiple levels.\n- Answer accuracy and grounding: Can provide accurate answers when summaries faithfully capture essential details; however, risk of information loss or distortion during summarization, especially for highly technical specifics, equations, or edge-case requirements.\n- Context-window usage: Uses a multi-stage reduction to condensed representations, circumventing direct dependence on the full document text during question answering. The model ultimately reasons over summaries rather than raw content.\n- Computational cost: Potentially high upfront due to multiple summarization passes (section-level followed by aggregator-level), but cheap per-question once summaries are produced. Costs depend on the number of sections and the depth of summarization.\n- Implementation complexity: High. Requires careful design of summarization pipelines, coherence between hierarchical levels, and validation that essential details remain intact. Needs mechanisms to preserve traceability to source documents.\n- Main failure risks: Information loss or oversimplification during summarization; difficulty handling highly technical or numerical details, diagrams, or code blocks; potential misalignment between summaries and user intent; stale summaries if the source collection updates.\n- Additional notes: Strong when there is a clear document structure and when quick, high-level guidance suffices; less ideal for questions requiring precise, low-level details.\n\n4. Comparison Table\n- Information coverage:\n  - Full-Context Prompting: Variable; maximal when content fits, otherwise limited by prompt capacity.\n  - Retrieval-Augmented Generation: High; coverage grows with effective chunking and retrieval coverage.\n  - Hierarchical Summarization: Moderate to high for core content; may miss niche details.\n- Answer accuracy and grounding:\n  - Full-Context Prompting: High for included material; risk of missing context and source attribution gaps.\n  - Retrieval-Augmented Generation: High; explicit grounding to retrieved chunks; potential fragmentation across sources.\n  - Hierarchical Summarization: Moderate to high; depends on fidelity of summaries; risk of loss of details.\n- Context-window usage:\n  - Full-Context Prompting: Directly uses model prompt window; limited by window size.\n  - Retrieval-Augmented Generation: Efficient; feeds relevant chunks only.\n  - Hierarchical Summarization: Uses condensed representations; bypasses need to process full documents.\n- Computational cost:\n  - Full-Context Prompting: Lower per-question latency if content fits; cost grows with prompt length.\n  - Retrieval-Augmented Generation: Higher due to indexing, retrieval, and possibly many chunks; scalable with infrastructure.\n  - Hierarchical Summarization: High initial cost to create summaries; low per-question cost afterward.\n- Implementation complexity:\n  - Full-Context Prompting: Low to moderate; simple integration, but content maintenance is manual.\n  - Retrieval-Augmented Generation: Moderate to high; requires a retrieval stack and pipeline integration.\n  - Hierarchical Summarization: High; requires robust summarization pipelines and validation.\n- Main failure risks:\n  - Full-Context Prompting: Missing content; prompt truncation; outdated materials.\n  - Retrieval-Augmented Generation: Retrieval gaps; fragmentary contexts; attribution challenges.\n  - Hierarchical Summarization: Information loss; over-generalization; misalignment with user needs.\n- Suitable scenarios:\n  - Full-Context Prompting: Small to medium corpora where prompt size suffices.\n  - Retrieval-Augmented Generation: Very large, dynamic corpora where fast, scalable access is needed.\n  - Hierarchical Summarization: Highly structured corpora where quick high-level guidance is valuable and details can be captured in summaries.\n\n5. Final Recommendation\nRecommendation: Retrieval-Augmented Generation (RAG).\nJustification:\n- It offers robust information coverage by indexing and chunking a large collection, enabling retrieval of the most relevant material per question.\n- It provides strong answer grounding by tying responses to specific retrieved chunks, reducing hallucination risk compared to full-context prompting on large corpora.\n- It scales well with growing collections and updates, since the index can be refreshed incrementally without re-encoding entire prompts.\n- It balances context-window usage by feeding the model only relevant slices of content, avoiding prompt length constraints while preserving access to long documents.\n- It supports modular implementation, enabling optimization of chunking strategies, retrieval quality, and provenance handling.\n- Computational costs are justified by scalable retrieval and generation, especially for large, technical manuals where questions require precise references.\n\nOne situation where the recommended approach may perform poorly:\n- If the retrieval system fails to surface highly technical, edge-case details buried in niche sections, or if cross-document reasoning is required that hinges on subtle, non-local dependencies (e.g., multi-document derivations with precise parameter interdependencies). In such cases, if relevant details are not captured in the retrieved chunks, the answer may be incomplete or misgrounded despite good overall retrieval performance.\n\n6. Limitation of the Recommended Approach\n- RAG relies on the quality of the retrieval and chunking strategy. Poor chunk design or weak embeddings can lead to missed or fragmented context, causing partial or incorrect answers. Additionally, provenance handling can be challenging when integrating multiple sources, and-user trust requires clear citation of sources for every claim. Finally, RAG may still struggle with highly technical material that requires precise notation, equations, or diagrams not easily captured in plain text chunks.",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "communication-protocols-24",
+    "benchmark_file": "benchmark/benchmark-full.json",
+    "protocol_id": "single_agent",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
+    },
+    "agent_provider": "openai",
+    "agent_model": "gpt-5-nano",
+    "agent_effective_config": {
+      "max_tokens": 4000,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 4000,
+        "Single Agent": 4000,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
+      "failure_analysis_max_tokens": 3000,
+      "max_retries": 2,
+      "display_name": "GPT-5 Nano",
+      "description": "Low-latency OpenAI agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-5-nano",
+      "max_tokens_param": "max_completion_tokens",
+      "timeout_seconds": 120,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.05,
+        "output": 0.4
+      },
+      "profile": "gpt_5_nano",
+      "request_options": {
+        "reasoning_effort": "minimal"
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "TA-04",
+    "agent_task": {
+      "task_id": "TA-04",
+      "category": "Technical Analysis",
+      "difficulty": "Medium",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "A system must answer questions based on a collection of long technical documents. The documents may exceed the language model's context-window limit.\n\nAnalyze and compare the following three technical approaches:\n\n1. Full-context prompting: place as much document content as possible directly into the model prompt.\n2. Retrieval-augmented generation: divide documents into chunks, retrieve relevant chunks for each question, and provide them to the model.\n3. Hierarchical summarization: summarize document sections first, combine the section summaries into higher-level summaries, and use the summaries to answer questions.\n\nCompare the three approaches in terms of:\n- Information coverage\n- Answer accuracy and grounding\n- Context-window usage\n- Computational cost\n- Implementation complexity\n- Main failure risks\n\nThen recommend the most suitable approach for a system that must answer detailed questions about a large collection of technical manuals. Justify the recommendation and identify one situation in which the recommended approach may perform poorly.\n\nUse qualitative technical reasoning. Do not invent numerical performance results.",
+      "required_output_format": "Use the following markdown structure:\n1. Full-Context Prompting\n2. Retrieval-Augmented Generation\n3. Hierarchical Summarization\n4. Comparison Table\n5. Final Recommendation\n6. Limitation of the Recommended Approach"
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "communication-protocols-24",
+  "benchmark_file": "benchmark/benchmark-full.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}

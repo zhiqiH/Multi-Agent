@@ -1,0 +1,236 @@
+{
+  "record_type": "agent_run",
+  "run_id": "se-02__single_agent__gpt-5-nano__run01",
+  "run_number": 1,
+  "task_id": "SE-02",
+  "category": "Software Engineering",
+  "difficulty": "Hard",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 100000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 128,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 1000
+  },
+  "agent_provider": "openai",
+  "agent_model": "gpt-5-nano",
+  "temperature": null,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-22T09:49:38+00:00",
+  "end_time": "2026-07-22T09:49:57+00:00",
+  "runtime_seconds": 18.839,
+  "input_tokens": 453,
+  "output_tokens": 2798,
+  "total_tokens": 3251,
+  "max_total_tokens": 100000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 96749,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.0325,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 900,
+    "Researcher": 1800,
+    "Analyst": 1300,
+    "Critic": 900,
+    "Manager": 1300,
+    "Writer": 4000,
+    "Single Agent": 4000,
+    "default": 1300
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 453,
+      "output_tokens": 2798,
+      "total_tokens": 3251,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.00114185,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "model_call_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "protocol_artifacts": {
+    "final_call": {
+      "sender": "Single Agent",
+      "phase": "final",
+      "expected_action": "Complete the benchmark task directly in the exact required output format.",
+      "finish_reason": "stop"
+    }
+  },
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly in the exact required format. Verify hard constraints and numerical claims, use permitted evidence when required, and return only the deliverable."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: SE-02\n\nCategory: Software Engineering\n\nDifficulty: Hard\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nDesign a high-level architecture for a multi-tenant AI support-ticket triage system. A SaaS company receives about 10,000 tickets per day across 20 enterprise tenants. The system must classify issue type and urgency, redact personal data before every third-party model call, route high-risk or uncertain tickets to human review, preserve tenant-aware audit logs, allow tenant-specific routing rules, meet a 2-second p95 target for automated classification and routing during normal load, and fail safely without dropping tickets.\n\nIn addition to the base architecture, analyze these deterministic failure injections:\nA. The redaction service returns low confidence for a ticket containing possible PII.\nB. The classifier reaches a 1.2-second timeout while queue depth is rising.\nC. Two administrators publish conflicting routing-rule versions for the same tenant.\n\nFor each injection, state the observed state transition, user/operator visibility, retry or recovery behavior, audit event, and final safe outcome. Include at least three architecture decision records with a selected option, rejected alternative, and rationale. Use only scenario facts and standard architecture reasoning; do not cite vendors, laws, exact costs, or unprovided performance data.\n\nRequired Output Format:\nUse the following structure:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Tenant isolation and privacy safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Failure-injection matrix for A, B, and C\n9. Architecture decision records\n10. Observability, testing, and rollout plan\n11. Major risks and mitigations\n12. Final recommendation\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1. Assumptions and non-goals\n- Assumptions:\n  - ~10,000 tickets/day (~7 per second on average), with spikes to higher load.\n  - 20 enterprise tenants with distinct routing rules and audit scopes.\n  - PII redaction must occur before any third-party model call.\n  - Automated classification and routing must complete within 2-second p95 under normal load.\n  - Failure modes must fail safely without dropping tickets (no silent losses), with observable remediation paths.\n  - Tenant-specific routing rules may change; conflicts must be detected and surfaced for human review.\n  - All data stores are required to be tenant-isolated at scale; audit logs are tenant-aware.\n- Non-goals:\n  - Real-time interactive agent interface for agents (the system focuses on triage automation and safe handoff).\n  - Absolute zero-tolerance for latency under bursty conditions (focus on safe degradation and visibility).\n  - Vendor-specific implementations; no external tool claims or costs.\n\n2. Component diagram described in text\n- Ingest Layer:\n  - Ticket Ingest API: receives tickets from SaaS queue; normalizes schema; enqueues for processing.\n  - Pre-Processing Validator: basic schema checks, basic data sanitization, and routing-rule fetch trigger.\n- Redaction Service:\n  - PII/PHI Redactor: applies tenant-aware redaction policy before any 3rd-party model call; returns redacted payload and confidence.\n- Classification & Routing Core:\n  - Classifier: multi-label model to determine issue type and urgency; supports per-tenant routing context.\n  - RedactionGate: ensures redaction has occurred before downstream calls; enforces policy.\n  - Routing Engine: applies tenant-specific routing rules; computes target queue (classifier outcome + routing policy).\n- Human Review Gateway:\n  - High-Risk / Uncertain Queue: tickets flagged for human review; supports reviewer assignment and comment capture.\n- Storage & Audit:\n  - Tenant-Aware Audit Log Store: immutable append-only logs per tenant; includes actions, decisions, and rule versions.\n  - Metadata Store: stores tenant routing rules, policy versions, and classification metadata.\n- Routing & Delivery:\n  - Dispatch Service: delivers to determined internal SLAs, either auto-close path or human review path.\n  - Backpressure & Telemetry: monitors queue depths, latency, and retry counts; triggers safe fallback.\n- Observability:\n  - Metrics Collector, Traces, and Alarms: end-to-end latency, p95, error rates; anomaly detectors.\n- Configuration & Rules:\n  - Tenant Policy Manager: stores per-tenant routing rules and policy versions; supports a conflict-detection mechanism.\n- Fail-Safe/Resilience:\n  - Circuit Breaker & Fallback Paths: prevents cascading failures; ensures tickets are preserved for retry.\n\n3. End-to-end data flow\n- Ticket arrives at Ingest API -> Pre-Processing Validator validates and determines tenant context.\n- Redaction Service is invoked; redacts PII according to tenant policy; returns redacted payload and redaction confidence.\n- Classifier processes redacted payload to identify issue type and urgency; captures latency.\n- Routing Engine applies tenant routing rules (per-tenant policy); determines routing target (auto-classify path or escalate to human).\n- If high-risk or uncertain (per policy or classifier confidence), ticket is placed in High-Risk/Uncertain Queue; otherwise sent to automated dispatch.\n- Audit Log Store records: ticket ID, tenant ID, redaction result, classifier result, routing decision, policy version, and any human review actions.\n- Dispatch Service delivers to the appropriate destination (auto-resolution path or human reviewer). If escalated, Human Review Gateway assigns reviewer and tracks SLA.\n- Observability stack records metrics, traces, and logs; alerts trigger if latency or error thresholds are breached.\n\n4. Key services and responsibilities table\n- Ingest API:\n  -Responsibilities: receive, validate, normalize tickets; enforce tenant context extraction; throttle at load.\n- Redaction Service:\n  -Responsibilities: redact PII/PHI before any external model call; return redacted payload and confidence.\n- Classifier:\n  -Responsibilities: determine issue type and urgency; produce per-tenant score, track latency.\n- Routing Engine:\n  -Responsibilities: apply tenant-specific rules; detect conflicts; determine destination (auto vs human).\n- Human Review Gateway:\n  -Responsibilities: queue high-risk/uncertain tickets; assign reviewers; capture feedback and resolution status.\n- Audit & Metadata Store:\n  -Responsibilities: immutable tenant-aware audit logs; policy/rule versions; per-ticket lineage.\n- Dispatch Service:\n  -Responsibilities: route to downstream processes, ensure no ticket loss, support retries with backoff.\n- Observability & Telemetry:\n  -Responsibilities: collect latency, p95, throughput, error rates; provide dashboards and alerting.\n- Policy Manager:\n  -Responsibilities: manage per-tenant routing rules and redaction policies; versioning and conflict detection.\n- Fail-Safe & Resilience Layer:\n  -Responsibilities: circuit breakers, queue backpressure handling, safe fallbacks, and replay when healthy.\n\n5. Tenant isolation and privacy safeguards\n- Data partitioning:\n  - Tenant data stored in isolated logical shards; access controlled by tenant-scoped credentials.\n- Redaction before model calls:\n  - Redaction Service operates before any third-party model invocation; redacted data is what flows downstream.\n- Audit logging:\n  - All actions are tenant-scoped; audit logs stored per tenant with immutable append-only architecture; access restricted by tenant.\n- Policy and rule isolation:\n  - Routing rules for one tenant are not visible to another unless explicitly shared; changes are versioned and auditable.\n- Data minimization:\n  - Only necessary fields are retained in internal processing; raw PII is never sent to external systems.\n- Access control and RBAC:\n  - Internal operators can view only their tenant’s data; human reviewers are assigned per-ticket with tenant context.\n\n6. Reliability and failure-handling plan\n- Safe fail paths:\n  - If redaction confidence is low or redaction fails, ticket routed to Human Review Queue with explicit risk flag and audit entry.\n  - If classifier timeouts or queue depth cause latency breach, dispatch service prioritizes lower-latency path; escalates to human review if uncertainty persists.\n- Backpressure and queues:\n  - Backpressure mechanisms throttle ticket intake if downstream components saturate; tickets queued with retry metadata.\n- Fail-safe data retention:\n  - No ticket loss; persistent queues and durable stores ensure retry on failure; idempotent processing to avoid duplicates.\n- Observability-driven recovery:\n  - Real-time dashboards detect latency spikes; automated remediation scripts or runbooks trigger on-call interventions.\n- Conflict detection:\n  - Routing Policy Manager monitors conflicts (e.g., two administrators publishing conflicting routing-rule versions); flags for human review before deployment.\n\n7. Latency and throughput reasoning\n- Target: p95 latency for automated classification and routing ≤ 2 seconds under normal load.\n- Baseline assumptions:\n  - 10,000 tickets/day ≈ 0.115 tickets/sec average; peak loads and concurrency handling required.\n- Components:\n  - Redaction service must execute quickly; implement fast path with cached redaction rules per tenant.\n  - Classifier and routing path optimized for parallel processing; per-ticket latency target ~1.0–1.5 seconds under normal load.\n  - Backpressure and queueing ensure no indefinite growth; p95 remains within target during typical burst scenarios.\n- Safety margins:\n  - Design includes a high-priority fast path for clearly low-risk tickets to reduce p95 tail.\n  - If p95 creeps beyond target, automatic escalation to human review preserves safety and maintains SLA.\n\n8. Failure-injection matrix for A, B, and C\nA. Redaction service returns low confidence for a ticket containing possible PII\n- Observed state transition:\n  - Redaction confidence low triggers explicit flag; ticket cannot proceed to model calls without human review override.\n- User/operator visibility:\n  - System flags redaction uncertainty; operator reviews the redaction result and approves or adjusts before routing.\n- Retry or recovery behavior:\n  - Automatic fallback to Human Review Queue; redaction re-check on human review; retries occur after human action.\n- Audit event:\n  - RedactionConfidenceFallback: tenant ID, ticket ID, redaction output, confidence score, remediation path.\n- Final safe outcome:\n  - Ticket routed to Human Review with risk note; no PII leaks to models; audit captures decision.\n\nB. The classifier reaches a 1.2-second timeout while queue depth is rising\n- Observed state transition:\n  - Classifier timeout triggers; downstream dispatch may be delayed; backpressure tightens input.\n- User/operator visibility:\n  - Operators see latency spike; dashboards show timeout events and queue depth.\n- Retry or recovery behavior:\n  - Automatic retry with exponential backoff; if repeated timeouts, route to Human Review or temporarily bypass non-critical paths.\n- Audit event:\n  - ClassifierTimeout: ticket, timestamps, queue depth, retry count, outcome.\n- Final safe outcome:\n  - Ticket is either retried to auto path once within threshold or escalated to human review; no data loss.\n\nC. Two administrators publish conflicting routing-rule versions for the same tenant\n- Observed state transition:\n  - Policy conflict detected; routing decision differs between versions; system prevents auto-merge.\n- User/operator visibility:\n  - Admin notifications show conflict; requires explicit reconciliation by designated policy manager or a merge workflow.\n- Retry or recovery behavior:\n  - Conflict resolution workflow triggers; non-dominant version is rejected; audit notes the resolution path.\n- Audit event:\n  - RoutingRuleConflict: tenant ID, versions involved, resolution action, timestamp.\n- Final safe outcome:\n  - System holds until reconciliation; automated routing is paused or uses a known-good version; no incorrect routing occurs.\n\n9. Architecture decision records\n- ADR 1: Redaction-before-model policy\n  - Option A: Redact in a dedicated Redaction Service before any third-party model call (selected).\n  - Option B: Redaction inline within classifier pipeline (less modular; higher coupling).\n  - Rationale: Separation of concerns, reusability, auditable redaction, and easier policy updates; aligns with data minimization requirements.\n- ADR 2: Tenant-aware audit and storage partitioning\n  - Option A: Per-tenant audit stores with immutable append-only logs (selected).\n  - Option B: Shared audit store with tenant-scoped tags.\n  - Rationale: Strong isolation, simpler access control, and easier compliance with tenant data separation.\n- ADR 3: Human-in-the-loop escalation policy\n  - Option A: Always escalate high-risk/uncertain tickets to human reviewers (selected blanket policy for safety).\n  - Option B: Attempt automated resolution with disclaimers and partial automation.\n  - Rationale: Safety-first approach for risk management; reduces chance of misclassification; preserves human oversight for edge cases.\n\n10. Observability, testing, and rollout plan\n- Observability:\n  - End-to-end tracing for each ticket; per-tenant dashboards; latency histograms; p95/99 metrics.\n  - Health checks for Redaction Service, Classifier, Routing Engine; circuit breakers and backpressure metrics.\n- Testing:\n  - Unit tests for redaction confidence flow; integration tests for cross-service policy application.\n  - Chaos testing with controlled failure injections (A, B, C) in a staging environment.\n  - Load testing to validate 2-second p95 under normal and burst scenarios.\n- Rollout plan:\n  - Canary rollout to a subset of tenants; monitor latency, errors, and human-review load.\n  - Progressive rollout with feature flags for policy versions; automated conflict detection triggers alerts before deployment.\n  - Rollback plan to previous stable policy/version in case of systemic issues.\n\n11. Major risks and mitigations\n- Risk: Redaction failures leaking PII\n  - Mitigation: Enforce redaction before any external call; require explicit human review for low-confidence redactions; audit trails.\n- Risk: Latency spikes under peak load\n  - Mitigation: Backpressure, fast-path optimization, automatic escalation to human review when needed; maintain p95 within target via safe fallbacks.\n- Risk: Conflicting routing-rule versions\n  - Mitigation: Conflict detection, require explicit reconciliation workflow; pause auto-deployment until resolved.\n- Risk: Data leakage through logs\n  - Mitigation: Tenant-aware logs with access controls; mask or redact sensitive fields in audit logs where appropriate.\n- Risk: Failure to fail safely (tickets dropped)\n  - Mitigation: Idempotent processing, durable queues, explicit fail-safe paths, and never dropping tickets without at least one retry or human handoff.\n\n12. Final recommendation\n- Implement a tenant-aware multi-tenant AI support-ticket triage architecture with a dedicated Redaction Service that enforces PII redaction before all third-party model calls. Use a modular Classifier and Routing Engine that respect per-tenant policies and versioned rules, with an explicit High-Risk/Uncertain human review path. Store immutable, tenant-scoped audit logs, and enforce strict conflict detection for routing-rule versions. Build strong observability, backpressure, and safe fallback mechanisms to meet the 2-second p95 target under normal load while ensuring safe failure handling (no dropped tickets). Use a phased rollout with canary deployments, chaos testing against the A, B, and C injection scenarios, and enforce policy reconciliation workflows to resolve conflicting rule versions before full auto-deployment.",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "communication-protocols-24",
+    "benchmark_file": "benchmark/benchmark-full.json",
+    "protocol_id": "single_agent",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 100000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 128,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 1000
+    },
+    "agent_provider": "openai",
+    "agent_model": "gpt-5-nano",
+    "agent_effective_config": {
+      "max_tokens": 4000,
+      "role_max_output_tokens": {
+        "Planner": 900,
+        "Researcher": 1800,
+        "Analyst": 1300,
+        "Critic": 900,
+        "Manager": 1300,
+        "Writer": 4000,
+        "Single Agent": 4000,
+        "default": 1300
+      },
+      "judge_max_tokens": 7000,
+      "failure_analysis_max_tokens": 3000,
+      "max_retries": 2,
+      "display_name": "GPT-5 Nano",
+      "description": "Low-latency OpenAI agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-5-nano",
+      "max_tokens_param": "max_completion_tokens",
+      "timeout_seconds": 120,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.05,
+        "output": 0.4
+      },
+      "profile": "gpt_5_nano",
+      "request_options": {
+        "reasoning_effort": "minimal"
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "SE-02",
+    "agent_task": {
+      "task_id": "SE-02",
+      "category": "Software Engineering",
+      "difficulty": "Hard",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "Design a high-level architecture for a multi-tenant AI support-ticket triage system. A SaaS company receives about 10,000 tickets per day across 20 enterprise tenants. The system must classify issue type and urgency, redact personal data before every third-party model call, route high-risk or uncertain tickets to human review, preserve tenant-aware audit logs, allow tenant-specific routing rules, meet a 2-second p95 target for automated classification and routing during normal load, and fail safely without dropping tickets.\n\nIn addition to the base architecture, analyze these deterministic failure injections:\nA. The redaction service returns low confidence for a ticket containing possible PII.\nB. The classifier reaches a 1.2-second timeout while queue depth is rising.\nC. Two administrators publish conflicting routing-rule versions for the same tenant.\n\nFor each injection, state the observed state transition, user/operator visibility, retry or recovery behavior, audit event, and final safe outcome. Include at least three architecture decision records with a selected option, rejected alternative, and rationale. Use only scenario facts and standard architecture reasoning; do not cite vendors, laws, exact costs, or unprovided performance data.",
+      "required_output_format": "Use the following structure:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Tenant isolation and privacy safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Failure-injection matrix for A, B, and C\n9. Architecture decision records\n10. Observability, testing, and rollout plan\n11. Major risks and mitigations\n12. Final recommendation"
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "communication-protocols-24",
+  "benchmark_file": "benchmark/benchmark-full.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}
