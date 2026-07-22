@@ -1,1052 +1,1190 @@
 {
+  "schema_requirements": {
+    "metadata_recording": {
+      "per_call_logging": true,
+      "fields": [
+        "timestamp",
+        "api_provider",
+        "model",
+        "temperature",
+        "max_tokens",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "call_cost_usd",
+        "tool_used",
+        "tool_response_raw"
+      ]
+    },
+    "failure_taxonomy": [
+      "None",
+      "Coordination Failure",
+      "Communication Failure",
+      "Role Confusion",
+      "Hallucination Propagation",
+      "Premature Consensus",
+      "Over-Collaboration",
+      "Manager Bottleneck",
+      "Noise Accumulation",
+      "Other Failure"
+    ],
+    "tool_interface_schema": {
+      "tool_id": "string",
+      "tool_type": "string",
+      "description": "string",
+      "expected_behavior": "string",
+      "required_parameters": "object"
+    },
+    "runner_enforcements": {
+      "enforce_tool_requirement": true,
+      "record_real_api_costs": true,
+      "require_raw_output_capture": true
+    }
+  },
   "tasks": [
     {
       "task_id": "EC-02",
       "category": "Educational Content",
       "difficulty": "Medium",
       "author": "Zhiqi Hu",
+      "title": "Dynamic Programming Lesson Plan with Cross-Artifact Consistency Checks",
       "tool_requirement": "Prohibited",
-      "prompt": "Create a 50-minute introductory lesson plan for teaching dynamic programming using the coin change problem to undergraduate computer science students.\n\nThe students already know arrays, loops, and recursion, but many of them confuse greedy algorithms with dynamic programming. The lesson should emphasize when dynamic programming is appropriate, how to define subproblems, how to write the recurrence, and how to build the bottom-up table.\n\nState which coin-change variant you are teaching. Ensure the recurrence, table, activity, and quiz all match that variant. Do not use external sources.",
-      "required_output_format": "Use the following format:\n1. Lesson title and target audience\n2. Learning objectives\n3. Prerequisites\n4. 50-minute timeline table\n5. Concept explanation with a small worked example\n6. Board / slide outline\n7. In-class activity\n8. Common misconceptions and instructor responses\n9. Exit quiz with answers\n10. Optional homework prompt\n",
+      "prompt": "Create a 50-minute introductory lesson plan for undergraduate computer science students on dynamic programming using the minimum-number-of-coins problem with unlimited coin reuse, coin set [1, 3, 4], and target amount 6.\n\nStudents already know arrays, loops, and recursion but often confuse greedy algorithms with dynamic programming. Explain when dynamic programming is appropriate, define the subproblem and base cases, derive the recurrence, and build the bottom-up table dp[0] through dp[6] step by step. Explicitly compare the greedy result for amount 6 with the optimal result.\n\nThe recurrence, worked table, timeline, activity, misconceptions, quiz, and homework must all use the same minimum-coins variant. End with a compact consistency-audit table that maps each of those artifacts to the state definition and recurrence. Do not use external sources, vendor references, or measured performance claims.",
+      "required_output_format": "Use the following structure:\n1. Lesson title and target audience\n2. Learning objectives\n3. Prerequisites\n4. 50-minute timeline table\n5. Concept explanation and recurrence\n6. Step-by-step worked dp[0..6] example\n7. Board / slide outline\n8. In-class activity\n9. Common misconceptions and instructor responses\n10. Exit quiz with answers\n11. Optional homework prompt\n12. Consistency-audit table",
       "evaluation_criteria": [
         {
           "id": "C1",
-          "criterion": "Defines clear learning objectives focused on dynamic programming, subproblems, recurrence, bottom-up table construction, and greedy-vs-DP distinction.",
-          "weight": 1
+          "criterion": "States the audience and measurable learning objectives covering subproblems, recurrence, base cases, bottom-up construction, and greedy-vs-DP distinction.",
+          "weight": 0.058824
         },
         {
           "id": "C2",
-          "criterion": "Identifies prerequisites consistent with the prompt: arrays, loops, and recursion.",
-          "weight": 1
+          "criterion": "Lists prerequisites consistent with arrays, loops, and recursion and does not assume advanced algorithms knowledge.",
+          "weight": 0.035294
         },
         {
           "id": "C3",
-          "criterion": "States the coin change variant clearly, such as minimum coins or number of ways.",
-          "weight": 1
+          "criterion": "Uses the required minimum-number-of-coins variant with unlimited reuse, coins [1,3,4], target amount 6, and gives the correct recurrence.",
+          "weight": 0.105882
         },
         {
           "id": "C4",
-          "criterion": "Explains when dynamic programming is appropriate using optimal substructure and overlapping subproblems.",
-          "weight": 1
+          "criterion": "Defines dp[a] and the base/impossible-state handling correctly and consistently with the recurrence.",
+          "weight": 0.070588
         },
         {
           "id": "C5",
-          "criterion": "Defines subproblems correctly for the chosen coin change variant.",
-          "weight": 1
+          "criterion": "Provides the correct worked table dp[0..6] = [0,1,2,1,1,2,2] and explains why dp[6]=2.",
+          "weight": 0.105882
         },
         {
           "id": "C6",
-          "criterion": "Provides a recurrence that matches the chosen variant and handles base cases correctly.",
-          "weight": 1
+          "criterion": "Shows the bottom-up table being filled step by step rather than presenting only the final values.",
+          "weight": 0.070588
         },
         {
           "id": "C7",
-          "criterion": "Includes a small worked example with internally consistent calculations and table values.",
-          "weight": 1
+          "criterion": "Explains the concrete greedy failure for [1,3,4], amount 6: greedy uses 4+1+1 while the optimum is 3+3.",
+          "weight": 0.070588
         },
         {
           "id": "C8",
-          "criterion": "Shows how to build the bottom-up table step by step, not just the final answer.",
-          "weight": 1
+          "criterion": "Provides a timeline table whose durations sum exactly to 50 minutes and includes explanation, guided practice, activity, and assessment.",
+          "weight": 0.070588
         },
         {
           "id": "C9",
-          "criterion": "Explains why greedy can fail or be insufficient for some coin systems using a concrete example.",
-          "weight": 1
+          "criterion": "Includes an active-learning task that requires students to apply or debug the same recurrence and variant.",
+          "weight": 0.047059
         },
         {
           "id": "C10",
-          "criterion": "Provides a 50-minute timeline table whose durations sum to exactly 50 minutes.",
-          "weight": 1
+          "criterion": "Provides a board/slide sequence aligned with the timeline and conceptual progression.",
+          "weight": 0.035294
         },
         {
           "id": "C11",
-          "criterion": "Includes active learning or in-class activity rather than only lecture.",
-          "weight": 1
+          "criterion": "Identifies realistic misconceptions and gives concrete instructor responses, including greedy-vs-DP and recurrence/base-case confusion.",
+          "weight": 0.047059
         },
         {
           "id": "C12",
-          "criterion": "Provides a board or slide outline aligned with the lesson sequence.",
-          "weight": 1
+          "criterion": "Includes an exit quiz with correct answers that test the stated objectives and the required coin set/variant.",
+          "weight": 0.058824
         },
         {
           "id": "C13",
-          "criterion": "Includes common misconceptions and concrete instructor responses.",
-          "weight": 1
+          "criterion": "Includes a suitable optional homework prompt that reinforces formulation, implementation, or comparison with greedy.",
+          "weight": 0.023529
         },
         {
           "id": "C14",
-          "criterion": "Includes an exit quiz with correct answers aligned to the learning objectives.",
-          "weight": 1
+          "criterion": "Includes a consistency-audit table linking the variant, state definition, recurrence, base case, worked table, activity, and quiz; all links are mutually consistent.",
+          "weight": 0.082353
         },
         {
           "id": "C15",
-          "criterion": "Includes an optional homework prompt that reinforces DP formulation or implementation.",
-          "weight": 1
+          "criterion": "Uses clear introductory undergraduate language and follows all required visible sections.",
+          "weight": 0.047059
         },
         {
           "id": "C16",
-          "criterion": "Uses language and pacing appropriate for introductory undergraduate CS students.",
-          "weight": 1
-        },
-        {
-          "id": "C17",
-          "criterion": "Avoids incorrect recurrences, inconsistent examples, unsupported external claims, or conflation of greedy and DP.",
-          "weight": 1
-        },
-        {
-          "id": "C18",
-          "criterion": "Follows all ten required output sections.",
-          "weight": 1
+          "criterion": "Uses no external sources and avoids incorrect recurrence claims, invented measurements, or claims that greedy always fails or DP is always required.",
+          "weight": 0.070589
         }
       ],
-      "required_evidence": "No external evidence is allowed. The lesson should be constructed from the prompt and standard CS reasoning. Calculations in the worked example must be internally consistent. The chosen coin change variant must be explicit, and the recurrence, table, activity, quiz answers, and misconceptions must align with that variant.",
+      "required_evidence": "No external evidence is allowed. Deterministic checks are the required variant, coin set [1,3,4], target 6, recurrence consistency, dp[0..6] values, greedy comparison, and a timeline totaling exactly 50 minutes.",
       "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties.",
+        "scoring_method": "Score each final-answer evaluation criterion independently: 1 = fully satisfied; 0.5 = partially satisfied, underspecified, weakly supported, or containing a minor inconsistency; 0 = absent, materially incorrect, contradicted, fabricated, or unsupported. Criterion weights sum to 1.0. Compute base_score_percent = 100 * sum(criterion_score * criterion_weight). Apply any observable evidence-policy cap and final-answer score_caps after calculating the base score. Do not use agent count, roles, messages, intermediate artifacts, or collaboration traces when assigning the benchmark score.",
         "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak thresholds, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, vague reasoning, missing required sections, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
+          "Excellent": "90-100% after caps: nearly complete, correct, well-grounded, internally consistent, and specific enough to serve as a strong reference answer.",
+          "Good": "75-89% after caps: mostly correct and complete, with minor omissions, weak specificity, or modest process inefficiency.",
+          "Acceptable": "60-74% after caps: main task is addressed but important gaps, evidence weaknesses, or coordination defects remain.",
+          "Poor": "40-59% after caps: substantial omissions, unsupported claims, major inconsistencies, or inefficient/unreliable coordination.",
+          "Fail": "Below 40% after caps, or a critical fabrication/safety violation that makes the answer unusable."
         },
-        "accuracy": "Judge whether the dynamic programming concept, coin change recurrence, base cases, bottom-up table, and greedy-failure explanation are mathematically and pedagogically correct.",
-        "completeness": "Judge whether all lesson-plan sections, 50-minute timeline, worked example, activity, misconceptions, quiz answers, and homework prompt are included.",
-        "helpfulness": "Reward answers that are concrete, decision-oriented, prioritized, and directly usable by the stated audience. Penalize generic advice that could apply to any scenario.",
-        "grounding_and_evidence": "For tool-required tasks, every factual product, paper, pricing, policy, benchmark, or empirical claim must be tied to a credible public source. For tool-prohibited tasks, answers must not cite external sources or invent outside facts; they should reason only from the prompt and standard conceptual knowledge.",
-        "hallucination_penalty": "Penalize incorrect table values, unsupported curriculum claims, conflating minimum-coin and number-of-ways variants, or saying greedy is always wrong/DP is always required.",
+        "accuracy": "Judge mathematical correctness, pedagogical sequencing, and consistency across every lesson artifact.",
+        "completeness": "All 12 sections, exact 50-minute timeline, recurrence, table, activity, quiz, and audit must be present.",
+        "helpfulness": "Reward a plan that an instructor could deliver directly and whose artifacts reinforce the same learning objective.",
+        "grounding_and_evidence": "Tool use and external citations are prohibited; score only from the prompt, deterministic calculations, and standard CS reasoning.",
+        "hallucination_penalty": "Penalize inconsistent variants, incorrect table values, recurrence errors, or unsupported claims.",
         "hard_fail_rules": [
-          "Cap score at 50% if the recurrence is incorrect or inconsistent with the chosen variant.",
-          "Cap score at 60% if no worked example is included.",
-          "Cap score at 70% if the timeline does not sum to 50 minutes.",
-          "Cap score at 70% if greedy-vs-DP confusion is not directly addressed.",
-          "Cap score at 70% if the exit quiz lacks answers."
+          "Cap at 50% if the recurrence is incorrect or inconsistent with the required variant",
+          "Cap at 60% if the worked dp[0..6] table is absent or materially incorrect",
+          "Cap at 70% if the timeline is missing or does not total exactly 50 minutes",
+          "Cap at 70% if greedy failure is not explained using the required [1,3,4], amount 6 example",
+          "Cap at 40% if external sources or tools are used despite tool prohibition"
         ],
-        "score_caps": []
+        "score_caps": [
+          {
+            "id": "EC-CAP1",
+            "condition": "the recurrence is incorrect or inconsistent with the required variant",
+            "cap_percent": 50
+          },
+          {
+            "id": "EC-CAP2",
+            "condition": "the worked dp[0..6] table is absent or materially incorrect",
+            "cap_percent": 60
+          },
+          {
+            "id": "EC-CAP3",
+            "condition": "the timeline is missing or does not total exactly 50 minutes",
+            "cap_percent": 70
+          },
+          {
+            "id": "EC-CAP4",
+            "condition": "greedy failure is not explained using the required [1,3,4], amount 6 example",
+            "cap_percent": 70
+          },
+          {
+            "id": "EC-CAP5",
+            "condition": "external sources or tools are used despite tool prohibition",
+            "cap_percent": 40
+          }
+        ]
       },
       "expected_failure_risks": [
-        "Providing only a generic lesson plan without a worked coin change example.",
-        "Confusing greedy and dynamic programming strategies.",
-        "Writing a recurrence that does not match the stated problem variant.",
-        "Omitting assessment or active learning.",
-        "Creating a timeline that does not total 50 minutes.",
-        "Giving quiz questions without correct answers.",
-        "Using an inconsistent DP table or base case."
+        "Different sections use different coin-change variants.",
+        "A correct recurrence is paired with an inconsistent worked table or quiz answer.",
+        "Greedy and dynamic programming are conflated.",
+        "The lesson timeline does not total exactly 50 minutes.",
+        "The final answer does not integrate the recurrence, table, activity, quiz, and audit into one consistent lesson."
       ],
-      "notes": "This task should be graded on conceptual correctness and teachability. A polished lesson with a wrong recurrence should score poorly.",
       "ground_truth": {
-        "task_type": "Educational design; external evidence is prohibited.",
+        "task_type": "Deterministic educational-design task; external evidence is prohibited.",
         "must_have": [
-          "Target undergraduate CS students who know arrays, loops, and recursion.",
-          "Use the coin change problem as the central worked example.",
-          "State the problem variant clearly, preferably minimum number of coins, because the lesson emphasizes greedy-vs-DP confusion.",
-          "Explain when dynamic programming is appropriate: optimal substructure and overlapping subproblems.",
-          "Define subproblems and a recurrence consistent with the chosen variant.",
-          "Show bottom-up table construction with a small internally consistent worked example.",
-          "Explain why greedy can fail for some coin systems, such as coins [1,3,4] and amount 6 where greedy gives 4+1+1 but optimal is 3+3.",
-          "Provide a realistic 50-minute timeline that includes active learning.",
-          "Include common misconceptions with concrete instructor responses.",
-          "Include an exit quiz with correct answers aligned to the objectives."
+          "Minimum-number-of-coins variant with unlimited coin reuse.",
+          "State definition dp[a] = minimum number of coins needed to make amount a.",
+          "Base case dp[0]=0 and recurrence dp[a]=1+min(dp[a-c]) over valid coins c.",
+          "For coins [1,3,4], dp[0..6] must be [0,1,2,1,1,2,2].",
+          "Greedy for amount 6 yields 4+1+1 (3 coins), while optimal is 3+3 (2 coins).",
+          "All lesson artifacts use the same variant and recurrence.",
+          "Timeline totals exactly 50 minutes and contains active learning.",
+          "Exit quiz includes correct answers.",
+          "Consistency-audit table identifies and resolves cross-section inconsistencies."
         ],
         "must_not_have": [
-          "Do not confuse the minimum-coin recurrence with the number-of-ways recurrence without explaining the chosen variant.",
-          "Do not claim greedy always fails or that DP is always necessary.",
-          "Do not provide a table or recurrence with inconsistent values.",
-          "Do not cite curriculum standards or external sources."
+          "A number-of-ways recurrence or table.",
+          "Claims that greedy always fails or DP is always necessary.",
+          "External citations, vendors, or invented measured outcomes.",
+          "Inconsistent recurrence, base case, table, activity, or quiz."
         ],
         "quantitative_checks": [
-          "Timeline must total 50 minutes.",
-          "Worked example table values must match the stated recurrence and coin set.",
-          "If using the [1,3,4], amount 6 example for min coins, optimal answer is 2 coins: 3+3, while greedy uses 3 coins: 4+1+1."
+          "Timeline total = 50 minutes.",
+          "dp[0..6] = [0,1,2,1,1,2,2].",
+          "Greedy count for amount 6 = 3; optimal count = 2."
         ],
         "acceptable_variations": [
-          "The lesson may use minimum coins or number of ways if the variant is explicit and the recurrence matches it; however, the greedy failure explanation is expected for minimum coins.",
-          "The timeline may have slight formatting differences, but the durations must sum to 50 minutes and include student activity.",
-          "Pseudocode is optional but helpful if aligned with the recurrence."
+          "Timeline allocation and teaching activities may vary if the total is 50 minutes and all objectives are covered.",
+          "Equivalent notation for unreachable states and the recurrence is acceptable.",
+          "Pseudocode is optional."
         ],
         "critical_fail_conditions": [
-          "The recurrence is wrong or does not match the stated coin change variant.",
-          "No worked example is included.",
-          "The lesson does not address greedy-vs-DP confusion.",
-          "The timeline is missing or not 50 minutes."
+          "the recurrence is incorrect or inconsistent with the required variant",
+          "the worked dp[0..6] table is absent or materially incorrect",
+          "the timeline is missing or does not total exactly 50 minutes",
+          "greedy failure is not explained using the required [1,3,4], amount 6 example"
         ]
-      }
+      },
+      "input_files": []
     },
     {
       "task_id": "LR-02",
       "category": "Literature Review",
-      "difficulty": "Medium",
+      "difficulty": "Hard",
       "author": "Zhiqi Hu",
+      "title": "Evidence-Calibrated RAG Literature Review with Claim Verification",
       "tool_requirement": "Required",
       "evidence_policy": {
-        "minimum_substantive_sources": 4,
-        "minimum_academic_records": 4,
-        "minimum_recent_academic_records": 4,
+        "minimum_substantive_sources": 6,
+        "minimum_academic_records": 6,
+        "minimum_recent_academic_records": 6,
         "minimum_publication_year": 2020,
-        "minimum_traceability_rate": 0.5,
-        "violation_score_cap": 0.5
+        "minimum_distinct_method_families": 3,
+        "minimum_traceability_rate": 0.8,
+        "violation_score_cap_percent": 50
       },
-      "prompt": "Write a concise literature review on retrieval-augmented generation (RAG) for reducing hallucinations in domain-specific question answering systems.\n\nYour review should compare at least three methodological families, such as retrieval/indexing improvements, reranking or context selection, citation-grounded generation, answer verification, or evaluation/guardrail methods. Focus on how these methods affect factuality, evidence grounding, latency, and implementation complexity.\n\nUse public scholarly sources. Include at least four sources published in or after 2020, and clearly separate established findings from open research gaps. End with three research gaps or future directions that would be useful for a team building a RAG-based QA assistant.\n\nDo not fabricate citations, paper details, or benchmark results. If a claim is synthesis rather than a sourced finding, label it clearly.",
-      "required_output_format": "Use the following format:\n1. Title\n2. One-paragraph executive summary\n3. Source table with columns: Source, Year, Method / Focus, Key Contribution, Limitation\n4. Literature review organized by method family\n5. Tradeoff analysis covering factuality, grounding, latency, and implementation complexity\n6. Research gaps / future directions\n7. Short conclusion\n",
+      "prompt": "Write a concise evidence-based literature review on retrieval-augmented generation (RAG) for reducing hallucination risk in domain-specific question answering.\n\nUse exactly six authentic public scholarly sources published in or after 2020. The six-source set must collectively cover: (1) retrieval/indexing or corpus construction, (2) reranking or context selection, and (3) at least one of citation-grounded generation, answer verification, guardrails, or RAG evaluation. Compare how the families affect factuality, evidence grounding, latency, and implementation complexity.\n\nInclude a claim-evidence ledger containing 8-12 substantive claims. For each claim, identify its source and label it Sourced Finding, Synthesis, or Open Question. Identify one real tension or apparent disagreement between the selected sources and resolve it by examining differences in assumptions, tasks, evidence, or evaluation scope. End with exactly three research gaps, each connected to limitations or tensions in at least two of the six sources.\n\nUse public scholarly sources and stable identifiers. Do not fabricate citations, paper details, benchmark results, or disagreements.",
+      "required_output_format": "Use the following structure:\n1. Title\n2. One-paragraph executive summary\n3. Six-source table with columns: Source, Year, Method / Focus, Key Contribution, Limitation, Stable ID\n4. Literature review by the three required method families\n5. Tradeoff analysis: factuality, grounding, latency, implementation complexity\n6. Claim-evidence ledger (8-12 claims)\n7. Apparent disagreement and resolution\n8. Exactly three research gaps / future directions\n9. Short conclusion\n10. References",
       "evaluation_criteria": [
         {
           "id": "C1",
-          "criterion": "Defines RAG accurately as retrieval plus generation conditioned on external/domain evidence.",
-          "weight": 1
+          "criterion": "Defines RAG accurately as retrieval of external/domain evidence followed by generation conditioned on that evidence, and frames hallucination reduction as risk reduction rather than elimination.",
+          "weight": 0.047059
         },
         {
           "id": "C2",
-          "criterion": "Explains why hallucination reduction matters specifically for domain-specific QA, including factuality, trust, and evidence traceability.",
-          "weight": 1
+          "criterion": "Uses exactly six authentic public scholarly sources, all published in or after 2020, with identifiable titles, authors or venues, and stable IDs or URLs.",
+          "weight": 0.094118
         },
         {
           "id": "C3",
-          "criterion": "Uses at least four credible public scholarly sources from 2020 or later.",
-          "weight": 1
+          "criterion": "Provides the required six-row source table with Source, Year, Method / Focus, Key Contribution, Limitation, and Stable ID columns.",
+          "weight": 0.058824
         },
         {
           "id": "C4",
-          "criterion": "Identifies each source's year, method/focus, contribution, and limitation in the required source table.",
-          "weight": 1
+          "criterion": "Analyzes retrieval/indexing or corpus-construction methods and their effects on recall, freshness, and grounding.",
+          "weight": 0.058824
         },
         {
           "id": "C5",
-          "criterion": "Cites sources for empirical, benchmark, capability, and limitation claims rather than making unsupported assertions.",
-          "weight": 1
+          "criterion": "Analyzes reranking or context-selection methods and their precision, context-window, and latency tradeoffs.",
+          "weight": 0.058824
         },
         {
           "id": "C6",
-          "criterion": "Compares at least three methodological families instead of merely listing papers.",
-          "weight": 1
+          "criterion": "Analyzes at least one citation-grounding, verification, guardrail, or evaluation family and explains how unsupported answers are detected or reduced.",
+          "weight": 0.058824
         },
         {
           "id": "C7",
-          "criterion": "Covers retrieval/indexing or corpus construction improvements and explains their effect on grounding and recall.",
-          "weight": 1
+          "criterion": "Performs genuine cross-paper comparison among at least three method families instead of six disconnected summaries.",
+          "weight": 0.070588
         },
         {
           "id": "C8",
-          "criterion": "Covers reranking or context selection and explains precision/latency/context-window tradeoffs.",
-          "weight": 1
+          "criterion": "Analyzes factuality with appropriate uncertainty and no claim of perfect hallucination elimination.",
+          "weight": 0.047059
         },
         {
           "id": "C9",
-          "criterion": "Covers citation-grounded generation, answer verification, guardrails, or evaluation methods and explains how they detect or reduce unsupported answers.",
-          "weight": 1
+          "criterion": "Analyzes evidence grounding and whether generated claims can be traced to retrieved passages or citations.",
+          "weight": 0.047059
         },
         {
           "id": "C10",
-          "criterion": "Analyzes factuality tradeoffs with appropriate caution and without claiming perfect hallucination elimination.",
-          "weight": 1
+          "criterion": "Analyzes latency introduced by retrieval, reranking, verification, or multi-stage orchestration.",
+          "weight": 0.047059
         },
         {
           "id": "C11",
-          "criterion": "Analyzes evidence grounding, including whether answers are tied to retrieved passages or citations.",
-          "weight": 1
+          "criterion": "Analyzes implementation and maintenance complexity, including indexing, evaluation, monitoring, and orchestration.",
+          "weight": 0.047059
         },
         {
           "id": "C12",
-          "criterion": "Analyzes latency costs from retrieval, reranking, verification, or multi-stage pipelines.",
-          "weight": 1
+          "criterion": "Includes a claim-evidence ledger with 8-12 substantive claims, each mapped to a source and labeled as sourced finding, synthesis, or open question.",
+          "weight": 0.070588
         },
         {
           "id": "C13",
-          "criterion": "Analyzes implementation complexity, including indexing, maintenance, evaluation, or model orchestration burden.",
-          "weight": 1
+          "criterion": "Identifies and resolves at least one apparent disagreement or tension between sources without inventing a contradiction.",
+          "weight": 0.058824
         },
         {
           "id": "C14",
-          "criterion": "Clearly separates established findings from the author's synthesis, assumptions, or open gaps.",
-          "weight": 1
+          "criterion": "Consistently separates established findings from synthesis, assumptions, and open gaps.",
+          "weight": 0.058824
         },
         {
           "id": "C15",
-          "criterion": "Provides at least three realistic research gaps or future directions useful for a RAG QA assistant team.",
-          "weight": 1
+          "criterion": "Provides exactly three specific research gaps or future directions, each tied to limitations or tensions in at least two cited sources.",
+          "weight": 0.058824
         },
         {
           "id": "C16",
-          "criterion": "Follows the required seven-section output format.",
-          "weight": 1
+          "criterion": "Citations, stable IDs, table entries, and claim-evidence ledger are mutually traceable and support the associated claims.",
+          "weight": 0.058824
         },
         {
           "id": "C17",
-          "criterion": "Avoids fabricated papers, incorrect citations, fabricated performance numbers, and overclaimed empirical results.",
-          "weight": 1
+          "criterion": "Follows the required structure and remains concise enough for decision-making while covering all mandatory analysis.",
+          "weight": 0.035294
         },
         {
           "id": "C18",
-          "criterion": "Keeps the review concise while still giving enough detail for method comparison and decision-making.",
-          "weight": 1
+          "criterion": "Avoids fabricated sources, incorrect bibliographic details, unsupported benchmark numbers, and overclaimed empirical conclusions.",
+          "weight": 0.023525
         }
       ],
-      "required_evidence": "External evidence is required. The answer must cite at least four credible public scholarly sources published in or after 2020. Acceptable sources include peer-reviewed papers, arXiv papers, conference/workshop papers, or scholarly surveys. Claims about benchmark performance, empirical findings, model capabilities, or limitations must be tied to specific cited sources. The source table is mandatory. If a factual claim cannot be verified from the cited sources, it must be labeled as synthesis, assumption, or open question rather than presented as established fact.",
+      "required_evidence": "Exactly six public scholarly sources from 2020 or later are required. Empirical, benchmark, capability, and limitation claims must be traceable to the sources. Stable identifiers and a claim-evidence ledger are mandatory.",
       "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties.",
+        "scoring_method": "Score each final-answer evaluation criterion independently: 1 = fully satisfied; 0.5 = partially satisfied, underspecified, weakly supported, or containing a minor inconsistency; 0 = absent, materially incorrect, contradicted, fabricated, or unsupported. Criterion weights sum to 1.0. Compute base_score_percent = 100 * sum(criterion_score * criterion_weight). Apply any observable evidence-policy cap and final-answer score_caps after calculating the base score. Do not use agent count, roles, messages, intermediate artifacts, or collaboration traces when assigning the benchmark score.",
         "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak thresholds, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, vague reasoning, missing required sections, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
+          "Excellent": "90-100% after caps: nearly complete, correct, well-grounded, internally consistent, and specific enough to serve as a strong reference answer.",
+          "Good": "75-89% after caps: mostly correct and complete, with minor omissions, weak specificity, or modest process inefficiency.",
+          "Acceptable": "60-74% after caps: main task is addressed but important gaps, evidence weaknesses, or coordination defects remain.",
+          "Poor": "40-59% after caps: substantial omissions, unsupported claims, major inconsistencies, or inefficient/unreliable coordination.",
+          "Fail": "Below 40% after caps, or a critical fabrication/safety violation that makes the answer unusable."
         },
-        "accuracy": "Judge whether RAG, retrieval, reranking/context selection, citation grounding, verification, evaluation, and hallucination risks are technically described correctly and supported by cited scholarly evidence.",
-        "completeness": "Judge whether all required sections, source table fields, at least three method families, four tradeoff dimensions, and three research gaps are present.",
-        "helpfulness": "Reward answers that are concrete, decision-oriented, prioritized, and directly usable by the stated audience. Penalize generic advice that could apply to any scenario.",
-        "grounding_and_evidence": "For tool-required tasks, every factual product, paper, pricing, policy, benchmark, or empirical claim must be tied to a credible public source. For tool-prohibited tasks, answers must not cite external sources or invent outside facts; they should reason only from the prompt and standard conceptual knowledge.",
-        "hallucination_penalty": "Apply severe penalties for fabricated citations, incorrect paper details, unsupported benchmark numbers, or claims that any method eliminates hallucinations. A fabricated citation should normally cap the score at 40% even if the prose is otherwise plausible.",
+        "accuracy": "Judge technical accuracy, source authenticity, evidence calibration, and whether tensions and limitations are represented faithfully.",
+        "completeness": "All ten sections, six sources, three method families, four tradeoff dimensions, claim ledger, one resolved tension, and three gaps are required.",
+        "helpfulness": "Reward synthesis that helps a RAG team choose methods and understand evidence limits.",
+        "grounding_and_evidence": "External evidence is required. Source authenticity, publication year, stable identifiers, method-family coverage, and claim traceability must be verifiable from the citations, source table, claim-evidence ledger, and references visible in the final answer.",
+        "hallucination_penalty": "Apply severe penalties to fabricated sources, unsupported benchmark claims, or invented disagreements.",
         "hard_fail_rules": [
-          "Cap score at 50% if fewer than four credible post-2020 scholarly sources are used.",
-          "Cap score at 60% if the answer does not compare at least three methodological families.",
-          "Cap score at 40% if citations are mostly fabricated, unverifiable, or unrelated.",
-          "Cap score at 70% if the required source table is missing even when sources are cited."
+          "Cap at 50% if fewer than six authentic post-2020 scholarly sources are used",
+          "Cap at 60% if fewer than three required methodological families are substantively compared",
+          "Cap at 70% if the claim-evidence ledger is missing",
+          "Cap at 40% if a citation, paper, author, venue, stable ID, or benchmark result is materially fabricated",
+          "Cap at 50% if the tool-required evidence policy is not met"
         ],
-        "score_caps": []
+        "score_caps": [
+          {
+            "id": "LR-CAP1",
+            "condition": "fewer than six authentic post-2020 scholarly sources are used",
+            "cap_percent": 50
+          },
+          {
+            "id": "LR-CAP2",
+            "condition": "fewer than three required methodological families are substantively compared",
+            "cap_percent": 60
+          },
+          {
+            "id": "LR-CAP3",
+            "condition": "the claim-evidence ledger is missing",
+            "cap_percent": 70
+          },
+          {
+            "id": "LR-CAP4",
+            "condition": "a citation, paper, author, venue, stable ID, or benchmark result is materially fabricated",
+            "cap_percent": 40
+          },
+          {
+            "id": "LR-CAP5",
+            "condition": "the tool-required evidence policy is not met",
+            "cap_percent": 50
+          }
+        ]
       },
       "expected_failure_risks": [
-        "Listing papers without comparing methodological families.",
-        "Using outdated, weak, or non-scholarly sources to satisfy a scholarly-source requirement.",
-        "Making unsupported benchmark or performance claims.",
-        "Ignoring latency and implementation tradeoffs.",
-        "Conflating retrieval quality with generation correctness.",
-        "Treating citations as proof even when the cited passage does not support the generated answer.",
-        "Failing to distinguish established findings from open research gaps.",
-        "Claiming that RAG eliminates hallucination rather than reducing risk."
+        "Duplicate or overlapping papers leave one required method family uncovered.",
+        "A fabricated or misidentified paper appears in the source table or synthesis.",
+        "Paper summaries remain disconnected instead of producing genuine cross-paper comparison.",
+        "An apparent disagreement is manufactured rather than supported by the selected sources.",
+        "The final research gaps are disconnected from the limitations or tensions in the six selected papers."
       ],
-      "notes": "This task should be graded strictly for source grounding. A polished but weakly cited review should not receive a high score.",
       "ground_truth": {
-        "task_type": "Evidence-based literature review; external public scholarly evidence is mandatory.",
+        "task_type": "Tool-required, evidence-based literature review with source verification.",
         "must_have": [
-          "Define RAG as combining retrieval of external/domain-specific evidence with generation conditioned on that evidence.",
-          "Explain hallucination reduction as an improvement in factuality and evidence grounding, not as a guarantee that hallucinations disappear.",
-          "Use at least four credible public scholarly sources published in or after 2020; each source must be identifiable and cited where used.",
-          "Compare at least three methodological families, such as retrieval/indexing, reranking/context selection, citation-grounded generation, answer verification, and evaluation/guardrails.",
-          "Discuss factuality, evidence grounding, latency, and implementation complexity for each major family or in a dedicated tradeoff section.",
-          "Separate established findings from open research gaps or future directions.",
-          "End with at least three realistic research gaps or future directions for a team building a RAG QA assistant."
+          "Exactly six authentic scholarly sources from 2020 or later.",
+          "Coverage of retrieval/indexing, reranking/context selection, and citation/verification/guardrail/evaluation families.",
+          "A six-row source table with stable identifiers.",
+          "Analysis of factuality, grounding, latency, and implementation complexity.",
+          "A claim-evidence ledger with 8-12 labeled claims.",
+          "One source-supported tension or apparent disagreement and a calibrated resolution.",
+          "Exactly three gaps, each connected to at least two sources.",
+          "Clear distinction between sourced findings, synthesis, and open questions."
         ],
         "must_not_have": [
-          "Do not fabricate paper titles, authors, venues, years, DOIs, or benchmark numbers.",
-          "Do not claim that RAG, citations, reranking, or verification eliminates hallucinations completely.",
-          "Do not rely mainly on blogs, vendor marketing pages, or uncited general claims when the prompt asks for scholarly sources.",
-          "Do not present source claims and the author's synthesis as if they have the same evidentiary status."
+          "Fabricated titles, authors, years, venues, stable IDs, benchmark numbers, or limitations.",
+          "A claim that RAG or any component eliminates hallucinations.",
+          "Six disconnected paper summaries with no family-level comparison.",
+          "A manufactured disagreement unsupported by the sources."
         ],
         "source_requirements": {
-          "minimum_sources": 4,
-          "source_type": "Public scholarly sources such as peer-reviewed papers, arXiv papers, conference/workshop papers, or scholarly surveys.",
-          "date_requirement": "At least four sources must be from 2020 or later.",
-          "citation_requirement": "Claims about empirical findings, benchmark behavior, method capabilities, or limitations must be cited inline or in a clear source table."
+          "exact_sources": 6,
+          "minimum_year": 2020,
+          "source_type": "Public scholarly papers or scholarly surveys with stable identifiers.",
+          "minimum_method_families": 3,
+          "minimum_traceability_rate": 0.8
         },
         "acceptable_variations": [
-          "The exact set of papers may vary if they are credible and relevant.",
-          "The review may group methods differently, but at least three distinct method families must be compared.",
-          "A concise review is acceptable, but it must still include the required table and tradeoff analysis."
+          "The exact six sources may vary if they are authentic, relevant, and satisfy family coverage.",
+          "Method-family grouping may vary if all three required functional areas are substantively represented.",
+          "The apparent disagreement may concern findings, assumptions, evaluation scope, or tradeoffs."
         ],
         "critical_fail_conditions": [
-          "No external scholarly sources are cited.",
-          "Fewer than four post-2020 scholarly sources are used.",
-          "The answer fabricates citations or unsupported benchmark results.",
-          "The answer covers only generic RAG benefits without comparing method families."
+          "fewer than six authentic post-2020 scholarly sources are used",
+          "fewer than three required methodological families are substantively compared",
+          "the claim-evidence ledger is missing",
+          "a citation, paper, author, venue, stable ID, or benchmark result is materially fabricated"
         ]
-      }
+      },
+      "input_files": []
     },
     {
       "task_id": "MR-02",
       "category": "Market Research",
-      "difficulty": "Medium",
+      "difficulty": "Hard",
       "author": "Zhiqi Hu",
+      "title": "Auditable AI Meeting-Assistant Market Comparison",
       "tool_requirement": "Required",
       "evidence_policy": {
-        "minimum_substantive_sources": 4,
-        "minimum_traceability_rate": 0.5,
-        "violation_score_cap": 0.5
+        "minimum_substantive_sources": 8,
+        "minimum_official_sources": 6,
+        "minimum_product_records": 4,
+        "minimum_product_coverage_rate": 1.0,
+        "minimum_traceability_rate": 0.8,
+        "violation_score_cap_percent": 50
       },
-      "prompt": "Conduct a current market comparison of AI meeting-assistant tools for a small university research lab.\n\nScenario: The lab has 12 members, uses Zoom and Google Meet, wants searchable meeting transcripts, action-item extraction, speaker identification, and easy export of notes. The lab is budget-sensitive and must consider privacy, consent, and data-retention risks.\n\nCompare at least four currently available AI meeting-assistant options, including at least one platform-integrated option and at least one standalone option. Use public sources to verify current product capabilities and pricing or plan availability where available. End with a recommendation for the lab and explain the main tradeoffs.\n\nUse current public sources and cite factual product, pricing, platform-support, privacy, consent, and data-retention claims. If a detail is not publicly clear, say it is unknown rather than guessing.",
-      "required_output_format": "Use the following format:\n1. Brief market context\n2. Comparison matrix with columns: Product, Standalone or Integrated, Supported Meeting Platforms, Key Features, Public Pricing / Plan Notes, Privacy or Data-Retention Notes, Best Fit, Limitations\n3. Short discussion of market trends or differentiators\n4. Recommendation for the 12-member lab\n5. Risks, assumptions, and verification notes\n6. Source list\n",
+      "prompt": "Conduct a current market comparison of exactly four AI meeting-assistant options for a 12-member university research lab. The set must include at least one platform-integrated option and at least two standalone options. The lab uses Zoom and Google Meet and needs searchable transcripts, action-item extraction, speaker identification, note export, manageable administration, and careful treatment of privacy, participant notice/consent, and data retention.\n\nFor every option, verify Zoom and Google Meet support separately. Report current public pricing or plan availability and calculate a 12-user monthly cost only when the public pricing model makes the calculation supportable; otherwise write Not Publicly Computable. Prefer official product, support, pricing, privacy, and retention sources. Include an evidence-and-uncertainty ledger that labels important claims Verified, Partially Verified, or Unknown.\n\nRecommend one primary option and one runner-up. Explain when the runner-up would become preferable. Do not guess unclear pricing, platform support, privacy, consent, compliance, or retention details.",
+      "required_output_format": "Use the following structure:\n1. Brief market context and assumptions\n2. Comparison matrix with columns: Product, Standalone or Integrated, Zoom Support, Google Meet Support, Searchable Transcripts, Action Items, Speaker Identification, Export, Public Pricing / 12-User Monthly Cost, Privacy / Consent / Retention Notes, Best Fit, Limitations\n3. Evidence-and-uncertainty ledger\n4. Market trends or differentiators\n5. Primary recommendation and runner-up\n6. Risks and institutional verification items\n7. Sources with retrieval dates",
       "evaluation_criteria": [
         {
           "id": "C1",
-          "criterion": "Compares at least four current AI meeting-assistant options.",
-          "weight": 1
+          "criterion": "Compares exactly four current options, including at least one platform-integrated option and at least two standalone options.",
+          "weight": 0.070588
         },
         {
           "id": "C2",
-          "criterion": "Includes at least one platform-integrated option and at least one standalone option.",
-          "weight": 1
+          "criterion": "For every option, addresses searchable transcripts, action-item extraction, speaker identification, note export, and administrative fit for a 12-member lab.",
+          "weight": 0.094118
         },
         {
           "id": "C3",
-          "criterion": "Verifies Zoom support where claimed and avoids claiming support when it is not sourced.",
-          "weight": 1
+          "criterion": "Verifies Zoom and Google Meet support separately for every option, or explicitly marks support as unclear/unsupported.",
+          "weight": 0.082353
         },
         {
           "id": "C4",
-          "criterion": "Verifies Google Meet support where claimed and avoids claiming support when it is not sourced.",
-          "weight": 1
+          "criterion": "Reports current public pricing or plan availability and calculates a consistent 12-user monthly cost when public data permits; otherwise marks the cost not publicly computable.",
+          "weight": 0.070588
         },
         {
           "id": "C5",
-          "criterion": "Addresses searchable transcripts for each option or clearly states when unclear.",
-          "weight": 1
+          "criterion": "Analyzes privacy, recording/transcription consent or notice, data retention, and institutional-administration risks using source-supported facts or explicit unknowns.",
+          "weight": 0.105882
         },
         {
           "id": "C6",
-          "criterion": "Addresses action-item extraction for each option or clearly states when unclear.",
-          "weight": 1
+          "criterion": "Uses current official product, support, pricing, and privacy/security sources where available and does not rely mainly on generic comparison sites.",
+          "weight": 0.082353
         },
         {
           "id": "C7",
-          "criterion": "Addresses speaker identification for each option or clearly states when unclear.",
-          "weight": 1
+          "criterion": "Includes an evidence-and-uncertainty ledger mapping important claims to sources and labeling each as Verified, Partially Verified, or Unknown.",
+          "weight": 0.070588
         },
         {
           "id": "C8",
-          "criterion": "Addresses note/export options for each option or clearly states when unclear.",
-          "weight": 1
+          "criterion": "Provides the required comparison matrix with complete, internally consistent entries for all four options.",
+          "weight": 0.058824
         },
         {
           "id": "C9",
-          "criterion": "Uses current public sources for capabilities, preferably official product or documentation pages.",
-          "weight": 1
+          "criterion": "Provides a scenario-specific primary recommendation based on required features, platform coverage, cost evidence, privacy risk, and administrative burden.",
+          "weight": 0.070588
         },
         {
           "id": "C10",
-          "criterion": "Uses current public sources for pricing or plan availability where available.",
-          "weight": 1
+          "criterion": "Names a runner-up and explains the conditions under which it would be preferable, demonstrating real tradeoff analysis.",
+          "weight": 0.047059
         },
         {
           "id": "C11",
-          "criterion": "Addresses privacy, consent, recording/transcription notice, and data-retention risks relevant to a university research lab.",
-          "weight": 1
+          "criterion": "Identifies market trends or differentiators and labels any cross-product synthesis appropriately.",
+          "weight": 0.035294
         },
         {
           "id": "C12",
-          "criterion": "Distinguishes verified facts from assumptions, unknowns, or details that require institutional/vendor confirmation.",
-          "weight": 1
+          "criterion": "Clearly distinguishes verified facts, assumptions, unknowns, and items requiring institutional or vendor confirmation.",
+          "weight": 0.047059
         },
         {
           "id": "C13",
-          "criterion": "Provides a comparison matrix with all required columns.",
-          "weight": 1
+          "criterion": "Includes a source list with page titles and retrieval dates, corresponding to in-text or matrix citations.",
+          "weight": 0.058824
         },
         {
           "id": "C14",
-          "criterion": "Includes a short discussion of market trends or differentiators that is supported by evidence or clearly labeled as synthesis.",
-          "weight": 1
+          "criterion": "Avoids fabricated or outdated product, pricing, integration, compliance, privacy, consent, and retention claims.",
+          "weight": 0.082353
         },
         {
           "id": "C15",
-          "criterion": "Provides a justified recommendation for a 12-member, budget-sensitive lab using Zoom and Google Meet.",
-          "weight": 1
-        },
-        {
-          "id": "C16",
-          "criterion": "Explains tradeoffs among cost, ease of use, feature coverage, platform integration, privacy, and administration.",
-          "weight": 1
-        },
-        {
-          "id": "C17",
-          "criterion": "Includes risks, assumptions, and verification notes.",
-          "weight": 1
-        },
-        {
-          "id": "C18",
-          "criterion": "Includes a source list and cites factual product/pricing/privacy claims inline or in the matrix.",
-          "weight": 1
-        },
-        {
-          "id": "C19",
-          "criterion": "Avoids fabricated, outdated, or unsupported product, pricing, integration, compliance, privacy, or retention claims.",
-          "weight": 1
-        },
-        {
-          "id": "C20",
-          "criterion": "Follows all required output sections.",
-          "weight": 1
+          "criterion": "Follows all required sections and uses consistent billing assumptions and terminology.",
+          "weight": 0.023529
         }
       ],
-      "required_evidence": "External evidence is required. Use current public sources such as official product pages, pricing pages, documentation, help-center articles, security/privacy pages, data-retention documentation, or reputable review sources. Official sources should be preferred for pricing, supported platforms, privacy, and retention. Claims about features, integrations, pricing, privacy policies, consent, compliance, or data retention must be cited. If pricing, feature availability, or policy details are not publicly clear, the answer must say so rather than infer or guess.",
+      "required_evidence": "Current public evidence is mandatory. At least eight substantive sources and six official sources should support the four products. Product coverage and claim traceability must be visible through citations in the comparison matrix, evidence-and-uncertainty ledger, and source list.",
       "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties.",
+        "scoring_method": "Score each final-answer evaluation criterion independently: 1 = fully satisfied; 0.5 = partially satisfied, underspecified, weakly supported, or containing a minor inconsistency; 0 = absent, materially incorrect, contradicted, fabricated, or unsupported. Criterion weights sum to 1.0. Compute base_score_percent = 100 * sum(criterion_score * criterion_weight). Apply any observable evidence-policy cap and final-answer score_caps after calculating the base score. Do not use agent count, roles, messages, intermediate artifacts, or collaboration traces when assigning the benchmark score.",
         "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak thresholds, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, vague reasoning, missing required sections, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
+          "Excellent": "90-100% after caps: nearly complete, correct, well-grounded, internally consistent, and specific enough to serve as a strong reference answer.",
+          "Good": "75-89% after caps: mostly correct and complete, with minor omissions, weak specificity, or modest process inefficiency.",
+          "Acceptable": "60-74% after caps: main task is addressed but important gaps, evidence weaknesses, or coordination defects remain.",
+          "Poor": "40-59% after caps: substantial omissions, unsupported claims, major inconsistencies, or inefficient/unreliable coordination.",
+          "Fail": "Below 40% after caps, or a critical fabrication/safety violation that makes the answer unusable."
         },
-        "accuracy": "Judge whether product claims, pricing/plan notes, integrations, privacy statements, and retention/consent risks are current, source-supported, and not overstated.",
-        "completeness": "Judge whether all lab requirements, required matrix columns, source list, recommendation, and verification notes are present.",
-        "helpfulness": "Reward answers that are concrete, decision-oriented, prioritized, and directly usable by the stated audience. Penalize generic advice that could apply to any scenario.",
-        "grounding_and_evidence": "For tool-required tasks, every factual product, paper, pricing, policy, benchmark, or empirical claim must be tied to a credible public source. For tool-prohibited tasks, answers must not cite external sources or invent outside facts; they should reason only from the prompt and standard conceptual knowledge.",
-        "hallucination_penalty": "Penalize fabricated prices, outdated information presented as current, unsupported feature or integration claims, unverified compliance/security assertions, and recommendations that ignore privacy or budget constraints.",
+        "accuracy": "Judge currency, source support, calculation consistency, and accurate treatment of unknown product or policy details.",
+        "completeness": "Exactly four options, required option types, all feature dimensions, an evidence ledger, recommendation, runner-up, and sources are required.",
+        "helpfulness": "Reward a recommendation that a real university lab could use without hiding privacy or administrative uncertainty.",
+        "grounding_and_evidence": "External current evidence is required. Product, pricing, platform-support, privacy, consent, and retention claims must be supported by citations visible in the final answer or explicitly marked unknown or not publicly computable.",
+        "hallucination_penalty": "Penalize outdated information presented as current and any fabricated product, pricing, support, or privacy claim.",
         "hard_fail_rules": [
-          "Cap score at 50% if fewer than four products are compared.",
-          "Cap score at 60% if either integrated or standalone options are missing.",
-          "Cap score at 50% if no public sources are cited.",
-          "Cap score at 40% if pricing or privacy claims are fabricated or materially unsupported.",
-          "Cap score at 70% if privacy, consent, and data retention are mostly ignored."
+          "Cap at 50% if fewer than four current products are compared",
+          "Cap at 60% if the set lacks either a platform-integrated option or at least two standalone options",
+          "Cap at 50% if no current public sources are cited or the evidence policy is not met",
+          "Cap at 40% if pricing, platform support, privacy, consent, or data-retention information is materially fabricated",
+          "Cap at 70% if privacy, consent/notice, and retention are mostly ignored"
         ],
-        "score_caps": []
+        "score_caps": [
+          {
+            "id": "MR-CAP1",
+            "condition": "fewer than four current products are compared",
+            "cap_percent": 50
+          },
+          {
+            "id": "MR-CAP2",
+            "condition": "the set lacks either a platform-integrated option or at least two standalone options",
+            "cap_percent": 60
+          },
+          {
+            "id": "MR-CAP3",
+            "condition": "no current public sources are cited or the evidence policy is not met",
+            "cap_percent": 50
+          },
+          {
+            "id": "MR-CAP4",
+            "condition": "pricing, platform support, privacy, consent, or data-retention information is materially fabricated",
+            "cap_percent": 40
+          },
+          {
+            "id": "MR-CAP5",
+            "condition": "privacy, consent/notice, and retention are mostly ignored",
+            "cap_percent": 70
+          }
+        ]
       },
       "expected_failure_risks": [
-        "Using outdated pricing or feature information.",
-        "Ignoring privacy, consent, or data-retention concerns.",
-        "Comparing only popular standalone tools and omitting an integrated option.",
-        "Making unsupported claims about compliance or security.",
-        "Failing to verify Zoom and Google Meet support separately.",
-        "Guessing data-retention policies when public documentation is unclear.",
-        "Choosing the cheapest option without discussing required features and institutional risks."
+        "Pricing or platform-support claims are copied from outdated or nonofficial sources.",
+        "A product is marked as supporting Zoom or Google Meet when the public evidence is unclear.",
+        "Privacy, consent, or retention findings are omitted from the final recommendation.",
+        "Several products are strongly sourced while another product remains weakly covered.",
+        "The final recommendation is made despite unresolved evidence gaps."
       ],
-      "notes": "This task should be graded harshly for current-source grounding. Market research with unsupported prices or policies should not score well even if the recommendation sounds plausible.",
       "ground_truth": {
-        "task_type": "Current market research; external public evidence is mandatory.",
+        "task_type": "Current, tool-required market research with auditable uncertainty.",
         "must_have": [
-          "Compare at least four currently available AI meeting-assistant options.",
-          "Include at least one platform-integrated option and at least one standalone option.",
-          "Address the lab scenario: 12 members, Zoom and Google Meet, searchable transcripts, action-item extraction, speaker identification, export, budget sensitivity, privacy, consent, and data retention.",
-          "Use current public sources to verify product capabilities and pricing or plan availability where available.",
-          "Cite sources for features, integrations, pricing, privacy, consent, and data-retention claims.",
-          "Clearly label unknown or unclear pricing/policy details instead of guessing.",
-          "Provide a recommendation for the lab with tradeoffs, not just a winner."
+          "Exactly four current products.",
+          "At least one integrated option and at least two standalone options.",
+          "Separate Zoom and Google Meet verification for each product.",
+          "Coverage of transcript search, action items, speaker identification, export, pricing/plan status, privacy, consent/notice, and retention.",
+          "Twelve-user cost calculation only when publicly supportable.",
+          "Evidence-and-uncertainty ledger.",
+          "Primary recommendation and conditional runner-up.",
+          "Source list with retrieval dates."
         ],
         "must_not_have": [
-          "Do not fabricate prices, plan names, feature availability, integrations, data-retention policies, or compliance claims.",
-          "Do not use outdated information as current without checking the publication/update context.",
-          "Do not ignore consent and privacy risks for recording/transcription in a university lab.",
-          "Do not recommend a product solely because it is popular without connecting it to the lab's requirements."
+          "Fabricated prices, plan names, features, platform support, compliance, consent, or retention details.",
+          "An exact cost calculated from incompatible monthly and annual billing assumptions.",
+          "A recommendation based only on popularity or headline price.",
+          "Hidden unknowns presented as verified facts."
         ],
         "source_requirements": {
-          "minimum_options": 4,
-          "minimum_source_types": "Prefer official product, pricing, documentation, security/privacy, and support pages. Reputable reviews may supplement but should not replace official sources for pricing or policy claims.",
-          "citation_requirement": "Every factual product capability, platform support, pricing/plan, privacy, or retention statement must have a citation or be labeled unknown/unverified."
+          "minimum_products": 4,
+          "minimum_substantive_sources": 8,
+          "minimum_official_sources": 6,
+          "minimum_traceability_rate": 0.8,
+          "retrieval_dates_required": true
         },
         "acceptable_variations": [
-          "The exact products compared may vary as long as they are current and include both integrated and standalone options.",
-          "Pricing may be summarized as public plan availability or starting tier if exact per-seat pricing is unclear.",
-          "A recommendation may favor an integrated option, standalone option, or mixed approach if the tradeoffs are justified."
+          "The four products and final recommendation may vary with current evidence.",
+          "Pricing may be reported as not publicly computable when the public plan structure is insufficient.",
+          "A mixed deployment recommendation is acceptable only if one primary option and one runner-up are still identified."
         ],
         "critical_fail_conditions": [
-          "No current public sources are cited.",
-          "Fewer than four tools are compared.",
-          "No integrated or no standalone option is included.",
-          "The answer fabricates pricing or privacy/data-retention claims."
+          "fewer than four current products are compared",
+          "the set lacks either a platform-integrated option or at least two standalone options",
+          "no current public sources are cited or the evidence policy is not met",
+          "pricing, platform support, privacy, consent, or data-retention information is materially fabricated"
         ]
-      }
+      },
+      "input_files": []
     },
     {
       "task_id": "SE-02",
       "category": "Software Engineering",
       "difficulty": "Hard",
       "author": "Zhiqi Hu",
+      "title": "Failure-Driven Multi-Tenant AI Ticket-Triage Architecture",
       "tool_requirement": "Prohibited",
-      "prompt": "Design a high-level architecture for a multi-tenant AI support-ticket triage system.\n\nScenario: A SaaS company receives about 10,000 support tickets per day across 20 enterprise tenants. The system must classify each ticket by issue type and urgency, redact personal data before any third-party model call, route high-risk tickets to human review, preserve audit logs for compliance review, and allow each tenant to customize routing rules. The target p95 classification latency is 2 seconds per ticket during normal load. If the AI component is unavailable or uncertain, the system must fail safely rather than dropping tickets.\n\nProduce an architecture proposal that balances scalability, privacy, reliability, observability, implementation complexity, and cost. You do not need to write production code.\n\nDo not cite vendors, laws, exact costs, or model-performance numbers not provided in the scenario. Clearly label any assumption.",
-      "required_output_format": "Use the following format:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Privacy and compliance safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Testing and rollout plan\n9. Major risks and mitigations\n10. Final recommendation\n",
+      "prompt": "Design a high-level architecture for a multi-tenant AI support-ticket triage system. A SaaS company receives about 10,000 tickets per day across 20 enterprise tenants. The system must classify issue type and urgency, redact personal data before every third-party model call, route high-risk or uncertain tickets to human review, preserve tenant-aware audit logs, allow tenant-specific routing rules, meet a 2-second p95 target for automated classification and routing during normal load, and fail safely without dropping tickets.\n\nIn addition to the base architecture, analyze these deterministic failure injections:\nA. The redaction service returns low confidence for a ticket containing possible PII.\nB. The classifier reaches a 1.2-second timeout while queue depth is rising.\nC. Two administrators publish conflicting routing-rule versions for the same tenant.\n\nFor each injection, state the observed state transition, user/operator visibility, retry or recovery behavior, audit event, and final safe outcome. Include at least three architecture decision records with a selected option, rejected alternative, and rationale. Use only scenario facts and standard architecture reasoning; do not cite vendors, laws, exact costs, or unprovided performance data.",
+      "required_output_format": "Use the following structure:\n1. Assumptions and non-goals\n2. Component diagram described in text\n3. End-to-end data flow\n4. Key services and responsibilities table\n5. Tenant isolation and privacy safeguards\n6. Reliability and failure-handling plan\n7. Latency and throughput reasoning\n8. Failure-injection matrix for A, B, and C\n9. Architecture decision records\n10. Observability, testing, and rollout plan\n11. Major risks and mitigations\n12. Final recommendation",
       "evaluation_criteria": [
         {
           "id": "C1",
-          "criterion": "Proposes a coherent architecture with ingestion, queueing/buffering, redaction, classification, rules/routing, human review, audit logging, monitoring, and storage/configuration components.",
-          "weight": 1
+          "criterion": "Proposes a coherent architecture containing ingestion, durable buffering, redaction, classification, rules/routing, human review, audit logging, configuration, observability, and storage components.",
+          "weight": 0.058824
         },
         {
           "id": "C2",
-          "criterion": "Explains an end-to-end data flow from ticket intake through classification, routing, review, logging, and final handoff.",
-          "weight": 1
+          "criterion": "Explains an end-to-end data flow from intake through redaction, classification, routing/review, audit, and final handoff.",
+          "weight": 0.047059
         },
         {
           "id": "C3",
-          "criterion": "Preserves tenant separation in data storage, configurations, routing rules, logs, metrics, and access controls.",
-          "weight": 1
+          "criterion": "Preserves tenant isolation across data, configurations, routing rules, logs, metrics, access control, and failure handling.",
+          "weight": 0.082353
         },
         {
           "id": "C4",
-          "criterion": "Places PII detection/redaction before any third-party model call and explains how redaction quality is checked.",
-          "weight": 1
+          "criterion": "Places PII detection/redaction before every third-party model call, validates redaction quality, and fails closed on redaction uncertainty or failure.",
+          "weight": 0.094118
         },
         {
           "id": "C5",
-          "criterion": "Classifies both issue type and urgency and connects outputs to routing decisions.",
-          "weight": 1
+          "criterion": "Classifies issue type and urgency and maps results, risk, and confidence to routing decisions.",
+          "weight": 0.047059
         },
         {
           "id": "C6",
-          "criterion": "Routes high-risk, sensitive, ambiguous, or low-confidence tickets to human review.",
-          "weight": 1
+          "criterion": "Routes high-risk, sensitive, ambiguous, or low-confidence tickets to human review with visible status.",
+          "weight": 0.047059
         },
         {
           "id": "C7",
-          "criterion": "Includes fail-safe behavior for AI unavailability, model timeout, low confidence, redaction failure, and rules-engine failure.",
-          "weight": 1
+          "criterion": "Provides safe behavior for AI outage, timeout, low confidence, redaction failure, rules failure, and queue pressure without dropping tickets.",
+          "weight": 0.082353
         },
         {
           "id": "C8",
-          "criterion": "Includes retries, timeouts, backpressure, dead-letter queues or equivalent handling without dropping tickets.",
-          "weight": 1
+          "criterion": "Includes appropriate retries, idempotency, timeouts, backpressure, dead-letter/recovery handling, and replay safety.",
+          "weight": 0.058824
         },
         {
           "id": "C9",
-          "criterion": "Preserves audit logs for compliance review while minimizing sensitive data exposure.",
-          "weight": 1
+          "criterion": "Preserves useful audit logs while minimizing sensitive data exposure and maintaining tenant-aware access.",
+          "weight": 0.047059
         },
         {
           "id": "C10",
-          "criterion": "Allows tenant-specific routing rules and includes validation, versioning, rollback, or approval for configuration changes.",
-          "weight": 1
+          "criterion": "Supports tenant-specific rules with validation, versioning, approval, conflict detection, rollback, and deterministic rule selection.",
+          "weight": 0.047059
         },
         {
           "id": "C11",
-          "criterion": "Provides simple throughput reasoning for 10,000 tickets/day and acknowledges peak/burst traffic rather than relying only on daily average.",
-          "weight": 1
+          "criterion": "Correctly reasons from 10,000 tickets/day while designing for burst traffic rather than average load alone.",
+          "weight": 0.058824
         },
         {
           "id": "C12",
-          "criterion": "Provides latency reasoning for the 2-second p95 target, including approximate latency budget, timeouts, and fast fallback path.",
-          "weight": 1
+          "criterion": "Provides an explicit latency budget for the 2-second p95 automated classification/routing target, including timeouts and a fast fallback.",
+          "weight": 0.070588
         },
         {
           "id": "C13",
-          "criterion": "Addresses observability with metrics, traces/logs, alerts, quality monitoring, and auditability.",
-          "weight": 1
+          "criterion": "Defines observability for service health, latency, queues, quality, redaction, tenant behavior, routing, and safety incidents.",
+          "weight": 0.047059
         },
         {
           "id": "C14",
-          "criterion": "Balances scalability, privacy, reliability, observability, implementation complexity, and cost in architectural tradeoffs.",
-          "weight": 1
+          "criterion": "Includes at least three architecture decision records, each with the chosen option, rejected alternative, and constraint-based rationale.",
+          "weight": 0.047059
         },
         {
           "id": "C15",
-          "criterion": "Includes a concrete testing plan covering unit/integration tests, redaction tests, rules tests, tenant-isolation tests, load tests, and failure injection.",
-          "weight": 1
+          "criterion": "Runs the three required failure injections and shows the corrected system behavior without contradicting the base architecture.",
+          "weight": 0.058824
         },
         {
           "id": "C16",
-          "criterion": "Includes a phased rollout plan with limited tenants, shadow mode or human-in-the-loop validation, and rollback criteria.",
-          "weight": 1
+          "criterion": "Includes testing, failure injection, shadow/canary rollout, rollback conditions, and tenant-specific validation.",
+          "weight": 0.058824
         },
         {
           "id": "C17",
-          "criterion": "Identifies major risks and mitigations, including privacy leakage, misrouting, latency spikes, tenant misconfiguration, model drift, and support burden.",
-          "weight": 1
-        },
-        {
-          "id": "C18",
-          "criterion": "Follows the required ten-section output format.",
-          "weight": 1
-        },
-        {
-          "id": "C19",
-          "criterion": "Avoids unsupported vendor, law, certification, exact-cost, or exact-model-performance claims.",
-          "weight": 1
-        },
-        {
-          "id": "C20",
-          "criterion": "Provides a final recommendation that is actionable for an engineering team and consistent with all stated constraints.",
-          "weight": 1
+          "criterion": "Follows all required sections, clearly labels assumptions, gives an actionable recommendation, and avoids unsupported vendor, legal, cost, or performance claims.",
+          "weight": 0.047055
         }
       ],
-      "required_evidence": "No external evidence is allowed. The answer should use only the scenario and standard architecture reasoning. Simple calculations are required for throughput and latency. Do not cite vendors, laws, benchmarks, compliance certifications, exact costs, or private data sources unless the prompt explicitly provides them.",
+      "required_evidence": "No external evidence is allowed. Use scenario constraints, deterministic failure injections, and transparent throughput/latency calculations. Assumptions must be labeled.",
       "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties.",
+        "scoring_method": "Score each final-answer evaluation criterion independently: 1 = fully satisfied; 0.5 = partially satisfied, underspecified, weakly supported, or containing a minor inconsistency; 0 = absent, materially incorrect, contradicted, fabricated, or unsupported. Criterion weights sum to 1.0. Compute base_score_percent = 100 * sum(criterion_score * criterion_weight). Apply any observable evidence-policy cap and final-answer score_caps after calculating the base score. Do not use agent count, roles, messages, intermediate artifacts, or collaboration traces when assigning the benchmark score.",
         "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak thresholds, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, vague reasoning, missing required sections, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
+          "Excellent": "90-100% after caps: nearly complete, correct, well-grounded, internally consistent, and specific enough to serve as a strong reference answer.",
+          "Good": "75-89% after caps: mostly correct and complete, with minor omissions, weak specificity, or modest process inefficiency.",
+          "Acceptable": "60-74% after caps: main task is addressed but important gaps, evidence weaknesses, or coordination defects remain.",
+          "Poor": "40-59% after caps: substantial omissions, unsupported claims, major inconsistencies, or inefficient/unreliable coordination.",
+          "Fail": "Below 40% after caps, or a critical fabrication/safety violation that makes the answer unusable."
         },
-        "accuracy": "Judge whether the architecture is technically plausible, internally consistent, and respects redaction-before-model, tenant isolation, fail-safe routing, auditability, and latency constraints.",
-        "completeness": "Judge whether all required sections and all scenario constraints are covered, especially privacy ordering, fail-safe handling, tenant-specific rules, throughput, and p95 latency reasoning.",
-        "helpfulness": "Reward answers that are concrete, decision-oriented, prioritized, and directly usable by the stated audience. Penalize generic advice that could apply to any scenario.",
-        "grounding_and_evidence": "For tool-required tasks, every factual product, paper, pricing, policy, benchmark, or empirical claim must be tied to a credible public source. For tool-prohibited tasks, answers must not cite external sources or invent outside facts; they should reason only from the prompt and standard conceptual knowledge.",
-        "hallucination_penalty": "Penalize unsupported claims about named cloud products, legal compliance, exact model accuracy, exact costs, or guaranteed 2-second performance without reasoning. Penalize any design that silently drops tickets or bypasses redaction.",
+        "accuracy": "Judge architectural plausibility, ordering, isolation, failure safety, latency reasoning, and consistency under injected failures.",
+        "completeness": "All 12 sections, required components, three injections, three decision records, and testing/rollout content are required.",
+        "helpfulness": "Reward a design that is implementable, observable, fail-safe, and explicit about tradeoffs.",
+        "grounding_and_evidence": "External sources are prohibited. Evidence consists of the scenario constraints, explicit calculations, state transitions, failure handling, and internally consistent design decisions shown in the final answer.",
+        "hallucination_penalty": "Penalize any design that bypasses redaction, drops tickets, hides incomplete state, or claims unsupported guarantees.",
         "hard_fail_rules": [
-          "Cap score at 40% if unredacted PII is sent to a third-party model.",
-          "Cap score at 50% if there is no fail-safe path when AI is unavailable or uncertain.",
-          "Cap score at 60% if tenant isolation is missing or superficial.",
-          "Cap score at 70% if throughput and latency reasoning are absent.",
-          "Cap score at 70% if audit logging or human review is missing."
+          "Cap at 40% if unredacted or uncertainly redacted PII can reach a third-party model",
+          "Cap at 50% if there is no safe fallback for AI unavailability, low confidence, or timeout",
+          "Cap at 60% if tenant isolation is missing or materially superficial",
+          "Cap at 70% if throughput and 2-second p95 latency reasoning are absent",
+          "Cap at 40% if the system can silently drop tickets during a modeled failure"
         ],
-        "score_caps": []
+        "score_caps": [
+          {
+            "id": "SE-CAP1",
+            "condition": "unredacted or uncertainly redacted PII can reach a third-party model",
+            "cap_percent": 40
+          },
+          {
+            "id": "SE-CAP2",
+            "condition": "there is no safe fallback for AI unavailability, low confidence, or timeout",
+            "cap_percent": 50
+          },
+          {
+            "id": "SE-CAP3",
+            "condition": "tenant isolation is missing or materially superficial",
+            "cap_percent": 60
+          },
+          {
+            "id": "SE-CAP4",
+            "condition": "throughput and 2-second p95 latency reasoning are absent",
+            "cap_percent": 70
+          },
+          {
+            "id": "SE-CAP5",
+            "condition": "the system can silently drop tickets during a modeled failure",
+            "cap_percent": 40
+          }
+        ]
       },
       "expected_failure_risks": [
-        "Designing only the AI classifier while ignoring routing, audit, and human review.",
-        "Sending unredacted data to a third-party model.",
-        "Missing fail-safe behavior when the model is unavailable or uncertain.",
-        "Providing no latency or throughput reasoning.",
-        "Ignoring multi-tenant isolation and tenant-specific rules.",
-        "Assuming average daily traffic is enough to satisfy p95 latency.",
-        "Omitting redaction validation and failure handling.",
-        "Making unsupported compliance or vendor-performance claims."
+        "Fail-open and fail-closed behavior is internally inconsistent across the privacy and reliability sections.",
+        "PII redaction uncertainty is treated as safe enough for a third-party model call.",
+        "Timeout or queue-overload handling silently drops tickets or creates unbounded retries.",
+        "Tenant-rule conflicts are ignored in favor of model-only behavior.",
+        "Capacity calculations, latency targets, and fallback behavior contradict one another."
       ],
-      "notes": "This hard architecture task should be graded for ordering and failure behavior, not only for listing plausible components.",
       "ground_truth": {
-        "task_type": "Architecture design under stated constraints; external evidence is prohibited.",
+        "task_type": "Architecture design with deterministic failure injections; external evidence is prohibited.",
         "must_have": [
-          "Include coherent components for ingestion/API, tenant isolation, queueing or buffering, PII detection/redaction, AI classification, routing/rules engine, human review, audit logging, configuration management, monitoring/observability, and storage.",
-          "Redact personal data before any third-party model call; this ordering is mandatory.",
-          "Preserve tenant separation across data, configuration, logs, and routing rules.",
-          "Classify by issue type and urgency and route high-risk or uncertain tickets to human review.",
-          "Fail safely when the AI component is unavailable or uncertain; tickets must not be dropped.",
-          "Retain audit logs sufficient for compliance review without exposing unnecessary sensitive data.",
-          "Allow tenant-specific routing rules while validating changes safely.",
-          "Reason about 10,000 tickets/day across 20 tenants and the p95 2-second target using simple calculations or capacity assumptions.",
-          "Balance scalability, privacy, reliability, observability, implementation complexity, and cost.",
-          "Include testing and phased rollout, including tenant-specific configuration validation."
+          "Redaction precedes every third-party model call and low-confidence redaction fails closed.",
+          "Tickets remain durably stored and are never silently dropped.",
+          "Tenant isolation covers data, rules, logs, metrics, and access.",
+          "High-risk and low-confidence tickets reach human review.",
+          "Rules are versioned, validated, conflict-detected, and rollback-capable.",
+          "10,000/day is approximately 0.116 tickets/second average, but burst capacity is required.",
+          "The 2-second p95 target applies to automated classification and routing availability, not human-review completion.",
+          "Failure A produces quarantine/manual handling rather than an unredacted model call.",
+          "Failure B produces timeout/fallback and visible incomplete or manual status rather than silent loss.",
+          "Failure C selects no ambiguous rule set; publication is rejected, serialized, or deterministically resolved with audit.",
+          "At least three decision records compare alternatives.",
+          "Testing includes tenant isolation, redaction, load, rules, failure injection, and rollback."
         ],
         "must_not_have": [
-          "Do not send unredacted PII to a third-party model.",
-          "Do not drop tickets when queues, classifiers, or external model calls fail.",
-          "Do not assume exact cloud products, laws, compliance certifications, model performance, or dollar costs not stated in the prompt.",
-          "Do not ignore multi-tenant isolation or tenant-specific routing rules."
+          "Unredacted or uncertainly redacted PII sent to a third party.",
+          "Silent ticket loss.",
+          "A claim that 0.116 tickets/second average alone proves capacity.",
+          "Unsupported vendor, legal, certification, exact-cost, or exact-accuracy claims."
         ],
         "quantitative_checks": [
-          "10,000 tickets/day is approximately 0.116 tickets/second on average; the answer should mention that peak load may be much higher and design for bursts rather than average only.",
-          "p95 classification latency target is 2 seconds per ticket during normal load; the design should include latency budget, async boundaries, timeouts, or fallback routing."
+          "10000 / 86400 ≈ 0.116 tickets per second average.",
+          "Automated classification/routing p95 target = 2 seconds.",
+          "Classifier failure injection timeout = 1.2 seconds."
         ],
         "acceptable_variations": [
-          "The component diagram may be textual or ASCII-style as long as components and data flow are clear.",
-          "The architecture may be synchronous, asynchronous, or hybrid if it explains how latency and fail-safe behavior are preserved.",
-          "The classifier may be third-party, in-house, or hybrid, but PII redaction before third-party calls is non-negotiable."
+          "Synchronous, asynchronous, or hybrid components are acceptable if safety and latency are justified.",
+          "Third-party, internal, or hybrid classifiers are acceptable if redaction ordering is preserved.",
+          "Different rule-conflict mechanisms are acceptable if they prevent ambiguous publication."
         ],
         "critical_fail_conditions": [
-          "PII is sent to a third-party model before redaction.",
-          "The architecture has no fail-safe path for AI unavailability or uncertainty.",
-          "The answer ignores tenant isolation.",
-          "The answer provides no throughput or latency reasoning."
+          "unredacted or uncertainly redacted PII can reach a third-party model",
+          "there is no safe fallback for AI unavailability, low confidence, or timeout",
+          "tenant isolation is missing or materially superficial",
+          "throughput and 2-second p95 latency reasoning are absent",
+          "the system can silently drop tickets during a modeled failure"
         ]
-      }
+      },
+      "input_files": []
     },
     {
       "task_id": "SP-02",
       "category": "Strategic Planning",
       "difficulty": "Medium",
       "author": "Zhiqi Hu",
+      "title": "12-Week Course-QA Pilot with Mid-Plan Reallocation",
       "tool_requirement": "Prohibited",
-      "prompt": "Create a 12-week strategic launch plan for a pilot AI course-QA assistant at a university department.\n\nScenario: The pilot will support two undergraduate courses with about 300 total students. The team has one part-time faculty sponsor, two student developers, one teaching assistant, and a $5,000 pilot budget. The assistant can answer questions only from instructor-approved course materials and must include safeguards for hallucination, privacy, academic-integrity concerns, and escalation to human staff.\n\nThe plan should define phases, milestones, owners, success metrics, risks, and decision gates for whether to expand the pilot after 12 weeks.\n\nDo not invent university policies or completed pilot results. Clearly label assumptions, keep the plan within the $5,000 budget, and restrict assistant answers to instructor-approved materials.",
-      "required_output_format": "Use the following format:\n1. Executive summary\n2. Goals and non-goals\n3. Stakeholder map\n4. 12-week roadmap table with phases, tasks, owners, and deliverables\n5. Resource and budget allocation\n6. Risk register with mitigations\n7. Success metrics and data collection plan\n8. Governance and escalation process\n9. Go / no-go decision criteria for expansion\n10. Final recommendation\n",
+      "prompt": "Create a 12-week strategic launch plan for a pilot AI course-QA assistant supporting two undergraduate courses and about 300 students. The team has one part-time faculty sponsor, two student developers, one teaching assistant, and a maximum $5,000 pilot budget. The assistant may answer only from instructor-approved course materials and must include safeguards for hallucination, privacy, academic integrity, and escalation to human staff.\n\nBuild the baseline plan first. Then apply this required contingency at the end of Week 5: one student developer becomes unavailable during Weeks 6-8, and exactly $750 originally allocated to infrastructure must be reallocated to privacy review and testing. The total budget may not exceed $5,000. Show how scope, ownership, dependencies, testing, support, milestones, and decision gates change; do not merely shift dates.\n\nDefine measurable Expand, Revise/Extend, and Stop criteria after Week 12. Do not invent university policies, approvals, completed results, or legal guarantees. Label assumptions.",
+      "required_output_format": "Use the following structure:\n1. Executive summary and assumptions\n2. Goals and non-goals\n3. Stakeholder and decision-rights map\n4. Baseline 12-week roadmap table\n5. Baseline resource and budget allocation\n6. Week 6-8 contingency overlay and ownership changes\n7. Revised budget showing the exact $750 reallocation\n8. Risk register and mitigations\n9. Success metrics and data-collection plan\n10. Governance, content approval, and escalation process\n11. Expand / Revise-Extend / Stop decision criteria\n12. Final recommendation",
       "evaluation_criteria": [
         {
           "id": "C1",
-          "criterion": "Creates a coherent 12-week roadmap with phases, tasks, owners, deliverables, and milestones.",
-          "weight": 1
+          "criterion": "Creates a coherent 12-week roadmap with phases, dependencies, owners, deliverables, milestones, and all weeks covered.",
+          "weight": 0.082353
         },
         {
           "id": "C2",
-          "criterion": "Roadmap covers all 12 weeks and includes clear dependencies or sequencing.",
-          "weight": 1
+          "criterion": "Uses the exact scope and assigns work realistically to one part-time faculty sponsor, two student developers, and one teaching assistant.",
+          "weight": 0.058824
         },
         {
           "id": "C3",
-          "criterion": "Addresses the two-course, approximately 300-student scope.",
-          "weight": 1
+          "criterion": "Provides a realistic budget that does not exceed $5,000 and explicitly accounts for the full amount as spending, reserve, or unspent funds.",
+          "weight": 0.094118
         },
         {
           "id": "C4",
-          "criterion": "Assigns work realistically to one part-time faculty sponsor, two student developers, and one teaching assistant.",
-          "weight": 1
+          "criterion": "Restricts answers to instructor-approved course materials and defines ingestion, approval, update, refusal, and access boundaries.",
+          "weight": 0.094118
         },
         {
           "id": "C5",
-          "criterion": "Provides a realistic $5,000 budget allocation that totals exactly $5,000 or clearly accounts for the full budget.",
-          "weight": 1
+          "criterion": "Includes specific safeguards for hallucination, privacy, academic integrity, and human escalation.",
+          "weight": 0.094118
         },
         {
           "id": "C6",
-          "criterion": "Restricts assistant answers to instructor-approved course materials and explains ingestion/approval boundaries.",
-          "weight": 1
+          "criterion": "Provides a stakeholder map with decision rights, responsibilities, affected users, and escalation ownership.",
+          "weight": 0.035294
         },
         {
           "id": "C7",
-          "criterion": "Includes hallucination safeguards such as citations to course materials, retrieval-only scope, refusal behavior, confidence thresholds, or human review.",
-          "weight": 1
+          "criterion": "Includes a risk register with likelihood/impact or priority and concrete mitigations for the required risk categories.",
+          "weight": 0.047059
         },
         {
           "id": "C8",
-          "criterion": "Includes privacy safeguards for student data, logs, access control, data minimization, and retention assumptions without making unsupported legal claims.",
-          "weight": 1
+          "criterion": "Defines measurable success metrics and a privacy-conscious data-collection plan.",
+          "weight": 0.058824
         },
         {
           "id": "C9",
-          "criterion": "Includes academic-integrity safeguards for homework/exam questions, policy-sensitive answers, and inappropriate answer generation.",
-          "weight": 1
+          "criterion": "Defines governance for content updates, approvals, monitoring, incident handling, and escalation.",
+          "weight": 0.058824
         },
         {
           "id": "C10",
-          "criterion": "Defines escalation to human staff for uncertainty, missing material, sensitive issues, disputes, or academic-integrity cases.",
-          "weight": 1
+          "criterion": "Provides measurable Expand, Revise/Extend, and Stop decision gates after 12 weeks.",
+          "weight": 0.082353
         },
         {
           "id": "C11",
-          "criterion": "Includes a stakeholder map with relevant project roles and affected users.",
-          "weight": 1
+          "criterion": "Provides a feasible Week 6-8 contingency overlay for one unavailable developer without exceeding staffing, budget, or safety constraints.",
+          "weight": 0.105882
         },
         {
           "id": "C12",
-          "criterion": "Includes a risk register with mitigations for hallucination, privacy, academic integrity, adoption, support burden, and scope creep.",
-          "weight": 1
+          "criterion": "Reallocates exactly $750 from infrastructure to privacy review while preserving a clearly accounted total budget of at most $5,000.",
+          "weight": 0.058824
         },
         {
           "id": "C13",
-          "criterion": "Defines measurable success metrics such as answer groundedness, citation accuracy, unresolved/escalated questions, student satisfaction, TA workload, adoption, latency, and safety incidents.",
-          "weight": 1
+          "criterion": "Explains how dependencies, scope, testing, support, and decision gates change under the contingency rather than merely shifting dates.",
+          "weight": 0.047059
         },
         {
           "id": "C14",
-          "criterion": "Includes a data collection plan explaining how metrics will be gathered without over-collecting private data.",
-          "weight": 1
+          "criterion": "Avoids invented university policies, legal guarantees, completed results, or unsupported performance claims and labels assumptions.",
+          "weight": 0.047059
         },
         {
           "id": "C15",
-          "criterion": "Includes governance rules for content updates, approvals, escalation ownership, monitoring, and incident review.",
-          "weight": 1
-        },
-        {
-          "id": "C16",
-          "criterion": "Provides go/no-go criteria for expansion after 12 weeks with thresholds for expand, revise/extend, or stop.",
-          "weight": 1
-        },
-        {
-          "id": "C17",
-          "criterion": "Avoids inventing university policies, approvals, completed results, external laws, or exact performance claims.",
-          "weight": 1
-        },
-        {
-          "id": "C18",
-          "criterion": "Balances usefulness, safety, privacy, academic integrity, limited budget, and team capacity.",
-          "weight": 1
-        },
-        {
-          "id": "C19",
-          "criterion": "Follows all ten required output sections.",
-          "weight": 1
-        },
-        {
-          "id": "C20",
-          "criterion": "Ends with a final recommendation consistent with the evidence and decision gates rather than assuming expansion is automatic.",
-          "weight": 1
+          "criterion": "Follows all required sections and gives a final recommendation consistent with the decision gates rather than assuming expansion.",
+          "weight": 0.035291
         }
       ],
-      "required_evidence": "No external evidence is allowed. The plan should be based only on the scenario constraints and internal reasoning. Any quantitative assumptions about budget, staffing, usage, or success thresholds must be explicitly stated and plausible. Do not cite vendors, laws, university policies, or institutional procedures unless provided in the prompt. The answer must not invent completed pilot results.",
+      "required_evidence": "No external evidence is allowed. Deterministic constraints are 12 weeks, two courses, about 300 students, named team capacity, maximum $5,000, exact $750 reallocation, approved-material-only scope, and the Week 6-8 staffing loss.",
       "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties.",
+        "scoring_method": "Score each final-answer evaluation criterion independently: 1 = fully satisfied; 0.5 = partially satisfied, underspecified, weakly supported, or containing a minor inconsistency; 0 = absent, materially incorrect, contradicted, fabricated, or unsupported. Criterion weights sum to 1.0. Compute base_score_percent = 100 * sum(criterion_score * criterion_weight). Apply any observable evidence-policy cap and final-answer score_caps after calculating the base score. Do not use agent count, roles, messages, intermediate artifacts, or collaboration traces when assigning the benchmark score.",
         "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak thresholds, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, vague reasoning, missing required sections, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
+          "Excellent": "90-100% after caps: nearly complete, correct, well-grounded, internally consistent, and specific enough to serve as a strong reference answer.",
+          "Good": "75-89% after caps: mostly correct and complete, with minor omissions, weak specificity, or modest process inefficiency.",
+          "Acceptable": "60-74% after caps: main task is addressed but important gaps, evidence weaknesses, or coordination defects remain.",
+          "Poor": "40-59% after caps: substantial omissions, unsupported claims, major inconsistencies, or inefficient/unreliable coordination.",
+          "Fail": "Below 40% after caps, or a critical fabrication/safety violation that makes the answer unusable."
         },
-        "accuracy": "Judge whether the plan is internally consistent and respects the two-course scope, approved-material restriction, small team, $5,000 budget, 12-week timeline, and required safeguards.",
-        "completeness": "Judge whether all planning sections, roadmap, owners, budget, risks, metrics, governance, escalation, and decision criteria are present and specific.",
-        "helpfulness": "Reward answers that are concrete, decision-oriented, prioritized, and directly usable by the stated audience. Penalize generic advice that could apply to any scenario.",
-        "grounding_and_evidence": "For tool-required tasks, every factual product, paper, pricing, policy, benchmark, or empirical claim must be tied to a credible public source. For tool-prohibited tasks, answers must not cite external sources or invent outside facts; they should reason only from the prompt and standard conceptual knowledge.",
-        "hallucination_penalty": "Penalize invented university policies, unsupported legal/compliance claims, unrealistic staffing, unrealistic budget allocations, fabricated pilot results, or expansion decisions not tied to measurable thresholds.",
+        "accuracy": "Judge constraint consistency, feasible ownership, budget arithmetic, safety, governance, and quality of contingency replanning.",
+        "completeness": "All 12 sections, baseline and contingency plans, complete budget, safeguards, metrics, and three-way decision gates are required.",
+        "helpfulness": "Reward a plan that remains usable under the adverse event and makes explicit tradeoffs rather than hiding lost capacity.",
+        "grounding_and_evidence": "External sources are prohibited. Evidence consists of prompt constraints, arithmetic, explicit assumptions, and internally consistent planning.",
+        "hallucination_penalty": "Penalize invented policies/results, hidden budget overruns, unsafe scope, or a contingency that does not change the plan meaningfully.",
         "hard_fail_rules": [
-          "Cap score at 50% if the plan does not restrict answers to instructor-approved course materials.",
-          "Cap score at 60% if hallucination, privacy, academic-integrity, or escalation safeguards are missing.",
-          "Cap score at 70% if the roadmap does not cover 12 weeks with owners and deliverables.",
-          "Cap score at 70% if the budget is missing or does not account for the $5,000 constraint.",
-          "Cap score at 70% if go/no-go criteria are missing or assume expansion automatically."
+          "Cap at 50% if the assistant is allowed to answer outside instructor-approved course materials",
+          "Cap at 60% if hallucination, privacy, academic-integrity, or human-escalation safeguards are materially missing",
+          "Cap at 70% if the roadmap does not cover 12 weeks with owners and deliverables",
+          "Cap at 70% if the budget exceeds $5,000 or the required $750 reallocation is not accounted for",
+          "Cap at 70% if the Week 6-8 staffing contingency is ignored"
         ],
-        "score_caps": []
+        "score_caps": [
+          {
+            "id": "SP-CAP1",
+            "condition": "the assistant is allowed to answer outside instructor-approved course materials",
+            "cap_percent": 50
+          },
+          {
+            "id": "SP-CAP2",
+            "condition": "hallucination, privacy, academic-integrity, or human-escalation safeguards are materially missing",
+            "cap_percent": 60
+          },
+          {
+            "id": "SP-CAP3",
+            "condition": "the roadmap does not cover 12 weeks with owners and deliverables",
+            "cap_percent": 70
+          },
+          {
+            "id": "SP-CAP4",
+            "condition": "the budget exceeds $5,000 or the required $750 reallocation is not accounted for",
+            "cap_percent": 70
+          },
+          {
+            "id": "SP-CAP5",
+            "condition": "the Week 6-8 staffing contingency is ignored",
+            "cap_percent": 70
+          }
+        ]
       },
       "expected_failure_risks": [
-        "Creating a generic launch plan that ignores the course-QA context.",
-        "Failing to include safeguards for hallucination, privacy, or academic integrity.",
-        "Allocating resources unrealistically for the small team and budget.",
-        "Missing measurable success metrics or expansion decision gates.",
-        "Allowing answers beyond instructor-approved course materials.",
-        "Ignoring escalation to human staff.",
-        "Inventing university policies or completed pilot outcomes.",
-        "Assuming expansion without a go/no-go framework."
+        "The Week 6-8 staffing loss is acknowledged but not propagated through owners, dependencies, testing, and milestones.",
+        "The required $750 reallocation is counted twice or allocated inconsistently.",
+        "The budget table and roadmap imply different spending plans.",
+        "The launch plan weakens privacy, academic-integrity, or human-escalation safeguards to protect the schedule.",
+        "The final plan exceeds the stated team capacity."
       ],
-      "notes": "This task should be graded for constraint discipline. A strategic plan that sounds polished but ignores approved-material scope or escalation should not score highly.",
       "ground_truth": {
-        "task_type": "Strategic planning under resource constraints; external evidence is prohibited.",
+        "task_type": "Strategic planning with deterministic staffing and budget perturbation; external evidence is prohibited.",
         "must_have": [
-          "Plan must support exactly the scenario: two undergraduate courses, about 300 students, one part-time faculty sponsor, two student developers, one teaching assistant, and a $5,000 pilot budget.",
-          "Assistant must answer only from instructor-approved course materials.",
-          "Plan must include hallucination safeguards, privacy safeguards, academic-integrity safeguards, and escalation to human staff.",
-          "Include a coherent 12-week roadmap with phases, tasks, owners, deliverables, and milestones/decision gates.",
-          "Include stakeholder map covering faculty sponsor, student developers, TA, instructors/students, and department decision-makers.",
-          "Resource and budget allocation must be realistic and total exactly $5,000 or clearly account for the full budget.",
-          "Risk register must include hallucination, privacy, academic integrity, adoption, support burden, and scope creep.",
-          "Success metrics must be measurable and include data collection methods.",
-          "Governance and escalation process must specify when the assistant refuses, cites materials, or routes to humans.",
-          "Go/no-go decision criteria must distinguish expansion, revision/extension, and stopping after 12 weeks."
+          "Twelve-week baseline roadmap for two courses and about 300 students.",
+          "Realistic ownership for the specified four-person team.",
+          "Answers restricted to instructor-approved materials.",
+          "Hallucination, privacy, academic-integrity, and human-escalation safeguards.",
+          "A budget of at most $5,000 with the full amount accounted for.",
+          "A Week 6-8 plan with only one available student developer.",
+          "Exactly $750 moved from infrastructure to privacy review/testing.",
+          "Updated dependencies, scope, testing, support, milestones, and decision gates.",
+          "Measurable Expand, Revise/Extend, and Stop criteria."
         ],
         "must_not_have": [
-          "Do not invent university policies, legal guarantees, institutional approvals, completed pilot results, or exact performance data not provided.",
-          "Do not allow answers outside instructor-approved materials.",
-          "Do not ignore human escalation for uncertain, sensitive, or academic-integrity-related questions.",
-          "Do not allocate resources beyond the small team and $5,000 budget."
+          "Spending above $5,000.",
+          "Two active student developers during Weeks 6-8.",
+          "Answers outside approved materials.",
+          "Invented university policies, approvals, results, laws, or performance claims."
         ],
         "quantitative_checks": [
-          "Roadmap must cover 12 weeks.",
-          "Budget should total exactly $5,000 if itemized; if reserve/contingency is included, it must still sum to $5,000.",
-          "The user population is about 300 students across two courses."
+          "Roadmap covers Weeks 1-12.",
+          "Total budget <= $5,000 and all funds are accounted for.",
+          "Infrastructure decreases by exactly $750 and privacy review/testing increases by exactly $750.",
+          "One student developer is unavailable in Weeks 6-8."
         ],
         "acceptable_variations": [
-          "The roadmap may group weeks into phases if every week is covered and milestones are clear.",
-          "Budget categories may vary, but they must be plausible for a small pilot and not depend on unprovided funding.",
-          "Success thresholds may vary if measurable and linked to expansion decisions."
+          "Budget categories and roadmap phases may vary if arithmetic and constraints are satisfied.",
+          "The contingency may reduce scope, defer features, or add manual controls.",
+          "Success thresholds may vary if measurable and mapped to the three decision outcomes."
         ],
         "critical_fail_conditions": [
-          "The plan does not restrict answers to instructor-approved course materials.",
-          "The plan lacks hallucination, privacy, academic-integrity, or escalation safeguards.",
-          "The roadmap is not 12 weeks or has no owners/deliverables.",
-          "Budget allocation is missing, unrealistic, or not tied to the $5,000 constraint."
+          "the assistant is allowed to answer outside instructor-approved course materials",
+          "hallucination, privacy, academic-integrity, or human-escalation safeguards are materially missing",
+          "the roadmap does not cover 12 weeks with owners and deliverables",
+          "the budget exceeds $5,000 or the required $750 reallocation is not accounted for",
+          "the Week 6-8 staffing contingency is ignored"
         ]
-      }
+      },
+      "input_files": []
     },
     {
       "task_id": "TA-02",
       "category": "Technical Analysis",
-      "difficulty": "Easy",
+      "difficulty": "Medium",
       "author": "Zhiqi Hu",
+      "title": "BM25, Dense, and Hybrid Retrieval with Fixed Query Cases",
       "tool_requirement": "Prohibited",
-      "prompt": "Explain the difference between BM25 keyword search and dense embedding semantic search for an internal FAQ search system.\n\nCompare them in terms of matching behavior, handling of synonyms, exact phrase or identifier lookup, data and infrastructure needs, latency, and common failure modes. Then recommend whether the FAQ system should use BM25, dense embeddings, or a hybrid approach for a small company with 500 FAQ documents.\n\nDo not use external sources or cite vendors. Do not invent measured performance numbers.",
-      "required_output_format": "Use the following format:\n1. Short definition of BM25 keyword search\n2. Short definition of dense embedding semantic search\n3. Comparison table\n4. Recommendation paragraph\n5. Two likely failure risks and mitigations\n",
+      "prompt": "Explain BM25 lexical retrieval, dense embedding retrieval, and a hybrid approach for an internal FAQ system containing 500 documents. Compare matching behavior, synonyms, exact terms and identifiers, exact-phrase handling, data/infrastructure needs, updates, latency, and common failure modes. Be precise that BM25 scoring itself is not the same as positional exact-phrase matching.\n\nAnalyze all eight fixed query cases and assign each a BM25-first, Dense-first, or Hybrid route with a brief rationale:\nQ1. ERR-1042 reset token expired\nQ2. I forgot my password and cannot get back into my account\nQ3. What does product code AX-17 mean?\nQ4. Please send my billing receipt again\nQ5. Disable two-factor authentication for a contractor\nQ6. I am not receiving notification emails\nQ7. Search for the exact phrase \"data export completed\"\nQ8. How can I move my workspace information to another account?\n\nThen design a lightweight routing/fusion policy for this corpus, provide at least three failure risks with mitigations, and propose a qualitative offline evaluation plan. Do not use external sources, vendors, or invented performance numbers.",
+      "required_output_format": "Use the following structure:\n1. BM25 definition\n2. Dense retrieval definition\n3. Technical comparison table\n4. Eight-query routing table with columns: Query ID, Important Signal, Preferred Route, Rationale, Failure Risk\n5. Lightweight hybrid routing/fusion policy\n6. Three or more failure risks and mitigations\n7. Qualitative offline evaluation plan\n8. Final recommendation for 500 FAQ documents",
       "evaluation_criteria": [
         {
           "id": "C1",
-          "criterion": "Correctly explains BM25 as a lexical keyword-matching method based on term frequency, inverse document frequency, document-length normalization, or relevance scoring.",
-          "weight": 1
+          "criterion": "Correctly explains BM25 as lexical relevance scoring based on term statistics and document-length normalization.",
+          "weight": 0.058824
         },
         {
           "id": "C2",
-          "criterion": "Correctly explains dense embedding search as vector-based semantic retrieval using learned representations and similarity search.",
-          "weight": 1
+          "criterion": "Correctly explains dense retrieval as learned vector representation plus similarity search.",
+          "weight": 0.058824
         },
         {
           "id": "C3",
-          "criterion": "Contrasts lexical matching with semantic matching in plain, accurate terms.",
-          "weight": 1
+          "criterion": "Correctly distinguishes exact-term/identifier strength from exact-phrase matching, noting that phrase matching requires positional or phrase-query support beyond BM25 scoring alone.",
+          "weight": 0.082353
         },
         {
           "id": "C4",
-          "criterion": "Explains that BM25 handles exact words, rare terms, phrases, identifiers, product codes, and error IDs better than dense search in many FAQ settings.",
-          "weight": 1
+          "criterion": "Explains dense retrieval's advantage for synonyms and paraphrases and its risks for exact identifiers, numbers, negation, and semantically plausible false positives.",
+          "weight": 0.058824
         },
         {
           "id": "C5",
-          "criterion": "Explains that dense embeddings can retrieve paraphrases and synonyms even when exact keywords differ.",
-          "weight": 1
+          "criterion": "Compares indexes, embedding generation, vector storage/search, update workflows, and operational requirements.",
+          "weight": 0.058824
         },
         {
           "id": "C6",
-          "criterion": "Notes that dense embeddings can miss or blur exact identifiers, numbers, rare proper nouns, or negation-sensitive distinctions.",
-          "weight": 1
+          "criterion": "Compares latency and complexity qualitatively without inventing measured benchmarks.",
+          "weight": 0.047059
         },
         {
           "id": "C7",
-          "criterion": "Compares data and infrastructure needs, including indexes, embedding generation, vector storage/search, and update workflows.",
-          "weight": 1
+          "criterion": "Identifies realistic failure modes for lexical, dense, and hybrid retrieval and explains mitigations.",
+          "weight": 0.082353
         },
         {
           "id": "C8",
-          "criterion": "Compares latency and operational complexity without inventing unsupported numeric benchmarks.",
-          "weight": 1
+          "criterion": "Classifies all eight required query cases with a defensible BM25-first, dense-first, or hybrid route and explains the important lexical/semantic signals.",
+          "weight": 0.141176
         },
         {
           "id": "C9",
-          "criterion": "Includes common BM25 failure modes such as vocabulary mismatch, synonym mismatch, and keyword stuffing/noisy matches.",
-          "weight": 1
+          "criterion": "Designs an actionable hybrid routing/fusion policy including exact-token handling, semantic retrieval, combination or fallback, and result confidence/inspection.",
+          "weight": 0.094118
         },
         {
           "id": "C10",
-          "criterion": "Includes common dense-search failure modes such as semantic false positives, stale embeddings, poor exact lookup, and threshold tuning issues.",
-          "weight": 1
+          "criterion": "Ties infrastructure and rollout choices to the small 500-document FAQ corpus.",
+          "weight": 0.058824
         },
         {
           "id": "C11",
-          "criterion": "Provides a justified recommendation tied directly to the small-company, 500-document FAQ scenario.",
-          "weight": 1
+          "criterion": "Provides at least three concrete failure risks and mitigations that apply to the proposed system.",
+          "weight": 0.058824
         },
         {
           "id": "C12",
-          "criterion": "Recommends BM25-first or hybrid in a nuanced way, rather than claiming one method is universally superior.",
-          "weight": 1
+          "criterion": "Provides a qualitative offline evaluation plan using the supplied query types and relevance judgments, without inventing measured results.",
+          "weight": 0.058824
         },
         {
           "id": "C13",
-          "criterion": "Includes at least two likely failure risks with practical mitigations.",
-          "weight": 1
+          "criterion": "Provides a nuanced final recommendation and acknowledges when BM25-first or dense-first behavior should override the default hybrid route.",
+          "weight": 0.082353
         },
         {
           "id": "C14",
-          "criterion": "Follows the required five-section output format including a comparison table.",
-          "weight": 1
+          "criterion": "Uses no external sources, vendors, or invented accuracy, latency, or cost figures.",
+          "weight": 0.035294
         },
         {
           "id": "C15",
-          "criterion": "Does not use external citations, vendor claims, invented performance numbers, or unsupported product-specific assertions.",
-          "weight": 1
+          "criterion": "Follows all required sections and keeps terminology internally consistent.",
+          "weight": 0.023526
         }
       ],
-      "required_evidence": "No external evidence is allowed. The task must be answered using conceptual knowledge and reasoning from the prompt. Do not cite public sources, vendors, benchmark numbers, pricing, or web search. Any numeric examples must be clearly illustrative rather than claimed as measured performance.",
+      "required_evidence": "No external evidence is allowed. The eight query strings and the 500-document scenario are the fixed evidence. Do not report measured retrieval quality, latency, or cost.",
       "scoring_rubric": {
-        "scoring_method": "Score each evaluation criterion independently: 1 = fully satisfied, 0.5 = partially satisfied or present but underspecified, 0 = absent, incorrect, contradicted, or unsupported. Sum weighted criteria, then apply any hard-fail caps and hallucination penalties.",
+        "scoring_method": "Score each final-answer evaluation criterion independently: 1 = fully satisfied; 0.5 = partially satisfied, underspecified, weakly supported, or containing a minor inconsistency; 0 = absent, materially incorrect, contradicted, fabricated, or unsupported. Criterion weights sum to 1.0. Compute base_score_percent = 100 * sum(criterion_score * criterion_weight). Apply any observable evidence-policy cap and final-answer score_caps after calculating the base score. Do not use agent count, roles, messages, intermediate artifacts, or collaboration traces when assigning the benchmark score.",
         "score_bands": {
-          "Excellent": "90-100% after caps: satisfies nearly all criteria, respects all hard constraints, and is specific enough to be used as a reference answer.",
-          "Good": "75-89% after caps: mostly correct and complete, with only minor omissions or weak specificity.",
-          "Acceptable": "60-74% after caps: covers the main task but has notable gaps, weak thresholds, weak evidence, or limited actionability.",
-          "Poor": "40-59% after caps: substantial omissions, vague reasoning, missing required sections, or multiple unsupported claims.",
-          "Fail": "Below 40% after caps, or any critical contradiction/fabrication that makes the answer unusable."
+          "Excellent": "90-100% after caps: nearly complete, correct, well-grounded, internally consistent, and specific enough to serve as a strong reference answer.",
+          "Good": "75-89% after caps: mostly correct and complete, with minor omissions, weak specificity, or modest process inefficiency.",
+          "Acceptable": "60-74% after caps: main task is addressed but important gaps, evidence weaknesses, or coordination defects remain.",
+          "Poor": "40-59% after caps: substantial omissions, unsupported claims, major inconsistencies, or inefficient/unreliable coordination.",
+          "Fail": "Below 40% after caps, or a critical fabrication/safety violation that makes the answer unusable."
         },
-        "accuracy": "Judge whether BM25 and dense embedding search are correctly distinguished and whether their strengths, weaknesses, and failure modes are technically accurate.",
-        "completeness": "Judge whether all required comparison dimensions, recommendation, risks, mitigations, and required sections are included.",
-        "helpfulness": "Reward answers that are concrete, decision-oriented, prioritized, and directly usable by the stated audience. Penalize generic advice that could apply to any scenario.",
-        "grounding_and_evidence": "For tool-required tasks, every factual product, paper, pricing, policy, benchmark, or empirical claim must be tied to a credible public source. For tool-prohibited tasks, answers must not cite external sources or invent outside facts; they should reason only from the prompt and standard conceptual knowledge.",
-        "hallucination_penalty": "Penalize invented performance numbers, unsupported claims about specific products, claims that dense search is always better, or claims that BM25 semantically understands synonyms by itself.",
+        "accuracy": "Judge retrieval correctness, exact-term/phrase precision, query-level reasoning, and consistency of the proposed hybrid policy.",
+        "completeness": "All eight cases, comparison dimensions, policy, failure mitigations, evaluation plan, and recommendation are required.",
+        "helpfulness": "Reward a small-corpus design that is transparent, testable, and robust to both vocabulary mismatch and exact-token requirements.",
+        "grounding_and_evidence": "External sources are prohibited. Score using conceptual correctness and the fixed query cases.",
+        "hallucination_penalty": "Penalize false claims that BM25 semantically understands synonyms, that dense is always superior, or that BM25 scoring alone guarantees phrase matching.",
         "hard_fail_rules": [
-          "Cap score at 50% if BM25 and dense search are materially confused or reversed.",
-          "Cap score at 70% if no recommendation is tied to the 500-document scenario.",
-          "Cap score at 70% if the comparison table omits two or more required dimensions.",
-          "Cap score at 60% if external citations or vendor claims are used despite the prohibited evidence requirement."
+          "Cap at 50% if BM25 and dense retrieval are materially confused or reversed",
+          "Cap at 70% if fewer than six of the eight required query cases are analyzed",
+          "Cap at 70% if the recommendation ignores the 500-document scenario",
+          "Cap at 60% if external citations, vendor claims, or invented measured results are used"
         ],
-        "score_caps": []
+        "score_caps": [
+          {
+            "id": "TA-CAP1",
+            "condition": "BM25 and dense retrieval are materially confused or reversed",
+            "cap_percent": 50
+          },
+          {
+            "id": "TA-CAP2",
+            "condition": "fewer than six of the eight required query cases are analyzed",
+            "cap_percent": 70
+          },
+          {
+            "id": "TA-CAP3",
+            "condition": "the recommendation ignores the 500-document scenario",
+            "cap_percent": 70
+          },
+          {
+            "id": "TA-CAP4",
+            "condition": "external citations, vendor claims, or invented measured results are used",
+            "cap_percent": 60
+          }
+        ]
       },
       "expected_failure_risks": [
-        "Overstating dense embeddings as always better.",
-        "Ignoring exact-match use cases such as product codes or error IDs.",
-        "Giving a recommendation without linking it to the 500-document FAQ context.",
-        "Failing to mention operational complexity for embeddings and vector search.",
-        "Inventing latency or accuracy numbers.",
-        "Using external citations despite the no-evidence requirement."
+        "Query cases use inconsistent definitions of exact matching.",
+        "BM25 and dense retrieval are described using reversed strengths or failure modes.",
+        "The analysis underweights identifiers, exact terms, and negation.",
+        "The analysis underweights paraphrase, semantic similarity, and vocabulary mismatch.",
+        "The route table and final recommendation contradict each other."
       ],
-      "notes": "This task is easy, but it should still be graded for precision. Dense-only answers should not receive high scores unless they address exact lookup risks and small-corpus simplicity.",
       "ground_truth": {
-        "task_type": "Conceptual technical comparison; external evidence is prohibited.",
+        "task_type": "Conceptual retrieval comparison with fixed query cases; external evidence is prohibited.",
         "must_have": [
-          "BM25 must be described as lexical keyword search using term frequency, inverse document frequency, and document-length normalization or equivalent relevance scoring.",
-          "Dense embedding search must be described as semantic/vector retrieval using learned representations and similarity search.",
-          "BM25 should be strong for exact words, phrases, error codes, product IDs, rare terms, and transparent keyword matching.",
-          "Dense embeddings should be strong for synonyms, paraphrases, and conceptually similar questions, but weaker for exact identifiers unless combined with lexical search or metadata filters.",
-          "The comparison must cover matching behavior, synonyms, exact phrase/identifier lookup, data and infrastructure needs, latency, and common failure modes.",
-          "For a small company with 500 FAQ documents, the recommended answer should usually favor a lightweight hybrid approach or a BM25-first approach with embeddings added where semantic mismatch is common; dense-only should require strong justification.",
-          "Include at least two realistic failure risks and practical mitigations."
+          "BM25 described as lexical/statistical retrieval.",
+          "Dense retrieval described as semantic vector retrieval.",
+          "Exact identifiers and rare tokens favor lexical retrieval.",
+          "Paraphrases and synonym-heavy queries favor dense support.",
+          "Exact phrase handling requires phrase/positional functionality rather than BM25 scoring alone.",
+          "A lightweight hybrid or BM25-first-with-dense-fallback policy is normally suitable for 500 documents.",
+          "All eight queries receive routes with defensible rationales.",
+          "At least three failure risks and an offline evaluation plan."
         ],
         "must_not_have": [
-          "Do not cite public sources or claim to have used web search.",
-          "Do not invent specific accuracy, latency, or cost numbers not given in the prompt.",
-          "Do not say dense embeddings are always better than BM25.",
-          "Do not say BM25 understands synonyms semantically unless synonyms are manually expanded or appear lexically."
+          "Claims that dense retrieval is universally superior.",
+          "Claims that BM25 automatically understands synonyms semantically.",
+          "Claims that BM25 scoring alone enforces exact phrase order.",
+          "External citations or invented measured performance."
         ],
+        "query_case_expectations": {
+          "Q1": "BM25-first or Hybrid because ERR-1042 is an exact identifier.",
+          "Q2": "Dense-first or Hybrid because the wording is a paraphrase of password-recovery intent.",
+          "Q3": "BM25-first or Hybrid because AX-17 is an exact product code.",
+          "Q4": "Dense-first or Hybrid because billing receipt and invoice/resend wording may differ.",
+          "Q5": "Hybrid is preferred because exact security terminology and semantic intent both matter.",
+          "Q6": "Hybrid is preferred because negation and notification terminology can create semantic false positives.",
+          "Q7": "BM25-first with explicit phrase-query support or Hybrid with a phrase filter; BM25 scoring alone is insufficient.",
+          "Q8": "Dense-first or Hybrid because workspace migration may be expressed with different terminology."
+        },
         "quantitative_checks": [
-          "The scenario size is 500 FAQ documents; recommendations must be plausible for that small corpus.",
-          "No invented benchmark percentages or milliseconds should appear unless clearly labeled as illustrative and not factual."
+          "Exactly eight query cases are supplied and all should be addressed.",
+          "Corpus size = 500 FAQ documents.",
+          "No measured percentages, milliseconds, or dollar values are provided by the prompt."
         ],
         "acceptable_variations": [
-          "A BM25-first recommendation is acceptable if it explains simplicity, exact lookup needs, and how to add embeddings later.",
-          "A hybrid recommendation is acceptable if it explains the added complexity and when it is worth it for semantic matching."
+          "Routes may differ from the defaults when the rationale explicitly addresses exact-token, semantic, negation, or phrase constraints.",
+          "Fusion may use weighted scores, reciprocal-rank style combination, routing, or fallback if explained qualitatively.",
+          "BM25-first is acceptable if dense retrieval is added only for vocabulary mismatch."
         ],
         "critical_fail_conditions": [
-          "BM25 and dense embeddings are confused or reversed.",
-          "The recommendation ignores the 500-document FAQ context.",
-          "The answer relies on external sources despite the prohibited tool requirement."
+          "BM25 and dense retrieval are materially confused or reversed",
+          "fewer than six of the eight required query cases are analyzed",
+          "the recommendation ignores the 500-document scenario",
+          "external citations, vendor claims, or invented measured results are used"
         ]
-      }
+      },
+      "input_files": []
     }
   ]
 }
