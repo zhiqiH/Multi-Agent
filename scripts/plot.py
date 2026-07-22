@@ -218,24 +218,33 @@ def _plot_protocol_quality(
     dpi: int,
 ) -> Path:
     grouped = _quality_by_protocol(rows, protocols)
-    means = [statistics.fmean(grouped[protocol]) for protocol in protocols]
-    errors = [_confidence_interval(grouped[protocol]) for protocol in protocols]
-    positions = list(range(len(protocols)))
-    fig, ax = plt.subplots(figsize=(9, max(4.8, 0.58 * len(protocols))))
+    ranked_protocols = sorted(
+        protocols,
+        key=lambda protocol: statistics.fmean(grouped[protocol]),
+        reverse=True,
+    )
+    means = [statistics.fmean(grouped[protocol]) for protocol in ranked_protocols]
+    errors = [_confidence_interval(grouped[protocol]) for protocol in ranked_protocols]
+    positions = list(range(len(ranked_protocols)))
+    fig, ax = plt.subplots(
+        figsize=(9, max(4.8, 0.58 * len(ranked_protocols)))
+    )
     ax.barh(
         positions,
         means,
         xerr=errors,
-        color=[colors[protocol] for protocol in protocols],
+        color=[colors[protocol] for protocol in ranked_protocols],
         alpha=0.86,
         capsize=3,
     )
-    ax.set_yticks(positions, labels=protocols)
+    ax.set_yticks(positions, labels=ranked_protocols)
     ax.invert_yaxis()
     ax.set_xlim(0, 1.05)
     ax.set_xlabel("Overall quality score (mean with 95% CI)")
     ax.set_title("Protocol Quality Comparison")
-    for position, protocol, value, error in zip(positions, protocols, means, errors):
+    for position, protocol, value, error in zip(
+        positions, ranked_protocols, means, errors
+    ):
         ax.text(
             min(1.01, value + error + 0.015),
             position,
@@ -318,6 +327,26 @@ def _plot_protocol_token_quality(
         return None
 
     fig, ax = plt.subplots(figsize=(11.5, 6.2))
+    best_value = sorted(
+        available,
+        key=lambda summary: (
+            summary["mean_quality"] / summary["mean_tokens"],
+            summary["mean_quality"],
+        ),
+        reverse=True,
+    )[:3]
+    for summary in best_value:
+        protocol = summary["protocol"]
+        ax.plot(
+            (0, summary["mean_tokens"]),
+            (0, summary["mean_quality"]),
+            color=colors[protocol],
+            linestyle="--",
+            linewidth=1.6,
+            alpha=0.7,
+            zorder=1,
+        )
+
     for summary in available:
         protocol = summary["protocol"]
         mean_tokens = summary["mean_tokens"]
@@ -331,21 +360,12 @@ def _plot_protocol_token_quality(
             zorder=3,
         )
 
-    token_values = [summary["mean_tokens"] for summary in available]
-    lower = min(token_values)
-    upper = max(token_values)
-    if math.isclose(lower, upper):
-        lower /= 2
-        upper *= 2
-    else:
-        lower = 10 ** (math.log10(lower) - 0.12)
-        upper = 10 ** (math.log10(upper) + 0.12)
-    ax.set_xscale("log")
-    ax.set_xlim(lower, upper)
+    upper = max(summary["mean_tokens"] for summary in available)
+    ax.set_xlim(0, upper * 1.05)
     ax.set_ylim(0, 1.02)
-    ax.set_xlabel("Mean Agent tokens (log scale)")
+    ax.set_xlabel("Mean Agent tokens")
     ax.set_ylabel("Mean overall quality score")
-    ax.set_title("Protocol Mean Token Cost vs Quality")
+    ax.set_title("Protocol Mean Token Cost vs Quality (Top 3 Value Slopes)")
     ax.legend(
         title="Protocol",
         loc="upper left",
@@ -379,8 +399,11 @@ def _plot_protocol_parallel_coordinates(
 
     token_values = [summary["mean_tokens"] for summary in available]
     runtime_values = [summary["mean_runtime"] for summary in available]
+    quality_values = [summary["mean_quality"] for summary in available]
     token_bounds = _log_bounds(token_values, padding=0, positive_floor=1.0)
     runtime_bounds = _linear_bounds(runtime_values)
+    quality_bounds = (min(quality_values), max(quality_values))
+    quality_has_range = not math.isclose(*quality_bounds)
 
     x_positions = (0, 1, 2)
     fig, ax = plt.subplots(figsize=(11.5, max(6.2, 0.68 * len(available))))
@@ -391,7 +414,11 @@ def _plot_protocol_parallel_coordinates(
         protocol = summary["protocol"]
         y_values = (
             1 - _linear_normalize(summary["mean_runtime"], runtime_bounds),
-            min(1.0, max(0.0, summary["mean_quality"])),
+            (
+                _linear_normalize(summary["mean_quality"], quality_bounds)
+                if quality_has_range
+                else 0.5
+            ),
             1 - _log_normalize(summary["mean_tokens"], token_bounds),
         )
         ax.plot(
@@ -429,11 +456,17 @@ def _plot_protocol_parallel_coordinates(
             fontsize=8,
             color="#555555",
         )
-    for value in (0.0, 0.5, 1.0):
+    quality_lower, quality_upper = quality_bounds
+    quality_ticks = (
+        (quality_lower, (quality_lower + quality_upper) / 2, quality_upper)
+        if quality_has_range
+        else (quality_lower,)
+    )
+    for value in quality_ticks:
         ax.text(
             1.035,
-            value,
-            f"{value:.1f}",
+            _linear_normalize(value, quality_bounds) if quality_has_range else 0.5,
+            f"{value:.3f}",
             ha="left",
             va="center",
             fontsize=8,
@@ -444,7 +477,7 @@ def _plot_protocol_parallel_coordinates(
     ax.set_ylim(-0.04, 1.04)
     ax.set_xticks(
         x_positions,
-        labels=("Mean time", "Mean quality", "Mean tokens (log)"),
+        labels=("Mean time", "Mean quality", "Mean tokens"),
     )
     ax.xaxis.tick_top()
     ax.tick_params(axis="x", length=0, pad=9)
