@@ -43,6 +43,14 @@ CATEGORY_ORDER = (
     "Educational Content",
     "Strategic Planning",
 )
+CATEGORY_DISPLAY_LABELS = {
+    "Literature Review": "Literature\nReview",
+    "Technical Analysis": "Technical\nAnalysis",
+    "Software Engineering": "Software\nEngineering",
+    "Market Research": "Market\nResearch",
+    "Educational Content": "Educational\nContent",
+    "Strategic Planning": "Strategic\nPlanning",
+}
 CATEGORY_BY_PREFIX = {
     "LR": "Literature Review",
     "TA": "Technical Analysis",
@@ -288,7 +296,12 @@ def _plot_category_protocol_heatmap(
     image = ax.imshow(matrix, cmap="viridis", vmin=0, vmax=1, aspect="auto")
     ax.grid(False)
     ax.set_xticks(range(len(protocols)), labels=protocols, rotation=35, ha="right")
-    ax.set_yticks(range(len(categories)), labels=categories)
+    ax.set_yticks(
+        range(len(categories)),
+        labels=[CATEGORY_DISPLAY_LABELS.get(category, category) for category in categories],
+    )
+    for label in ax.get_yticklabels():
+        label.set_multialignment("right")
     ax.set_title("Mean Quality by Task Category and Protocol")
     for row_index, values in enumerate(matrix):
         for column_index, value in enumerate(values):
@@ -347,6 +360,16 @@ def _plot_protocol_token_quality(
             zorder=1,
         )
 
+    label_specs = {
+        "Single Agent": ("Single Agent", (8, 8), "left"),
+        "Unstructured Group Chat": ("Group Chat", (-8, 9), "right"),
+        "Sequential Handoff": ("Sequential Handoff", (-8, 10), "right"),
+        "Shared Blackboard": ("Shared Blackboard", (8, 13), "left"),
+        "Manager-Worker": ("Manager–Worker", (-8, -13), "right"),
+        "Debate": ("Debate", (8, 13), "left"),
+        "Voting": ("Voting", (8, -10), "left"),
+        "Dynamic Task Allocation": ("Dynamic Allocation", (8, -13), "left"),
+    }
     for summary in available:
         protocol = summary["protocol"]
         mean_tokens = summary["mean_tokens"]
@@ -356,8 +379,21 @@ def _plot_protocol_token_quality(
             mean_quality,
             color=colors[protocol],
             s=90,
-            label=f"{protocol} (n={summary['count']})",
             zorder=3,
+        )
+        label, offset, horizontal_alignment = label_specs.get(
+            protocol, (protocol, (8, 8), "left")
+        )
+        ax.annotate(
+            label,
+            xy=(mean_tokens, mean_quality),
+            xytext=offset,
+            textcoords="offset points",
+            ha=horizontal_alignment,
+            va="center",
+            fontsize=8.5,
+            color="#333333",
+            zorder=4,
         )
 
     upper = max(summary["mean_tokens"] for summary in available)
@@ -366,14 +402,6 @@ def _plot_protocol_token_quality(
     ax.set_xlabel("Mean Agent tokens")
     ax.set_ylabel("Mean overall quality score")
     ax.set_title("Protocol Mean Token Cost vs Quality (Top 3 Value Slopes)")
-    ax.legend(
-        title="Protocol",
-        loc="upper left",
-        bbox_to_anchor=(1.02, 1.0),
-        borderaxespad=0,
-        fontsize=8.5,
-        frameon=True,
-    )
     return _save(fig, figure_dir / "protocol_token_quality.png", dpi)
 
 
