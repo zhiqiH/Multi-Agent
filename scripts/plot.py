@@ -247,8 +247,8 @@ def _plot_protocol_quality(
     )
     ax.set_yticks(positions, labels=ranked_protocols)
     ax.invert_yaxis()
-    ax.set_xlim(0, 1.05)
-    ax.set_xlabel("Overall quality score (mean with 95% CI)")
+    ax.set_xlim(0.2, 0.8)
+    ax.set_xlabel("Overall quality score (mean with 90% CI)")
     ax.set_title("Protocol Quality Comparison")
     for position, protocol, value, error in zip(
         positions, ranked_protocols, means, errors
@@ -505,7 +505,7 @@ def _plot_protocol_parallel_coordinates(
     ax.set_ylim(-0.04, 1.04)
     ax.set_xticks(
         x_positions,
-        labels=("Mean time", "Mean quality", "Mean tokens"),
+        labels=("Mean time", "Mean quality", "Mean tokens(log)"),
     )
     ax.xaxis.tick_top()
     ax.tick_params(axis="x", length=0, pad=9)
@@ -648,7 +648,7 @@ def _format_seconds(value: float) -> str:
 def _confidence_interval(values: list[float]) -> float:
     if len(values) < 2:
         return 0.0
-    return 1.96 * statistics.stdev(values) / math.sqrt(len(values))
+    return 1.645 * statistics.stdev(values) / math.sqrt(len(values))
 
 
 def _category(row: dict[str, str]) -> str:

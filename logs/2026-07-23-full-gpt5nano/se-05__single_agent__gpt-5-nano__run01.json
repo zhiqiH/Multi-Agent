@@ -1,0 +1,236 @@
+{
+  "record_type": "agent_run",
+  "run_id": "se-05__single_agent__gpt-5-nano__run01",
+  "run_number": 1,
+  "task_id": "SE-05",
+  "category": "Software Engineering",
+  "difficulty": "Medium",
+  "protocol": "Single Agent",
+  "protocol_id": "single_agent",
+  "protocol_definition": {
+    "condition": "Baseline",
+    "name": "Single Agent",
+    "active_agents": 1,
+    "message_flow": "One agent receives the task and produces the final output.",
+    "visibility": "The agent sees only the configured task view.",
+    "default_max_rounds": 1,
+    "default_max_interactions": 1,
+    "termination": "Stop after the final output or when the interaction budget is reached."
+  },
+  "protocol_config": {
+    "max_rounds": 1,
+    "max_interactions": 1,
+    "max_total_tokens": 400000,
+    "final_writer_reserve_tokens": 0,
+    "minimum_call_output_tokens": 512,
+    "token_estimation_bytes_per_token": 3.0,
+    "token_safety_margin": 3000
+  },
+  "agent_provider": "openai",
+  "agent_model": "gpt-5-nano",
+  "temperature": null,
+  "tool_requirement": "Prohibited",
+  "tool_access_used": false,
+  "tool_requirement_satisfied": true,
+  "start_time": "2026-07-24T02:01:23+00:00",
+  "end_time": "2026-07-24T02:01:33+00:00",
+  "runtime_seconds": 10.345,
+  "input_tokens": 510,
+  "output_tokens": 1917,
+  "total_tokens": 2427,
+  "max_total_tokens": 400000,
+  "final_writer_reserve_tokens": 0,
+  "budget_remaining_tokens": 397573,
+  "budget_overrun_tokens": 0,
+  "budget_utilization": 0.0061,
+  "budget_limited_call_count": 0,
+  "budget_skipped_call_count": 0,
+  "role_max_output_tokens": {
+    "Planner": 12000,
+    "Researcher": 12000,
+    "Analyst": 12000,
+    "Critic": 12000,
+    "Manager": 12000,
+    "Writer": 16000,
+    "Single Agent": 16000,
+    "default": 12000
+  },
+  "role_usage": {
+    "Single Agent": {
+      "input_tokens": 510,
+      "output_tokens": 1917,
+      "total_tokens": 2427,
+      "model_calls": 1,
+      "interactions": 1
+    }
+  },
+  "estimated_cost": 0.0007923,
+  "active_agent_count": 1,
+  "interaction_count": 1,
+  "model_call_count": 1,
+  "rounds_completed": 1,
+  "termination_reason": "completed",
+  "message_count": 0,
+  "communication_density": 0.0,
+  "agreement_rate": null,
+  "critique_count": 0,
+  "accepted_critique_count": null,
+  "critique_acceptance_rate": null,
+  "tool_call_count": 0,
+  "successful_tool_call_count": 0,
+  "successful_substantive_tool_call_count": 0,
+  "successful_discovery_tool_call_count": 0,
+  "available_tools": [],
+  "tool_expectations": {},
+  "protocol_artifacts": {
+    "final_call": {
+      "sender": "Single Agent",
+      "phase": "final",
+      "expected_action": "Complete the benchmark task directly in the exact required output format.",
+      "finish_reason": "stop"
+    }
+  },
+  "intermediate_messages": [],
+  "tool_calls": [],
+  "agent_visible_fields": [
+    "task_id",
+    "category",
+    "difficulty",
+    "tool_requirement",
+    "available_tools",
+    "tool_expectations",
+    "prompt",
+    "required_output_format"
+  ],
+  "prompts": [
+    {
+      "agent_role": "Single Agent",
+      "round": 1,
+      "channel": "final",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a careful single-agent baseline. Complete the task directly in the exact required format. Verify hard constraints and numerical claims, use permitted evidence when required, and return only the deliverable."
+        },
+        {
+          "role": "user",
+          "content": "Complete this benchmark task as a single-agent baseline.\n\nTask ID: SE-05\n\nCategory: Software Engineering\n\nDifficulty: Medium\n\nTool Requirement: Prohibited\n\nAvailable Tools:\n[]\n\nTool Expectations:\n{}\n\nPrompt:\nA small e-commerce system must process a newly placed order by coordinating three downstream actions:\n1. Reserve or deduct inventory.\n2. Send an order-confirmation SMS message.\n3. Request creation of a shipping label.\n\nCompare two backend integration approaches for coordinating these actions:\n\n1. Synchronous REST orchestration: the order service directly calls the inventory, SMS, and shipping services through synchronous REST APIs and waits for their responses.\n2. Asynchronous messaging: the order service publishes an order-created event to a message broker, and each downstream service subscribes to or consumes the event independently, using separate subscriptions or consumer groups where applicable.\n\nAnalyze both approaches in terms of:\n- Request flow and coupling\n- User-facing latency\n- Failure isolation and cascading failures\n- Retry behavior\n- Duplicate delivery and idempotency\n- Data consistency and completion visibility\n- Implementation and operational complexity\n\nExplain the likely behavior of each design when one downstream service is slow or unavailable. Distinguish synchronous confirmation and potentially stronger immediate coordination from eventual consistency and delayed completion. Do not claim that synchronous REST automatically guarantees strong consistency across services.\n\nThen recommend a suitable architecture for this order-processing scenario. A hybrid design is allowed and may be appropriate. For example, inventory reservation may use a correctness-focused synchronous or transactional mechanism while SMS and shipping-label creation are handled asynchronously. A fully asynchronous recommendation may also be justified if it adequately addresses overselling, message ordering, idempotency, retries, and failure recovery.\n\nInclude a comparison table with the columns: Dimension, Synchronous REST, Asynchronous Messaging, Practical Impact.\n\nThe response should be approximately 600-800 words. No external citations are required. Use qualitative reasoning and do not invent benchmark results, latency measurements, throughput figures, or reliability percentages.\n\nRequired Output Format:\nUse the following markdown structure:\n\n1. Synchronous REST Approach\n2. Asynchronous Messaging Approach\n3. Comparison Table\n4. Failure and Consistency Analysis\n5. Recommended Architecture\n6. Key Implementation Safeguards\n\nFollow the required output format exactly. Do not use external tools if the task prohibits them.\n"
+        }
+      ]
+    }
+  ],
+  "final_output": "1. Synchronous REST Approach\n\n- Request flow and coupling\n  - The order service directly invokes inventory, SMS, and shipping services via REST calls in a single flow. Tight coupling means changes in any downstream service can impact the order flow; the order service must coordinate and serialize the calls.\n\n- User-facing latency\n  - Latency is dominated by the slowest downstream call plus network overhead. The user waits for all three responses before confirmation, leading to potentially higher end-to-end latency.\n\n- Failure isolation and cascading failures\n  - A failure in one downstream (e.g., inventory or shipping) can block or slow the entire order. Timeouts propagate as errors to the order service, risking cascading retries and user-visible failure if not carefully managed.\n\n- Retry behavior\n  - Retries are typically synchronous and immediate, potentially amplifying load on downstream services during outages. Idempotent REST calls help, but coordination logic grows complex.\n\n- Duplicate delivery and idempotency\n  - Risk of duplicate actions exists if retries are not carefully deduplicated. Idempotent endpoints and idempotency keys are needed, but the order service must ensure each downstream action aligns with a single order attempt.\n\n- Data consistency and completion visibility\n  - Stronger illusion of real-time coordination; however, success requires all three paths to complete. Partial failure may require compensating actions, but consistency is not guaranteed across services without a distributed transaction or explicit compensation.\n\n- Implementation and operational complexity\n  - Simpler to implement initially if services already expose REST; harder to reason about failure modes, retries, and compensations. Observability spans three synchronous dependencies in one call chain.\n\n- Behavior when one downstream is slow or unavailable\n  - If inventory is slow, the entire order stalls awaiting inventory response. If inventory succeeds but SMS or shipping fail, the order may still be created with missing downstream actions or require immediate rollback; user confirmation may be delayed or inconsistent.\n\n- Synchronous confirmation vs coordination\n  - Provides immediate confirmation only after all three calls succeed. Stronger immediate coordination is possible but does not by itself ensure cross-service consistency.\n\n2. Asynchronous Messaging Approach\n\n- Request flow and coupling\n  - The order service emits an order-created event to a broker. Downstream services subscribe independently (inventory, SMS, shipping) and react to the event, enabling looser coupling.\n\n- User-facing latency\n  - User receives initial order acknowledgment quickly (in the best case), while downstream actions proceed asynchronously. Time to complete each action varies, and user-visible confirmation for full completion is delayed or may be delivered via separate channels.\n\n- Failure isolation and cascading failures\n  - Failures are isolated per service. If shipping fails, it does not block inventory or SMS, provided compensations or retry policies exist. However, undelivered or malformed events can lead to partial processing if not managed with idempotency and event deduplication.\n\n- Retry behavior\n  - Retries are typically governed by each consumer’s logic, with backoff, dead-letter queues, and at-least-once delivery guarantees. Retries can be independent and not block the original order creation.\n\n- Duplicate delivery and idempotency\n  - Event-driven patterns must handle idempotency, deduplication, and exactly-once semantics where feasible. Idempotent handlers and correlation IDs help avoid duplicative actions on repeated events.\n\n- Data consistency and completion visibility\n  - Consistency becomes eventual. The system can reflect partial completion; full visibility depends on a separate mechanism (e.g., a saga, status ledger) aggregating downstream outcomes.\n\n- Implementation and operational complexity\n  - Higher initial complexity due to event schemas, broker reliability, and eventual consistency. Operational tooling for monitoring, retries, DLQs, and replayability is essential.\n\n- Behavior when one downstream is slow or unavailable\n  - Inventory may reserve quickly; SMS may be delayed or fail and be retried independently. Shipping label creation proceeds unless its own service issues. Overall processing remains functional, though some actions may be delayed or require follow-up.\n\n- Synchronous confirmation vs coordination\n  - Confirmation of order creation is fast, but downstream actions complete asynchronously. There is no global immediate guarantee that all downstream actions completed; visibility is eventual.\n\n3. Comparison Table\n\n- Dimension: Request flow and coupling\n  - Synchronous REST: Tight coupling; sequential or parallel HTTP calls within a single flow.\n  - Asynchronous Messaging: Loose coupling; one event drives multiple independent consumers.\n  - Practical Impact: Simpler end-to-end code with REST; more scalable decoupling but increased architectural complexity in event handling and consistency.\n\n- Dimension: User-facing latency\n  - Synchronous REST: End-to-end latency includes all downstream calls; user waits for full confirmation.\n  - Asynchronous Messaging: Fast initial acknowledgment; downstream work completes later; user may not see full completion immediately.\n  - Practical Impact: Synchronous suits immediate order confirmation; asynchronous improves perceived responsiveness but delays final state clarity.\n\n- Dimension: Failure isolation and cascading failures\n  - Synchronous REST: Failures can cascade through the call chain; partial failures require compensations.\n  - Asynchronous Messaging: Failures contained to individual services; retries and DLQs limit cascading.\n  - Practical Impact: Messaging reduces systemic risk but requires robust compensation and monitoring.\n\n- Dimension: Retry behavior\n  - Synchronous REST: Centralized retry logic; potential amplification during outages.\n  - Asynchronous Messaging: Distributed, per-consumer retries with backoff and DLQs.\n  - Practical Impact: Messaging aids resilience but increases complexity in deduplication.\n\n- Dimension: Duplicate delivery and idempotency\n  - Synchronous REST: Needs idempotency keys and careful handling to avoid duplicates.\n  - Asynchronous Messaging: Requires idempotent handlers and event deduplication strategies.\n  - Practical Impact: Both require idempotency; messaging makes it more pervasive across services.\n\n- Dimension: Data consistency and completion visibility\n  - Synchronous REST: Stronger immediate coordination but not automatic cross-service consistency without distributed transactions.\n  - Asynchronous Messaging: Eventual consistency with optional reconciliation dashboards or saga-like coordination.\n  - Practical Impact: REST provides clearer immediate state; messaging requires reconciliation for full visibility.\n\n- Dimension: Implementation and operational complexity\n  - Synchronous REST: Simpler initial footprint; easier to debug but harder to manage cross-service failure states.\n  - Asynchronous Messaging: Higher operational complexity (broker, schema evolution, DLQs, replayability) but greater resilience.\n  - Practical Impact: Choose REST for simplicity with risk of blocking; messaging for resilience and scalability.\n\n4. Failure and Consistency Analysis\n\n- If one downstream is slow or unavailable:\n  - Synchronous REST: The order flow stalls; user-visible confirmation waits or fails; compensations may be required to avoid inconsistent states.\n  - Asynchronous Messaging: Downstream actions proceed at their own pace or time out independently; the system can still create the order, with post-hoc updates or notifications signaling status.\n\n- Synchronous confirmation vs eventual coordination:\n  - Synchronous REST emphasizes immediate coordination but does not guarantee cross-service consistency; failures must be handled with compensations.\n  - Asynchronous messaging emphasizes eventual completion, with decoupled progress and recovery, but requires robust mechanisms to surface aggregated status to users and systems.\n\n5. Recommended Architecture\n\n- Hybrid approach is recommended:\n  - Inventory reservation: Use a synchronous, correctness-focused mechanism (e.g., an inventory service that supports transactional-like guarantees or a two-phase commit-lite pattern within a bounded context) to ensure stock is reserved before proceeding.\n  - SMS confirmation: Handle asynchronously via event-driven messaging with a separate notification service, enabling retries and rate-limiting without blocking the core order path.\n  - Shipping label creation: Handle asynchronously with idempotent, event-driven processing and dead-letter handling; ensure status propagation to order ledger.\n\n- Rationale:\n  - This hybrid design preserves strong correctness for inventory to prevent overselling while gaining resilience and user-perceived responsiveness for non-critical downstream actions (SMS, shipping labels).\n  - It allows fast user feedback when inventory is secured, while enabling scalable, reliable post-purchase communications and logistics processing.\n\n6. Key Implementation Safeguards\n\n- Idempotency and deduplication:\n  - Use idempotency keys across all actions; design downstream handlers to be idempotent.\n\n- Correlation and status ledger:\n  - Maintain a per-order correlation ID with a central read model or ledger exposing status across inventory, SMS, and shipping actions.\n\n- Backpressure and timeouts:\n  - Define sane timeouts for synchronous calls; implement graceful degradation if a downstream is slow.\n\n- Retries with backoff and DLQs:\n  - Implement exponential backoff, circuit breakers, and dead-letter queues for asynchronous paths.\n\n- Observability:\n  - Centralized tracing, metrics, and dashboards for end-to-end flow and per-service health.\n\n- Data consistency controls:\n  - For inventory, ensure explicit reservation with rollback capability if downstream actions fail; for asynchronous paths, reconcile status regularly.\n\n- Security and permissions:\n  - Authenticate and authorize each downstream call or event, avoiding leakage of sensitive data.\n\n- Versioning and schema evolution:\n  - Use backward-compatible event schemas and contract tests to minimize breaking changes in the message broker.\n\n- Testing strategy:\n  - Include end-to-end tests with simulated downstream latency and failures, plus chaos engineering experiments to validate failure modes and recovery.",
+  "validity_warnings": [],
+  "errors": [],
+  "condition": {
+    "benchmark_id": "communication-protocols-24",
+    "benchmark_file": "benchmark/benchmark-full.json",
+    "protocol_id": "single_agent",
+    "protocol_config": {
+      "max_rounds": 1,
+      "max_interactions": 1,
+      "max_total_tokens": 400000,
+      "final_writer_reserve_tokens": 0,
+      "minimum_call_output_tokens": 512,
+      "token_estimation_bytes_per_token": 3.0,
+      "token_safety_margin": 3000
+    },
+    "agent_provider": "openai",
+    "agent_model": "gpt-5-nano",
+    "agent_effective_config": {
+      "max_tokens": 16000,
+      "role_max_output_tokens": {
+        "Planner": 12000,
+        "Researcher": 12000,
+        "Analyst": 12000,
+        "Critic": 12000,
+        "Manager": 12000,
+        "Writer": 16000,
+        "Single Agent": 16000,
+        "default": 12000
+      },
+      "judge_max_tokens": 16000,
+      "failure_analysis_max_tokens": 8000,
+      "max_retries": 2,
+      "display_name": "GPT-5 Nano",
+      "description": "Low-latency OpenAI agent and optional Judge profile.",
+      "supported_roles": [
+        "agent",
+        "judge"
+      ],
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-5-nano",
+      "max_tokens_param": "max_completion_tokens",
+      "timeout_seconds": 120,
+      "capabilities": {
+        "chat_completions": true,
+        "json_mode": true,
+        "reasoning": true,
+        "tool_calling": true
+      },
+      "pricing_per_1m_tokens": {
+        "input": 0.05,
+        "output": 0.4
+      },
+      "profile": "gpt_5_nano",
+      "request_options": {
+        "reasoning_effort": "minimal"
+      }
+    },
+    "agent_visible_fields": [
+      "task_id",
+      "category",
+      "difficulty",
+      "tool_requirement",
+      "available_tools",
+      "tool_expectations",
+      "prompt",
+      "required_output_format"
+    ],
+    "tool_policy": {
+      "execution_layer": "local_function_tools",
+      "available_tools": [
+        "google_search_tool",
+        "web_search",
+        "fetch_url",
+        "fetch_urls",
+        "academic_search",
+        "academic_lookup",
+        "calculator",
+        "list_local_documents",
+        "read_local_document",
+        "read_local_documents"
+      ],
+      "max_tool_rounds_per_interaction": 3,
+      "max_tool_calls_per_interaction": 4,
+      "timeout_seconds": 20,
+      "max_result_chars": 24000,
+      "local_document_roots": [
+        "benchmark/documents"
+      ],
+      "record_tool_inputs": true,
+      "record_tool_outputs": true
+    },
+    "task_id": "SE-05",
+    "agent_task": {
+      "task_id": "SE-05",
+      "category": "Software Engineering",
+      "difficulty": "Medium",
+      "tool_requirement": "Prohibited",
+      "available_tools": [],
+      "tool_expectations": {},
+      "prompt": "A small e-commerce system must process a newly placed order by coordinating three downstream actions:\n1. Reserve or deduct inventory.\n2. Send an order-confirmation SMS message.\n3. Request creation of a shipping label.\n\nCompare two backend integration approaches for coordinating these actions:\n\n1. Synchronous REST orchestration: the order service directly calls the inventory, SMS, and shipping services through synchronous REST APIs and waits for their responses.\n2. Asynchronous messaging: the order service publishes an order-created event to a message broker, and each downstream service subscribes to or consumes the event independently, using separate subscriptions or consumer groups where applicable.\n\nAnalyze both approaches in terms of:\n- Request flow and coupling\n- User-facing latency\n- Failure isolation and cascading failures\n- Retry behavior\n- Duplicate delivery and idempotency\n- Data consistency and completion visibility\n- Implementation and operational complexity\n\nExplain the likely behavior of each design when one downstream service is slow or unavailable. Distinguish synchronous confirmation and potentially stronger immediate coordination from eventual consistency and delayed completion. Do not claim that synchronous REST automatically guarantees strong consistency across services.\n\nThen recommend a suitable architecture for this order-processing scenario. A hybrid design is allowed and may be appropriate. For example, inventory reservation may use a correctness-focused synchronous or transactional mechanism while SMS and shipping-label creation are handled asynchronously. A fully asynchronous recommendation may also be justified if it adequately addresses overselling, message ordering, idempotency, retries, and failure recovery.\n\nInclude a comparison table with the columns: Dimension, Synchronous REST, Asynchronous Messaging, Practical Impact.\n\nThe response should be approximately 600-800 words. No external citations are required. Use qualitative reasoning and do not invent benchmark results, latency measurements, throughput figures, or reliability percentages.",
+      "required_output_format": "Use the following markdown structure:\n\n1. Synchronous REST Approach\n2. Asynchronous Messaging Approach\n3. Comparison Table\n4. Failure and Consistency Analysis\n5. Recommended Architecture\n6. Key Implementation Safeguards"
+    },
+    "task_tool_policy": {
+      "available_tools": [],
+      "tool_expectations": {}
+    }
+  },
+  "benchmark_id": "communication-protocols-24",
+  "benchmark_file": "benchmark/benchmark-full.json",
+  "experiment_config_file": "configs/experiment_config.json",
+  "model_config_file": "configs/model_config.json"
+}
